@@ -136,7 +136,11 @@ sleep 1
 DL_PGID="$(pgid_of "$DL_PID")"
 # Never group-kill our own group: that would take this script with it.
 [[ -n "$DL_PGID" && "$DL_PGID" != "$(pgid_of $$)" ]] || DL_PGID=""
-[[ -n "$DL_PGID" ]] || stamp "note: transfer is not in its own process group; using tree kill"
+# Only worth reporting if it is still running -- an already-finished transfer
+# has no process group to find, and that is not a problem.
+if [[ -z "$DL_PGID" ]] && kill -0 "$DL_PID" 2>/dev/null; then
+  stamp "note: transfer is not in its own process group; falling back to tree kill"
+fi
 
 monitor() {
   while sleep "$MONITOR_INTERVAL"; do
@@ -159,7 +163,9 @@ cleanup() {
   # kill: if stdout has already gone away, an untrapped SIGPIPE mid-cleanup is
   # precisely how the transfer gets orphaned.
   trap '' PIPE
-  kill "$MON_PID" 2>/dev/null
+  # Tree, not just the subshell: its `sleep` child would otherwise outlive the
+  # job holding the output file open.
+  kill_tree "$MON_PID" TERM
   # Group first: this reaps ascli/ascp even when python is already gone.
   if [[ -n "$DL_PGID" ]] && kill -0 -- "-$DL_PGID" 2>/dev/null; then
     kill -TERM -- "-$DL_PGID" 2>/dev/null
@@ -180,7 +186,7 @@ trap cleanup EXIT
 trap 'stamp "caught signal -- transfer is resumable, requeue or resubmit"; exit 143' TERM INT HUP PIPE
 
 wait "$DL_PID"; RC=$?
-kill "$MON_PID" 2>/dev/null
+kill_tree "$MON_PID" TERM   # tree: a plain kill here would orphan its `sleep`
 
 stamp "final size   : $(du -sh "$DEST" 2>/dev/null | cut -f1)"
 tail -n 30 "$RAW"
