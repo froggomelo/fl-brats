@@ -7,11 +7,10 @@
 # Submit from the repo root (the job uses $SLURM_SUBMIT_DIR to find the repo;
 # override with FL_BRATS_REPO=/path/to/fl-brats).
 #
-# Before the first submission, once, on the login node:
+# Before the first submission:
 #   cp .env.example .env      # paste the TCIA Faspex link into FASPEX_URL
-#   scripts/install_aspera.sh # ~250 MB of downloads, a couple of minutes
-# The job refuses to start if ascli is missing rather than installing it
-# silently; set AUTO_INSTALL=1 to let it install inside the job instead.
+# The job runs install_aspera.sh before downloading. The first run may download
+# ~250 MB and take a couple of minutes; later runs reuse the installed toolchain.
 #
 # Cluster guidelines this script is built around (mscluster, 2024-02-08):
 #   §2.2.5  no heavy IO on the login node   -> this runs under sbatch
@@ -64,9 +63,8 @@ if [[ $# -gt 0 && "$1" != -* ]]; then DEST="$1"; shift; fi
   exit 2
 }
 
-# Toolchain activation, mirroring install_aspera.sh. Kept inline so the job has
-# no dependency beyond the repo itself. FASPEX_URL is not read here -- the
-# Python script picks it up from .env on its own.
+# Toolchain activation, mirroring install_aspera.sh. FASPEX_URL is not read
+# here -- the Python script picks it up from .env on its own.
 if [[ -f "$REPO/.env" ]]; then
   set -a; . "$REPO/.env"; set +a
 fi
@@ -87,6 +85,12 @@ esac
 
 mkdir -p "$DEST" || { stamp "ERROR: cannot create $DEST"; exit 2; }
 
+stamp "running install_aspera.sh"
+"$REPO/scripts/install_aspera.sh" || {
+  stamp "ERROR: Aspera toolchain installation failed"
+  exit 2
+}
+
 TOOLCHAIN_DIR="${TOOLCHAIN_DIR:-.toolchain}"
 [[ "$TOOLCHAIN_DIR" = /* ]] || TOOLCHAIN_DIR="$BASE/$TOOLCHAIN_DIR"   # same base as the installer
 export GEM_HOME="$TOOLCHAIN_DIR/gems" GEM_PATH="$TOOLCHAIN_DIR/gems"
@@ -94,17 +98,10 @@ export GEM_HOME="$TOOLCHAIN_DIR/gems" GEM_PATH="$TOOLCHAIN_DIR/gems"
 [[ -d "$GEM_HOME/bin" ]] && PATH="$GEM_HOME/bin:$PATH"
 export PATH
 
-if ! command -v ascli >/dev/null 2>&1; then
-  if [[ "${AUTO_INSTALL:-0}" == 1 ]]; then
-    stamp "ascli missing; running install_aspera.sh inside the job"
-    "$REPO/scripts/install_aspera.sh" || { stamp "ERROR: toolchain install failed"; exit 2; }
-    [[ -d "$GEM_HOME/bin" ]] && export PATH="$GEM_HOME/bin:$PATH"
-  else
-    stamp "ERROR: ascli not found. Run scripts/install_aspera.sh on the login node"
-    stamp "       first (it is light), or resubmit with AUTO_INSTALL=1."
-    exit 2
-  fi
-fi
+command -v ascli >/dev/null 2>&1 || {
+  stamp "ERROR: ascli not found after install_aspera.sh completed"
+  exit 2
+}
 
 stamp "job          : ${SLURM_JOB_ID:-none} on $(hostname) [${SLURM_JOB_PARTITION:-none}]"
 stamp "repo         : $REPO"

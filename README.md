@@ -52,13 +52,15 @@ each. The manifest holds exactly 1,251 × 5 = **6,255** training NIfTI files
 git clone <this repo> && cd fl-brats
 cp .env.example .env          # then paste your Faspex link into FASPEX_URL
 
-scripts/install_aspera.sh     # installs Ruby (no sudo), the aspera-cli gem, and ascp
+scripts/install_aspera.sh     # optional pre-install; the SLURM job also runs this
 ```
 
 `install_aspera.sh` needs **no root**: it gets Ruby from environment modules, an
 existing conda, or a private micromamba it bootstraps itself, and `ascp` is just
 an unzipped binary. Everything lands in `TOOLCHAIN_DIR` (default `.toolchain/`)
-and deletes as one directory.
+and deletes as one directory. `scripts/brats_download.sbatch` invokes the
+installer automatically before starting the download; repeated runs reuse the
+existing installation.
 
 The Python scripts need **no pip packages** — standard library only, Python 3.9+.
 See [scripts/requirements.txt](scripts/requirements.txt).
