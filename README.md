@@ -1,6 +1,21 @@
 # fl-brats
 
-Infrastructure-only skeleton for reproducible federated brain tumour segmentation research. It includes configuration, CLI, environment reporting, metadata tracking, and local/container/cluster launch templates. There is no model, dataset pipeline, training loop, evaluation, Flower client/server, aggregation, or federated runtime yet.
+Operational research implementation for reproducible BraTS segmentation. It includes data preparation, a centralised U-Net baseline, deterministic partitions, missing-modality handling, Flower FedAvg clients/server, checkpointing, and payload accounting.
+
+Run a local federation with a complete YAML experiment configuration:
+
+```bash
+fedbrats train-federated --config experiment.yaml --run-dir runs/fedavg_smoke
+```
+
+For physically distributed execution, start the server and then one process per client:
+
+```bash
+fedbrats start-federated-server --config experiment.yaml --server-address node01:8080
+fedbrats start-federated-client --config experiment.yaml --client-id client_0 --server-address node01:8080
+```
+
+Run summaries include checkpoints, Dice metrics, and application-level serialized model payload estimates. Flower's public API does not expose lower-level network wire bytes, so transport headers are not claimed as measured.
 
 ## Local development
 

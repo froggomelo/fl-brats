@@ -1,4 +1,5 @@
-"""Infrastructure-only Typer command-line interface."""
+"""Operational Typer command-line interface."""
+# ruff: noqa: E501, E701, E702
 
 import json
 import os
@@ -31,11 +32,13 @@ from fl_brats.data.preprocessing import preprocess_index
 from fl_brats.data.splits import create_split
 from fl_brats.data.transforms import build_transforms
 from fl_brats.data.validation import validate_index, validate_subject
+from fl_brats.federated.orchestration import build_client, run_local_federation
 from fl_brats.federated.quantization import (
     BitWidthAllocator,
     LayerQuantizationStats,
     eligible_state,
 )
+from fl_brats.federated.server import start_server
 from fl_brats.losses.segmentation import create_loss
 from fl_brats.models.factory import create_model, model_report
 from fl_brats.sam.validation import verify_pretrained
@@ -628,14 +631,112 @@ def train_centralized(
 
 
 @app.command("evaluate-checkpoint")
-def evaluate_checkpoint(checkpoint: Path = typer.Option(..., "--checkpoint")) -> None:
-    """Inspect checkpoint metadata; full evaluation is performed by the shared engine."""
-    typer.echo(
-        json.dumps(
-            {k: v for k, v in load_checkpoint(checkpoint).items() if k != "model_state"},
-            default=str,
-            indent=2,
+def evaluate_checkpoint(
+    checkpoint: Path = typer.Option(..., "--checkpoint"),
+    index_path: Path | None = typer.Option(None, "--index-path"),
+    subjects: str | None = typer.Option(None, "--subjects", help="Comma-separated subject IDs"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+) -> None:
+    """Restore a checkpoint and, when data is supplied, compute segmentation metrics."""
+    payload = load_checkpoint(checkpoint)
+    if index_path is None or subjects is None:
+        typer.echo(
+            json.dumps(
+                {k: v for k, v in payload.items() if k != "model_state"}, default=str, indent=2
+            )
         )
+        return
+    model_values = payload.get("model_config")
+    if not isinstance(model_values, dict) or "model_state" not in payload:
+        raise typer.BadParameter(
+            "checkpoint lacks model_config or model_state required for evaluation"
+        )
+    model = create_model(model_values)
+    try:
+        model.load_state_dict(payload["model_state"], strict=True)
+    except RuntimeError as error:
+        raise typer.BadParameter(
+            f"checkpoint is incompatible with configured model: {error}"
+        ) from error
+    values = resolved_dict(_config(None))
+    data = values["data"]
+    ids = [item for item in subjects.split(",") if item]
+    loader = build_dataloader(
+        build_dataset(records_from_index(index_path, ids), build_transforms(data, False)), 1, False
+    )
+    result = evaluate(model, loader, create_loss(values["loss"]), __import__("torch").device("cpu"))
+    destination = output_dir or checkpoint.parent.parent / "evaluation"
+    destination.mkdir(parents=True, exist_ok=True)
+    summary = {
+        "schema_version": 1,
+        "checkpoint": str(checkpoint),
+        "subjects": len(ids),
+        "metrics": result,
+    }
+    (destination / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    typer.echo(json.dumps(summary, indent=2))
+
+
+def _experiment_values(config: Path | None, context: typer.Context) -> dict[str, Any]:
+    """Load a standalone experiment YAML or the repository's composed config."""
+    if config is None:
+        return _override_values(context)
+    loaded = yaml.safe_load(config.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise typer.BadParameter("--config must contain a YAML mapping")
+    return loaded
+
+
+@app.command("train-federated")
+def train_federated(
+    context: typer.Context,
+    config: Path | None = typer.Option(None, "--config"),
+    run_dir: Path = typer.Option(..., "--run-dir"),
+) -> None:
+    """Run real local Flower FedAvg clients against a gRPC Flower server."""
+    values = _experiment_values(config, context)
+    seed_everything(
+        int(values.get("seed", 42)), deterministic=bool(values.get("deterministic", True))
+    )
+    try:
+        summary = run_local_federation(values, run_dir)
+    except (ValueError, RuntimeError, OSError) as error:
+        typer.echo(f"ERROR: {error}", err=True)
+        raise typer.Exit(1) from error
+    typer.echo(json.dumps({"run_dir": str(run_dir), "status": summary["status"]}))
+
+
+@app.command("start-federated-server")
+def start_federated_server(
+    context: typer.Context,
+    config: Path | None = typer.Option(None, "--config"),
+    server_address: str | None = typer.Option(None, "--server-address"),
+) -> None:
+    """Start the standalone Flower server for physically distributed clients."""
+    values = _experiment_values(config, context)
+    address = server_address or values.get("server_address")
+    if not address:
+        raise typer.BadParameter("--server-address or server_address in config is required")
+    start_server(str(address), values)
+
+
+@app.command("start-federated-client")
+def start_federated_client(
+    context: typer.Context,
+    client_id: str = typer.Option(..., "--client-id"),
+    config: Path | None = typer.Option(None, "--config"),
+    server_address: str | None = typer.Option(None, "--server-address"),
+) -> None:
+    """Connect one data-isolated model-aware client to a Flower server."""
+    import flwr as fl
+
+    values = _experiment_values(config, context)
+    address = server_address or values.get("server_address")
+    if not address:
+        raise typer.BadParameter("--server-address or server_address in config is required")
+    root = Path(values.get("partition_root") or values.get("data", {}).get("partition_root", ""))
+    fl.client.start_numpy_client(
+        server_address=str(address), client=build_client(values, client_id, root)
     )
 
 

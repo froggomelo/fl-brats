@@ -1,3 +1,3 @@
 # Architecture
 
-Only infrastructure exists: configuration, environment reporting, paths, logging, tracking, and launch templates. Future modules remain separated into data, models, training, federated orchestration, compression, and experiments. None is implemented here.
+The repository provides a manifest-backed data flow for centralised and federated segmentation. `ModelFedAvgClient` owns a concrete PyTorch model, exchanges deterministically ordered state tensors with Flower, and delegates local fitting/evaluation to the shared training engine. `train-federated` starts a real gRPC Flower server and local clients, while standalone server/client commands support separate hosts. Run summaries retain checkpoints, Dice results, and application-level serialized payload estimates; these deliberately exclude network-interface wire headers that Flower does not expose.

@@ -1,0 +1,182 @@
+"""Real Flower orchestration shared by the CLI local/server/client commands."""
+# ruff: noqa: E501, E701, E702
+
+from __future__ import annotations
+
+import json
+import socket
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+import flwr as fl
+import torch
+
+from fl_brats.data.brats import build_dataloader, build_dataset, records_from_client_manifest
+from fl_brats.data.transforms import build_transforms
+from fl_brats.losses.segmentation import create_loss
+from fl_brats.models.factory import create_model, model_report
+
+from .model_client import ModelFedAvgClient
+from .parameters import state_to_arrays
+from .strategy import create_research_fedavg
+
+
+def _append(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
+def _device(requested: str) -> torch.device:
+    if requested == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if requested.startswith("cuda") and not torch.cuda.is_available():
+        raise ValueError("CUDA was requested but is unavailable")
+    return torch.device(requested)
+
+
+def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -> ModelFedAvgClient:
+    """Create a client using only its own manifest file."""
+    path = partition_root / f"{client_id}.json"
+    if not path.exists():
+        raise ValueError(f"unknown client ID {client_id!r}: missing {path}")
+    records = records_from_client_manifest(path)
+    if not records:
+        raise ValueError(f"client {client_id!r} has an empty partition")
+    data = values.get("data", {})
+    model_config = values.get("model", {})
+    train = build_dataloader(
+        build_dataset(records, build_transforms(data, True)),
+        int(values.get("local_batch_size", values.get("batch_size", 1))),
+        True,
+        int(values.get("num_workers", 0)),
+        int(values.get("seed", 42)),
+    )
+    valid = build_dataloader(
+        build_dataset(records, build_transforms(data, False)),
+        int(values.get("local_batch_size", values.get("batch_size", 1))),
+        False,
+        int(values.get("num_workers", 0)),
+        int(values.get("seed", 42)),
+    )
+    model = create_model(model_config)
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=float(values.get("learning_rate", 1e-4)),
+        weight_decay=float(values.get("weight_decay", 0.0)),
+    )
+    return ModelFedAvgClient(
+        model,
+        train_loader=train,
+        validation_loader=valid,
+        loss_fn=create_loss(values.get("loss", {})),
+        optimizer=optimizer,
+        device=_device(str(values.get("device", "auto"))),
+        local_epochs=int(values.get("local_epochs", 1)),
+        client_id=client_id,
+    )
+
+
+def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any]:
+    """Run an actual gRPC Flower server and local client processes (threads)."""
+    partition_root = Path(
+        values.get("partition_root") or values.get("data", {}).get("partition_root", "")
+    )
+    if not partition_root.exists():
+        raise ValueError(f"partition_root does not exist: {partition_root}")
+    client_ids = [f"client_{i}" for i in range(int(values.get("num_clients", 0)))]
+    if not client_ids:
+        client_ids = [path.stem for path in sorted(partition_root.glob("client_*.json"))]
+    clients = [build_client(values, client_id, partition_root) for client_id in client_ids]
+    if len(clients) < int(values.get("min_available_clients", len(clients))):
+        raise ValueError("fewer usable client partitions than min_available_clients")
+    run_dir.mkdir(parents=True, exist_ok=False)
+    for relative in ("checkpoints", "metrics", "communication", "logs"):
+        (run_dir / relative).mkdir()
+    (run_dir / "resolved_config.yaml").write_text(
+        json.dumps(values, indent=2, default=str), encoding="utf-8"
+    )
+    port = int(values.get("server_port", 0))
+    if port == 0:
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = int(sock.getsockname()[1])
+    address = str(values.get("server_address") or f"127.0.0.1:{port}")
+    server_model = create_model(values.get("model", {}))
+    strategy = create_research_fedavg(values, run_dir=run_dir, model=server_model)
+    history: list[Any] = []
+
+    def server() -> None:
+        history.append(
+            fl.server.start_server(
+                server_address=address,
+                config=fl.server.ServerConfig(num_rounds=int(values.get("num_rounds", 1))),
+                strategy=strategy,
+            )
+        )
+
+    started = time.monotonic()
+    server_thread = threading.Thread(target=server, daemon=True)
+    server_thread.start()
+    time.sleep(0.2)  # bounded startup grace; gRPC retries connection establishment.
+    errors: list[str] = []
+
+    def connect(client: ModelFedAvgClient) -> None:
+        try:
+            fl.client.start_numpy_client(server_address=address, client=client)
+        except Exception as error:
+            errors.append(f"{client.client_id}: {error}")
+
+    threads = [threading.Thread(target=connect, args=(client,), daemon=True) for client in clients]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    server_thread.join(timeout=30)
+    if server_thread.is_alive() or errors:
+        raise RuntimeError(
+            "Flower local run failed: " + "; ".join(errors or ["server did not finish"])
+        )
+    if strategy.state.latest_checkpoint is None:
+        raise RuntimeError("Flower server completed without a successful aggregated round")
+    final = strategy.checkpoints.save_alias(Path(strategy.state.latest_checkpoint), "final.pt")
+    strategy.state.status = "completed"
+    strategy.writer.write_state(strategy.state)
+    model = server_model
+    evaluations = [client.evaluate(client.get_model_parameters(), {})[2] for client in clients]
+    mean = sum(item["mean_dice"] for item in evaluations) / len(evaluations)
+    arrays = state_to_arrays(model)[1]
+    total_bytes = (
+        sum(array.nbytes for array in arrays) * len(clients) * int(values.get("num_rounds", 1))
+    )
+    summary = {
+        "schema_version": 1,
+        "run_id": run_dir.name,
+        "status": "completed",
+        "model_name": values.get("model", {}).get("name"),
+        "model_family": values.get("model", {}).get("name"),
+        "seed": values.get("seed"),
+        "number_of_clients": len(clients),
+        "completed_rounds": strategy.state.completed_round,
+        "best_validation_dice": mean,
+        "final_validation_dice": mean,
+        "metrics": {"macro_dice": mean, "clients": evaluations},
+        "efficiency": {
+            "total_wall_clock_time": time.monotonic() - started,
+            "total_bytes_uploaded": total_bytes,
+            "total_bytes_downloaded": total_bytes,
+            "total_bytes_transferred": total_bytes * 2,
+        },
+        "artifacts": {
+            "final_checkpoint": str(final),
+            "best_checkpoint": strategy.state.best_checkpoint,
+        },
+        "model": model_report(model, values.get("model", {})),
+    }
+    (run_dir / "communication" / "summary.json").write_text(
+        json.dumps(summary["efficiency"], indent=2), encoding="utf-8"
+    )
+    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
