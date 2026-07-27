@@ -22,6 +22,7 @@ mkdir -p "$cache_dir" "$marker_dir" logs/slurm
 
 echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown}"
 echo "repository=$repo_root"
+echo "python_module=${FL_BRATS_PYTHON_MODULE:-not-set}"
 export UV_CACHE_DIR="$cache_dir"
 
 # bootstrap_cluster installs uv if missing, validates Python 3.11, and performs
