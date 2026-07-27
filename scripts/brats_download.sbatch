@@ -7,8 +7,8 @@
 # Submit from the repo root (the job uses $SLURM_SUBMIT_DIR to find the repo;
 # override with FL_BRATS_REPO=/path/to/fl-brats).
 #
-# Before the first submission:
-#   cp .env.example .env      # paste the TCIA Faspex link into FASPEX_URL
+# Before the first submission, ensure the repository's .env contains
+# FL_BRATS_DATA_ROOT and FASPEX_URL.
 # The job runs install_aspera.sh before downloading. The first run may download
 # ~250 MB and take a couple of minutes; later runs reuse the installed toolchain.
 #
