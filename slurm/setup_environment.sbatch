@@ -24,12 +24,15 @@ echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown}"
 echo "repository=$repo_root"
 echo "python_module=${FL_BRATS_PYTHON_MODULE:-not-set}"
 export UV_CACHE_DIR="$cache_dir"
+# bootstrap_cluster runs in a child shell. Keep uv's user-local installer
+# location on this parent job shell's PATH for the verification commands below.
+export PATH="$HOME/.local/bin:$PATH"
 
 # bootstrap_cluster installs uv if missing, validates Python 3.11, and performs
 # a locked dependency synchronization. This runs only on the allocated node.
 bash scripts/bootstrap_cluster.sh
-uv run fedbrats validate-config
-uv run fedbrats check-environment || true
+uv run --python 3.11 fedbrats validate-config
+uv run --python 3.11 fedbrats check-environment || true
 
 printf 'completed_at=%s\njob_id=%s\n' "$(date --iso-8601=seconds)" "${SLURM_JOB_ID:-unknown}" \
   > "$marker_dir/environment_ready"
