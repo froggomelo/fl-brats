@@ -1,0 +1,8 @@
+name: fixed_quantity_skew
+manifest_path: ${data_root}/partitions/fixed_quantity_skew/manifest.json
+split_seed: 42
+partition_seed: 42
+train_fraction: 0.70
+validation_fraction: 0.15
+test_fraction: 0.15
+client_fractions: [0.50, 0.25, 0.15, 0.10]

@@ -89,10 +89,10 @@ def collect_environment() -> EnvironmentReport:
     try:
         import torch
 
-        torch_version = torch.__version__
+        torch_version = str(torch.__version__)
         cuda_compiled = torch.version.cuda
         cuda_available = torch.cuda.is_available()
-        cudnn_version = torch.backends.cudnn.version()
+        cudnn_version = torch.backends.cudnn.version()  # type: ignore[no-untyped-call]
         if cuda_available:
             for index in range(torch.cuda.device_count()):
                 gpu_names.append(torch.cuda.get_device_name(index))
@@ -144,7 +144,9 @@ def write_environment_report(
     """Serialize a report to a user-selected JSON, YAML, or text format."""
     target = Path(path).expanduser().resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
-    payload: dict[str, Any] = asdict(report)
+    # Some optional dependency versions (notably torch's TorchVersion) are
+    # str subclasses that PyYAML does not represent. Normalize them first.
+    payload: dict[str, Any] = json.loads(json.dumps(asdict(report), default=str))
     if format == "json":
         target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     elif format == "yaml":

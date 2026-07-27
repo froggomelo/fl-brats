@@ -32,6 +32,7 @@ line-length = 100
 extend-exclude = [".venv", "build", "data", "outputs", "logs", "cache", "notebooks/.ipynb_checkpoints", "scripts/download_brats2021.py"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "PTH", "SIM"]
+ignore = ["B008"] # Typer declares options as annotated defaults.
 
 [tool.mypy]
 python_version = "3.11"

@@ -78,7 +78,9 @@ class LoggingConfig(BaseModel):
 class ProjectConfig(BaseModel):
     """Complete validated infrastructure configuration."""
 
-    model_config = ConfigDict(extra="forbid")
+    # Baseline configuration groups are intentionally extensible while the
+    # infrastructure fields below retain their typed validation.
+    model_config = ConfigDict(extra="allow")
     project_name: str
     experiment_name: str
     run_name: str

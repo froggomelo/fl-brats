@@ -1,0 +1,8 @@
+sigmoid: true
+squared_pred: false
+smooth_nr: 1.0e-5
+smooth_dr: 1.0e-5
+dice_weight: 1.0
+cross_entropy_weight: 1.0
+include_background: true
+reduction: mean

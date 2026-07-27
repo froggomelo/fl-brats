@@ -2,6 +2,14 @@ defaults:
   - environment: local
   - tracking: local
   - logging: default
+  - data: brats2021
+  - partition: fixed_quantity_skew
+  - model: unet_baseline
+  - loss: dice_ce
+  - optimizer: adam
+  - scheduler: none
+  - training: centralized
+  - federated: fedavg
   - _self_
 project_name: fl-brats
 experiment_name: infrastructure
@@ -10,7 +18,7 @@ seed: 42
 deterministic: true
 debug: false
 output_root: ${oc.env:FL_BRATS_OUTPUT_ROOT,outputs}
-data_root: ${oc.env:FL_BRATS_DATA_ROOT,/datasets/${oc.env:USER,unknown}/brats}
+data_root: ${oc.env:FL_BRATS_DATA_ROOT,/datasets/${oc.env:USER,unknown}/fedbrats}
 log_root: ${oc.env:FL_BRATS_LOG_ROOT,logs}
 cache_root: ${oc.env:FL_BRATS_CACHE_ROOT,cache}
 checkpoint_root: ${oc.env:FL_BRATS_CHECKPOINT_ROOT,checkpoints}
