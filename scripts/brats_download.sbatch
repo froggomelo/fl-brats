@@ -31,7 +31,7 @@
 # that is not a bug in this script; fall back to the sideload host above.
 
 #SBATCH --job-name=brats-dl
-#SBATCH --partition=stampede
+#SBATCH --partition=bigbatch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
