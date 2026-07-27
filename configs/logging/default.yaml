@@ -1,0 +1,5 @@
+level: INFO
+console: true
+file: true
+rich: true
+filename: ${log_root}/${run_name}.log

@@ -1,0 +1,22 @@
+defaults:
+  - environment: local
+  - tracking: local
+  - logging: default
+  - _self_
+project_name: fl-brats
+experiment_name: infrastructure
+run_name: ${now:%Y%m%d_%H%M%S}
+seed: 42
+deterministic: true
+debug: false
+output_root: ${oc.env:FL_BRATS_OUTPUT_ROOT,outputs}
+data_root: ${oc.env:FL_BRATS_DATA_ROOT,/datasets/${oc.env:USER,unknown}/brats}
+log_root: ${oc.env:FL_BRATS_LOG_ROOT,logs}
+cache_root: ${oc.env:FL_BRATS_CACHE_ROOT,cache}
+checkpoint_root: ${oc.env:FL_BRATS_CHECKPOINT_ROOT,checkpoints}
+device: auto
+num_workers: 0
+precision: float32
+resume: null
+tags: []
+create_missing_directories: true

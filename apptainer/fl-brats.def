@@ -1,0 +1,25 @@
+Bootstrap: library
+From: ubuntu:24.04
+
+%files
+    pyproject.toml /workspace/pyproject.toml
+    uv.lock /workspace/uv.lock
+    README.md /workspace/README.md
+    src /workspace/src
+    configs /workspace/configs
+
+%post
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH=/root/.local/bin:$PATH
+    uv python install 3.11
+    cd /workspace && uv sync --python 3.11 --frozen --no-dev
+
+%environment
+    export PATH=/workspace/.venv/bin:$PATH
+    export PYTHONUNBUFFERED=1
+    export PYTHONDONTWRITEBYTECODE=1
+    export XDG_CACHE_HOME=/cache
+
+%runscript
+    exec fedbrats "$@"

@@ -1,0 +1,8 @@
+mode: debug
+use_container: false
+scheduler: none
+use_gpu: false
+node_rank: 0
+world_size: 1
+server_address: null
+server_port: null

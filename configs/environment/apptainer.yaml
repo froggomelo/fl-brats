@@ -1,0 +1,11 @@
+mode: apptainer
+use_container: true
+container_runtime: apptainer
+image_path: ${oc.env:APPTAINER_IMAGE,./apptainer/fl-brats.sif}
+container_workspace: /workspace
+container_data_root: /data
+container_output_root: /outputs
+container_log_root: /logs
+container_cache_root: /cache
+use_nv: true
+clean_environment: true

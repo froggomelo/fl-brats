@@ -1,0 +1,12 @@
+mode: cluster
+use_container: true
+container_runtime: apptainer
+scheduler: slurm
+node_rank: null
+world_size: null
+job_id: null
+server_address: null
+server_port: 8080
+scratch_root: null
+use_gpu: true
+use_nv: true

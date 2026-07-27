@@ -23,7 +23,7 @@
 # ALTERNATIVE, and what §8 actually prescribes for datasets this size: the
 # dedicated sideload host, which has its own NIC and does not consume a node.
 #   ssh <user>@10.100.14.250
-#   cd /datasets/<user> && <repo>/scripts/download_brats2021.py --dest ./brats2021
+#   cd /datasets/<user>/brats/raw && <repo>/scripts/download_brats2021.py --dest ./brats2021
 # Use that if this job cannot reach the Aspera server (see NETWORK below).
 #
 # NETWORK: fasp is UDP/33001 outbound (plus TCP/33001 for the session). If the
@@ -48,8 +48,8 @@ stamp() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 
 REPO="${FL_BRATS_REPO:-${SLURM_SUBMIT_DIR:-$PWD}}"
 
-# Destination: the first argument, else DATA_DIR from .env, else a sane default
-# under /datasets (§7.4). Anything left over is forwarded verbatim to
+# Destination: the first argument, else FL_BRATS_DATA_ROOT/raw/brats2021.
+# Anything left over is forwarded verbatim to
 # download_brats2021.py, e.g.
 #   sbatch scripts/brats_download.sbatch --target-rate-kbps 500000
 DEST=""
@@ -72,7 +72,8 @@ fi
 # Relative paths in .env resolve against PROJECT_DIR, as they do for the installer.
 BASE="${PROJECT_DIR:-$REPO}"
 [[ -d "$BASE" ]] || BASE="$REPO"
-: "${DEST:=${DATA_DIR:-/datasets/$USER/brats2021}}"
+: "${FL_BRATS_DATA_ROOT:=/datasets/$USER/brats}"
+: "${DEST:=$FL_BRATS_DATA_ROOT/raw/brats2021}"
 [[ "$DEST" = /* ]] || DEST="$BASE/$DEST"
 
 # /home-mscluster is capped at 50 GB (§7.1); the package is ~142 GB.

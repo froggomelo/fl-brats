@@ -517,8 +517,15 @@ def main() -> int:
         description="Download and verify the BraTS 2021 dataset from TCIA.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    ap.add_argument("--dest", type=Path, default=Path("/data/brats2021"),
-                    help="Destination directory")
+    default_data_root = Path(
+        os.environ.get("FL_BRATS_DATA_ROOT", f"/datasets/{os.environ.get('USER', 'unknown')}/brats")
+    )
+    ap.add_argument(
+        "--dest",
+        type=Path,
+        default=default_data_root / "raw" / "brats2021",
+        help="Destination directory",
+    )
     ap.add_argument("--url-file", help="File containing the Faspex package URL (mode 0600)")
     ap.add_argument("--max-retries", type=int, default=8)
     ap.add_argument("--resume-policy", default="sparse_csum",

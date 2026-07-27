@@ -1,0 +1,11 @@
+mode: local
+use_container: false
+hostname: null
+node_rank: 0
+world_size: 1
+scheduler: none
+job_id: null
+server_address: null
+server_port: null
+scratch_root: null
+use_gpu: auto

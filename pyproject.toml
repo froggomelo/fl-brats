@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fl-brats"
+version = "0.1.0"
+description = "Infrastructure for reproducible federated brain tumour segmentation research"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+authors = [{name = "FL-BraTS Contributors", email = "research@example.invalid"}]
+classifiers = ["Development Status :: 3 - Alpha", "Intended Audience :: Science/Research", "License :: OSI Approved :: MIT License", "Programming Language :: Python :: 3.11"]
+dependencies = ["torch", "torchvision", "monai", "flwr", "hydra-core", "omegaconf", "mlflow", "optuna", "nibabel", "pandas", "numpy", "pydantic", "pydantic-settings", "python-dotenv", "psutil", "rich", "typer", "pyyaml", "platformdirs"]
+
+[project.optional-dependencies]
+notebooks = ["jupyterlab", "ipykernel", "matplotlib"]
+cluster = []
+cuda = []
+
+[dependency-groups]
+dev = ["pytest", "pytest-cov", "pytest-mock", "ruff", "mypy", "pre-commit", "types-psutil", "types-pyyaml"]
+
+[project.scripts]
+fedbrats = "fl_brats.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fl_brats"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [".venv", "build", "data", "outputs", "logs", "cache", "notebooks/.ipynb_checkpoints", "scripts/download_brats2021.py"]
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "PTH", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+[[tool.mypy.overrides]]
+module = ["hydra", "hydra.*", "mlflow", "monai", "flwr", "torch", "torch.*", "pydantic", "omegaconf", "rich", "rich.*", "typer", "numpy", "yaml", "psutil"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --cov=fl_brats --cov-report=term-missing"
+markers = ["integration: optional integration test"]
+filterwarnings = ["ignore:.*distutils.*:DeprecationWarning"]
