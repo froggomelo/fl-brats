@@ -1,0 +1,20 @@
+enabled: false
+mode: none
+modalities: [t1, t1ce, t2, flair]
+seed: 42
+require_at_least_one: true
+complete:
+  client_available_modalities: {}
+  min_available_modalities: 1
+  max_available_modalities: 4
+arbitrary:
+  per_modality_missing_probability: {t1: 0.0, t1ce: 0.0, t2: 0.0, flair: 0.0}
+  combination_probabilities: {}
+baseline:
+  unavailable_input_strategy: zero_fill
+  concat_mask: true
+evaluation:
+  evaluate_all_non_empty_combinations: true
+  combinations: []
+  report_per_client: true
+  report_per_combination: true

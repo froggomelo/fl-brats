@@ -1,0 +1,19 @@
+name: sam2
+implementation: official_sam2_adapter
+variant: sam2_hiera_tiny
+checkpoint_path: null
+checkpoint_sha256: null
+source_url: https://github.com/facebookresearch/sam2
+license: Apache-2.0
+automatic_download: false
+spatial_mode: 2d_slices
+plane: axial
+input_size: 1024
+multimodal_adapter: learned_4_to_3
+rgb_mapping: [flair, t1ce, t2]
+prompt_mode: learned_embeddings
+oracle_prompt: false
+fine_tuning_mode: adapter_decoder
+federated_scope: trainable_only
+video_memory_propagation: false
+output_regions: [WT, TC, ET]

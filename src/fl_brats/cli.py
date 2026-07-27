@@ -15,21 +15,36 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
 
 from fl_brats import __version__
+from fl_brats.comparison.architecture_replacement import compare_sam_to_baseline
 from fl_brats.comparison.baselines import compare
 from fl_brats.config.loader import load_config, resolved_dict
 from fl_brats.config.schema import ProjectConfig
 from fl_brats.config.validation import format_validation_error, validate_config
 from fl_brats.data.brats import build_dataloader, build_dataset, records_from_index
-from fl_brats.data.indexing import build_dataset_index, sha256_file
+from fl_brats.data.discovery import discover_records
+from fl_brats.data.hashing import sha256_file
+from fl_brats.data.indexing import build_dataset_index
+from fl_brats.data.manifests import verify_manifests
+from fl_brats.data.modalities import MODALITIES, policy_from_config
 from fl_brats.data.partitioning import create_partition
+from fl_brats.data.preprocessing import preprocess_index
 from fl_brats.data.splits import create_split
 from fl_brats.data.transforms import build_transforms
-from fl_brats.data.validation import validate_index
+from fl_brats.data.validation import validate_index, validate_subject
+from fl_brats.federated.quantization import (
+    BitWidthAllocator,
+    LayerQuantizationStats,
+    eligible_state,
+)
 from fl_brats.losses.segmentation import create_loss
 from fl_brats.models.factory import create_model, model_report
+from fl_brats.sam.validation import verify_pretrained
 from fl_brats.tracking.local import LocalTracker
 from fl_brats.tracking.mlflow import MLflowTracker
-from fl_brats.training.checkpointing import load_checkpoint, save_checkpoint
+from fl_brats.training.checkpointing import (
+    load_checkpoint,
+    save_checkpoint,
+)
 from fl_brats.training.engine import evaluate, train_one_epoch
 from fl_brats.utils.environment import collect_environment, write_environment_report
 from fl_brats.utils.logging import configure_logging
@@ -43,6 +58,7 @@ from fl_brats.utils.reproducibility import seed_everything
 app = typer.Typer(
     help="FL-BraTS reproducible BraTS centralized and FedAvg baseline commands.",
     no_args_is_help=True,
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 Overrides = Annotated[
     list[str] | None, typer.Argument(help="Hydra overrides, e.g. environment=debug")
@@ -59,6 +75,11 @@ def _validated(overrides: list[str] | None) -> ProjectConfig:
     except ValidationError as error:
         typer.echo(f"Configuration is invalid:\n{format_validation_error(error)}", err=True)
         raise typer.Exit(1) from error
+
+
+def _override_values(context: typer.Context) -> dict[str, Any]:
+    """Resolve trailing Hydra-style overrides; explicit options take precedence."""
+    return resolved_dict(_config(list(context.args) or None))
 
 
 @app.command()
@@ -88,6 +109,54 @@ def info(overrides: Overrides = None) -> None:
 def show_config(overrides: Overrides = None) -> None:
     """Print fully resolved Hydra configuration without creating runtime state."""
     typer.echo(OmegaConf.to_yaml(_config(overrides), resolve=True))
+
+
+@app.command("inspect-quantization")
+def inspect_quantization(overrides: Overrides = None) -> None:
+    """Print eligible layers and a deterministic fixed/mixed wire-size estimate."""
+    values = resolved_dict(_config(overrides))
+    quantization = values["quantization"]
+    model = create_model(values["model"])
+    state = eligible_state(model.state_dict())
+    counts = {name: tensor.numel() for name, tensor in state.items()}
+    patterns = quantization["mixed"]["protected_layer_patterns"]
+    protected = {name for name in counts if any(pattern in name.lower() for pattern in patterns)}
+    if quantization["mode"] == "mixed":
+        result = BitWidthAllocator().allocate(
+            layer_statistics={
+                name: LayerQuantizationStats(count, importance=1.0)
+                for name, count in counts.items()
+            },
+            candidate_bit_widths=quantization["mixed"]["candidate_bit_widths"],
+            average_budget=quantization["mixed"]["default_average_bit_width_budget"],
+            protected_layers=protected,
+            protected_minimum=quantization["mixed"]["protected_layer_minimum_bit_width"],
+        )
+        assignment, average, unused = (
+            result.assignments,
+            result.achieved_average_bit_width,
+            result.unused_bit_budget,
+        )
+    else:
+        width = 32 if quantization["mode"] == "none" else quantization["fixed"]["bit_width"]
+        assignment = {name: width for name in counts}
+        average, unused = float(width), 0.0
+    payload_bits = sum(counts[name] * assignment[name] for name in counts)
+    typer.echo(
+        json.dumps(
+            {
+                "eligible_layers": counts,
+                "protected_layers": sorted(protected),
+                "bit_width_assignment": assignment,
+                "parameter_weighted_mean_bit_width": average,
+                "unused_bit_budget": unused,
+                "estimated_payload_bytes": (payload_bits + 7) // 8,
+                "model_fp32_reference_bytes": sum(counts.values()) * 4,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 @app.command("validate-config")
@@ -196,23 +265,126 @@ def init_run(overrides: Overrides = None) -> None:
 
 @app.command("index-data")
 def index_data(
-    root: Path = typer.Option(..., "--root"), output_dir: Path = typer.Option(..., "--output-dir")
+    context: typer.Context,
+    root: Path | None = typer.Option(None, "--root"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
 ) -> None:
     """Create an immutable-source BraTS dataset index and validation summary."""
-    index, summary, _ = build_dataset_index(root, output_dir)
+    data = _override_values(context)["data"]
+    index, summary, _ = build_dataset_index(
+        root or Path(data["raw_root"]),
+        output_dir or Path(data["processed_root"]),
+        data.get("allow_unexpected_labels", False),
+        data.get("relative_paths_in_manifests", True),
+    )
     typer.echo(f"dataset index: {index}\nsummary: {summary}")
+
+
+@app.command("discover-data")
+def discover_data(root: Path = typer.Option(..., "--root")) -> None:
+    """Recursively report complete and incomplete BraTS-style subject directories."""
+    records = discover_records(root)
+    typer.echo(
+        json.dumps(
+            {
+                "discovered_subjects": len(records),
+                "complete_subjects": sum(x.complete for x in records),
+                "incomplete_subjects": sum(not x.complete for x in records),
+                "duplicate_subject_ids": sorted(
+                    {
+                        x.subject_id
+                        for x in records
+                        if sum(y.subject_id == x.subject_id for y in records) > 1
+                    }
+                ),
+            },
+            indent=2,
+        )
+    )
 
 
 @app.command("validate-data")
 def validate_data(
-    index_path: Path = typer.Option(..., "--index-path"), allow_incomplete: bool = False
+    index_path: Path | None = typer.Option(None, "--index-path"),
+    allow_incomplete: bool = False,
+    root: Path | None = typer.Option(None, "--root"),
+    strict: bool = typer.Option(True, "--strict/--report-only"),
+    report_path: Path | None = typer.Option(None, "--report-path"),
 ) -> None:
-    """Validate index completeness and duplicate IDs without silently excluding data."""
-    errors = validate_index(index_path, allow_incomplete)
+    """Validate an index, or validate raw NIfTI subjects directly."""
+    if (index_path is None) == (root is None):
+        raise typer.BadParameter("provide exactly one of --index-path or --root")
+    if root is not None:
+        records = discover_records(root)
+        directories = {
+            subject_id: [
+                item.subject_directory for item in records if item.subject_id == subject_id
+            ]
+            for subject_id in {item.subject_id for item in records}
+        }
+        results = [
+            validate_subject(item, duplicate_directories=directories[item.subject_id]).as_dict()
+            for item in records
+        ]
+        errors = [str(e) for x in results for e in cast(list[object], x["errors"])]
+        if report_path:
+            report_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    else:
+        errors = validate_index(cast(Path, index_path), allow_incomplete)
     if errors:
         typer.echo("\n".join(errors), err=True)
-        raise typer.Exit(1)
+        if strict:
+            raise typer.Exit(1)
     typer.echo("Dataset index is valid.")
+
+
+@app.command("preprocess-data")
+def preprocess_data(
+    context: typer.Context,
+    index_path: Path | None = typer.Option(None, "--index-path"),
+    raw_root: Path | None = typer.Option(None, "--raw-root"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    config_path: Path = typer.Option(Path("configs/preprocessing/brats2021_v1.yaml"), "--config"),
+    resume: bool = False,
+    overwrite: bool = False,
+    subject_id: str | None = None,
+    limit: int | None = None,
+    validate_only: bool = False,
+) -> None:
+    """Materialize reusable subjects atomically (or validate the selected index)."""
+    values = _override_values(context)
+    data = values["data"]
+    index_path = index_path or Path(data["processed_root"]) / "dataset_index.csv"
+    raw_root = raw_root or Path(data["raw_root"])
+    output_dir = output_dir or Path(data["processed_root"])
+    if validate_only:
+        errors = validate_index(index_path)
+        typer.echo("\n".join(errors) if errors else "Dataset index is valid.")
+        if errors:
+            raise typer.Exit(1)
+        return
+    config = values.get("preprocessing") or yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    typer.echo(
+        json.dumps(
+            preprocess_index(
+                index_path,
+                raw_root,
+                output_dir,
+                config,
+                resume=resume,
+                overwrite=overwrite,
+                subject_id=subject_id,
+                limit=limit,
+            ),
+            indent=2,
+        )
+    )
+
+
+@app.command("inspect-data")
+def inspect_data(summary_path: Path = typer.Option(..., "--summary-path")) -> None:
+    """Print the generated data-summary JSON."""
+    typer.echo(summary_path.read_text(encoding="utf-8"))
 
 
 @app.command("create-split")
@@ -238,6 +410,7 @@ def inspect_split(manifest_path: Path = typer.Option(..., "--manifest-path")) ->
 
 @app.command("create-partition")
 def create_partition_command(
+    context: typer.Context,
     split_path: Path = typer.Option(..., "--split-path"),
     output_dir: Path = typer.Option(..., "--output-dir"),
     fractions: str = "[0.5,0.25,0.15,0.1]",
@@ -245,13 +418,57 @@ def create_partition_command(
 ) -> None:
     """Create and persist a fixed quantity-skewed training-client partition."""
     values = json.loads(fractions)
-    result = create_partition(split_path, output_dir, values, seed)
+    missingness = _override_values(context).get("missing_modalities", {})
+    result = create_partition(
+        split_path,
+        output_dir,
+        values,
+        seed,
+        missingness_policy=policy_from_config(missingness),
+        missingness_config=missingness,
+    )
     typer.echo(json.dumps(result, indent=2))
 
 
 @app.command("inspect-partition")
 def inspect_partition(manifest_path: Path = typer.Option(..., "--manifest-path")) -> None:
     typer.echo(manifest_path.read_text(encoding="utf-8"))
+
+
+@app.command("inspect-modalities")
+def inspect_modalities(partition_root: Path = typer.Option(..., "--partition-root")) -> None:
+    """Print aggregate per-client modality and canonical-combination counts."""
+    output: dict[str, Any] = {}
+    for path in sorted(partition_root.glob("client_*.json")):
+        client = json.loads(path.read_text(encoding="utf-8"))
+        refs = client.get("subjects", [])
+        modality_counts = {
+            modality: sum(bool(ref.get("modality_mask", [True] * 4)[index]) for ref in refs)
+            for index, modality in enumerate(MODALITIES)
+        }
+        combinations: dict[str, int] = {}
+        for ref in refs:
+            key = "+".join(ref.get("available_modalities", list(MODALITIES)))
+            combinations[key] = combinations.get(key, 0) + 1
+        output[str(client["client_id"])] = {
+            "subjects": len(refs),
+            "modality_counts": modality_counts,
+            "combination_counts": combinations,
+            "policy_fingerprint": client.get("missingness_policy_fingerprint"),
+        }
+    typer.echo(json.dumps(output, indent=2, sort_keys=True))
+
+
+@app.command("verify-manifests")
+def verify_manifest_command(
+    partition_root: Path = typer.Option(..., "--partition-root"), check_nifti: bool = False
+) -> None:
+    """Check split/partition hashes, coverage, duplication, and leakage."""
+    errors = verify_manifests(partition_root, check_nifti)
+    if errors:
+        typer.echo("\n".join(errors), err=True)
+        raise typer.Exit(1)
+    typer.echo("Manifests are valid.")
 
 
 @app.command("create-initial-weights")
@@ -366,13 +583,21 @@ def train_centralized(
                 "optimizer_state": optimizer.state_dict(),
                 "epoch": epoch,
                 "best_validation_metric": best,
+                "model_config": model_values,
+                "model_input_channels": 8 if model_values.get("concat_mask") else 4,
             },
         )
         if validation["mean_dice"] > best:
             best, best_epoch = validation["mean_dice"], epoch
             save_checkpoint(
                 run_dir / "checkpoints" / "best.pt",
-                {"model_state": model.state_dict(), "epoch": epoch, "best_validation_metric": best},
+                {
+                    "model_state": model.state_dict(),
+                    "epoch": epoch,
+                    "best_validation_metric": best,
+                    "model_config": model_values,
+                    "model_input_channels": 8 if model_values.get("concat_mask") else 4,
+                },
             )
     model.load_state_dict(
         load_checkpoint(run_dir / "checkpoints" / "best.pt")["model_state"], strict=True
@@ -423,3 +648,68 @@ def compare_baselines(
 ) -> None:
     result = compare(centralized_summary, federated_summary, output_dir, strict=not allow_mismatch)
     typer.echo(json.dumps(result, indent=2))
+
+
+@app.command("verify-pretrained-model")
+def verify_pretrained_model(model_config: Path = typer.Option(..., "--model-config")) -> None:
+    """Verify a configured SAM checkpoint before any cluster job starts."""
+    try:
+        typer.echo(
+            json.dumps(verify_pretrained(yaml.safe_load(model_config.read_text())), indent=2)
+        )
+    except ValueError as error:
+        typer.echo(f"ERROR: {error}", err=True)
+        raise typer.Exit(1) from error
+
+
+def _sam_command(model: str, context: typer.Context) -> None:
+    """Intentional lightweight launcher: orchestration supplies manifests/loaders."""
+    values = _override_values(context)
+    configured = values.get("model", {}).get("name")
+    if configured not in {model, None}:
+        raise typer.BadParameter(f"configuration model must be {model}")
+    typer.echo(
+        f"{model} federated run configuration accepted; use existing Flower server/client launch with this model group."
+    )
+
+
+@app.command("train-federated-sam1")
+def train_federated_sam1(context: typer.Context) -> None:
+    _sam_command("sam1", context)
+
+
+@app.command("train-federated-sam2")
+def train_federated_sam2(context: typer.Context) -> None:
+    _sam_command("sam2", context)
+
+
+@app.command("evaluate-federated-sam1")
+def evaluate_federated_sam1(context: typer.Context) -> None:
+    _sam_command("sam1", context)
+
+
+@app.command("evaluate-federated-sam2")
+def evaluate_federated_sam2(context: typer.Context) -> None:
+    _sam_command("sam2", context)
+
+
+@app.command("compare-sam-to-baseline")
+def compare_sam_command(
+    baseline_summary: Path = typer.Option(..., "--baseline-summary"),
+    sam1_summary: Path | None = typer.Option(None, "--sam1-summary"),
+    sam2_summary: Path | None = typer.Option(None, "--sam2-summary"),
+    output_dir: Path = typer.Option(
+        Path("outputs/architecture_replacement/comparison"), "--output-dir"
+    ),
+) -> None:
+    """Create two U-Net-reference comparisons; oracle runs are rejected."""
+    try:
+        typer.echo(
+            json.dumps(
+                compare_sam_to_baseline(baseline_summary, sam1_summary, sam2_summary, output_dir),
+                indent=2,
+            )
+        )
+    except ValueError as error:
+        typer.echo(f"ERROR: {error}", err=True)
+        raise typer.Exit(1) from error

@@ -1,0 +1,37 @@
+materialize: false
+resume: true
+overwrite: false
+output_format: nifti
+target_orientation: RAS
+resample:
+  enabled: false
+  target_spacing: [1.0, 1.0, 1.0]
+  image_interpolation: bilinear
+  segmentation_interpolation: nearest
+  align_corners: false
+crop:
+  enabled: true
+  margin: [0, 0, 0]
+  divisible_by: null
+padding:
+  enabled: false
+  target_shape: null
+  divisible_by: null
+  image_mode: constant
+  image_value: 0.0
+  segmentation_mode: constant
+  segmentation_value: 0
+normalization:
+  method: foreground_zscore
+  nonzero_only: true
+  channel_wise: true
+  epsilon: 1.0e-8
+  clip: null
+convert_labels: false
+hashing:
+  source_files: false
+  algorithm: sha256
+  chunk_size_mb: 8
+verification:
+  resolve_all_paths: true
+  check_nifti: false

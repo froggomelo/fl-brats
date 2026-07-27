@@ -1,0 +1,3 @@
+name: federated_sam2
+training: federated_client
+comparison_mode: protocol_matched

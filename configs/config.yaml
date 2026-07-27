@@ -3,6 +3,8 @@ defaults:
   - tracking: local
   - logging: default
   - data: brats2021
+  - preprocessing: brats2021_v1
+  - split: default
   - partition: fixed_quantity_skew
   - model: unet_baseline
   - loss: dice_ce
@@ -10,6 +12,8 @@ defaults:
   - scheduler: none
   - training: centralized
   - federated: fedavg
+  - quantization: default
+  - missing_modalities: default
   - _self_
 project_name: fl-brats
 experiment_name: infrastructure

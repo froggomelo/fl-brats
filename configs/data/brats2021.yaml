@@ -1,10 +1,11 @@
-root: ${data_root}/raw/brats2021
+name: brats2021
+raw_root: ${data_root}/raw/brats2021
 processed_root: ${data_root}/processed/brats2021_v1
-index_path: ${.processed_root}/dataset_index.csv
-orientation: RAS
-spacing: [1.0, 1.0, 1.0]
-patch_size: [96, 96, 96]
-num_samples: 1
-cache_mode: persistent
-cache_dir: ${cache_root}/brats2021
-allow_incomplete: false
+partition_root: ${data_root}/partitions/fixed_quantity_skew
+modalities: [t1, t1ce, t2, flair]
+segmentation_suffix: seg
+expected_subject_count: 1251
+require_complete_subjects: true
+allow_unexpected_labels: false
+relative_paths_in_manifests: true
+follow_symlinks: false

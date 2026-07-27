@@ -1,0 +1,3 @@
+name: federated_unet_baseline
+training: federated_client
+comparison_mode: protocol_matched

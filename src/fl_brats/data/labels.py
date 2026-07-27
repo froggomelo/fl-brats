@@ -6,7 +6,14 @@ import torch
 
 def brats_to_regions(label: np.ndarray | torch.Tensor, unexpected: str = "error") -> torch.Tensor:
     """Convert integer BraTS labels to overlapping WT, TC, ET float channels."""
-    value = torch.as_tensor(label).long()
-    observed = set(torch.unique(value).tolist()); unknown = observed - {0, 1, 2, 4}
-    if unknown and unexpected == "error": raise ValueError(f"unexpected BraTS labels: {sorted(unknown)}")
-    return torch.stack(((value > 0), ((value == 1) | (value == 4)), value == 4)).float()
+    raw = torch.as_tensor(label)
+    if torch.is_floating_point(raw) and not torch.equal(raw, raw.round()):
+        raise ValueError("BraTS labels must be integer-valued")
+    value = raw.long()
+    observed = set(torch.unique(value).tolist())
+    unknown = observed - {0, 1, 2, 4}
+    if unknown and unexpected == "error":
+        raise ValueError(f"unexpected BraTS labels: {sorted(unknown)}")
+    return torch.stack(
+        ((value == 1) | (value == 2) | (value == 4), ((value == 1) | (value == 4)), value == 4)
+    ).to(torch.uint8)

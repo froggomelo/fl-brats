@@ -1,0 +1,32 @@
+enabled: false
+mode: none
+transmitted_object: delta
+scheme: symmetric
+granularity: per_tensor
+rounding: nearest
+quantization_aware_training: false
+fixed:
+  bit_width: 8
+mixed:
+  candidate_bit_widths: [2, 4, 8, 16]
+  default_bit_width: 8
+  default_average_bit_width_budget: 8.0
+  client_average_bit_width_budgets: {}
+  allocation_strategy: magnitude
+  update_allocation_every_rounds: 1
+  minimum_layer_bit_width: 2
+  maximum_layer_bit_width: 16
+  protected_layer_minimum_bit_width: 8
+  protected_layer_patterns: [output, final, classifier, normalization]
+error_feedback:
+  enabled: false
+sparsification:
+  enabled: false
+  mode: topk_fraction
+  fraction: 1.0
+  error_feedback: true
+communication:
+  quantize_uplink: true
+  quantize_downlink: false
+  include_metadata_in_byte_count: true
+  use_real_serialized_size: true

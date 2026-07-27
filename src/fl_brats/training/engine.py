@@ -12,6 +12,13 @@ def move_batch_to_device(batch: dict[str, Any], device: torch.device) -> dict[st
     return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
 
+def forward_batch(model: torch.nn.Module, batch: dict[str, Any]) -> torch.Tensor:
+    """Pass explicit masks when a model advertises mask support."""
+    if getattr(model, "supports_modality_mask", False):
+        return model(batch["image"], batch.get("modality_mask"))
+    return model(batch["image"])
+
+
 def train_one_epoch(
     model: torch.nn.Module,
     loader: DataLoader[Any],
@@ -25,7 +32,7 @@ def train_one_epoch(
     for batch in loader:
         batch = move_batch_to_device(batch, device)
         optimizer.zero_grad(set_to_none=True)
-        loss = loss_fn(model(batch["image"]), batch["label"])
+        loss = loss_fn(forward_batch(model, batch), batch["label"])
         loss.backward()
         optimizer.step()
         n = len(batch["image"])
@@ -56,7 +63,7 @@ def evaluate(
     samples = 0
     for batch in loader:
         batch = move_batch_to_device(batch, device)
-        logits = model(batch["image"])
+        logits = forward_batch(model, batch)
         n = len(logits)
         metrics = dice_metrics(logits, batch["label"])
         aggregate["loss"] += float(loss_fn(logits, batch["label"])) * n
