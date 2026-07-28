@@ -2,10 +2,10 @@
 # Complete BraTS 2021 preprocessing pipeline. Submit with:
 #   sbatch --export=ALL,FL_BRATS_DATA_ROOT=/datasets/$USER/fedbrats,FL_BRATS_IMAGE=/path/fl-brats.sif slurm/brats_pipeline.sbatch
 #SBATCH --job-name=brats-pipeline
-#SBATCH --partition=cpu
+#SBATCH --partition=bigbatch
+#SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --time=24:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=logs/brats_pipeline_%j.out
 #SBATCH --error=logs/brats_pipeline_%j.err
 
