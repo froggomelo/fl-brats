@@ -20,6 +20,8 @@ from .normalization import foreground_zscore
 from .resampling import resample_image
 
 ROLES = ("t1", "t1ce", "t2", "flair", "segmentation")
+GEOMETRY_AFFINE_TOLERANCE = 1e-4
+GEOMETRY_SPACING_TOLERANCE = 1e-5
 
 
 def _triple(
@@ -80,6 +82,52 @@ def _pad(
     ), widths
 
 
+def _validate_aligned_images(images: list[Any]) -> dict[str, Any]:
+    """Ensure transformed modalities still share a voxel grid before array operations."""
+    reference = images[0]
+    reference_shape = tuple(int(value) for value in reference.shape[:3])
+    reference_spacing = tuple(float(value) for value in reference.header.get_zooms()[:3])
+    reference_affine = np.asarray(reference.affine, dtype=float)
+    reference_orientation = "".join(
+        nib.aff2axcodes(reference_affine)  # type: ignore[no-untyped-call]
+    )
+    for role, image in zip(ROLES[1:], images[1:], strict=True):
+        shape = tuple(int(value) for value in image.shape[:3])
+        spacing = tuple(float(value) for value in image.header.get_zooms()[:3])
+        affine = np.asarray(image.affine, dtype=float)
+        orientation = "".join(nib.aff2axcodes(affine))  # type: ignore[no-untyped-call]
+        if shape != reference_shape:
+            raise ValueError(
+                f"post-transform geometry mismatch: {role} shape differs from t1 "
+                f"({shape} != {reference_shape})"
+            )
+        if not np.allclose(
+            spacing, reference_spacing, atol=GEOMETRY_SPACING_TOLERANCE, rtol=0
+        ):
+            raise ValueError(f"post-transform geometry mismatch: {role} spacing differs from t1")
+        if not np.allclose(affine, reference_affine, atol=GEOMETRY_AFFINE_TOLERANCE, rtol=0):
+            raise ValueError(f"post-transform geometry mismatch: {role} affine differs from t1")
+        if orientation != reference_orientation:
+            raise ValueError(
+                f"post-transform geometry mismatch: {role} orientation differs from t1"
+            )
+    return {
+        "passed": True,
+        "reference_role": "t1",
+        "shape": list(reference_shape),
+        "spacing": list(reference_spacing),
+        "orientation": reference_orientation,
+        "affine_tolerance": GEOMETRY_AFFINE_TOLERANCE,
+        "spacing_tolerance": GEOMETRY_SPACING_TOLERANCE,
+    }
+
+
+def _shift_affine(affine: np.ndarray, offset: tuple[int, int, int]) -> np.ndarray:
+    translation = np.eye(4)
+    translation[:3, 3] = offset
+    return np.asarray(affine, dtype=float) @ translation
+
+
 def _outputs_exist(target: Path, fmt: str) -> bool:
     return (
         (target / "complete.json").exists()
@@ -138,7 +186,9 @@ def preprocess_subject(
         if config.get("resample", {}).get("enabled", False):
             spacing = tuple(config["resample"]["target_spacing"])
             images = [resample_image(x, spacing, i == 4) for i, x in enumerate(images)]
+        transformed_geometry = _validate_aligned_images(images)
         arrays = [np.asanyarray(x.dataobj) for x in images]
+        affine = np.asarray(images[0].affine, dtype=float)
         crop = config.get("crop", {})
         margin = tuple(crop.get("margin", [0, 0, 0]))
         divisible = _triple(crop.get("divisible_by"), "crop.divisible_by")
@@ -146,6 +196,7 @@ def preprocess_subject(
         if crop.get("enabled", True):
             start, end = _crop_bounds(arrays[:4], margin, divisible)
             arrays = [x[start[0] : end[0], start[1] : end[1], start[2] : end[2]] for x in arrays]
+            affine = _shift_affine(affine, start)
         norm = config.get("normalization", {})
         normalized, stats = zip(
             *(
@@ -172,9 +223,9 @@ def preprocess_subject(
                 image_data, target_shape, float(padding.get("image_value", 0.0))
             )
             seg, _ = _pad(seg, target_shape, float(padding.get("segmentation_value", 0)))
+            affine = _shift_affine(affine, tuple(-width[0] for width in pad_widths))
         if config.get("convert_labels", False):
             seg = brats_to_regions(seg).numpy()
-        affine = images[0].affine
         if fmt == "tensor":
             import torch
 
@@ -193,6 +244,7 @@ def preprocess_subject(
             "inputs": original,
             "all_inputs_same_orientation": len({x["orientation"] for x in original}) == 1,
             "any_reoriented": any(x["orientation"] != final_orientation for x in original),
+            "post_transform_geometry": transformed_geometry,
             "final_orientation": final_orientation,
             "final_affine": np.asarray(affine).tolist(),
             "final_shape": list(image_data.shape[-3:]),
