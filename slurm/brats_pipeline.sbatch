@@ -13,14 +13,15 @@ set -euo pipefail
 
 : "${FL_BRATS_DATA_ROOT:?Set FL_BRATS_DATA_ROOT, e.g. /datasets/$USER/fedbrats}"
 : "${FL_BRATS_IMAGE:?Set FL_BRATS_IMAGE to the Apptainer SIF image}"
+: "${FL_BRATS_RAW_ROOT:=/datasets/${USER}/brats/raw/brats2021/PKG - RSNA-ASNR-MICCAI-BraTS-2021/RSNA-ASNR-MICCAI-BraTS-2021/BraTS2021_TrainingSet}"
 
-raw_host="$FL_BRATS_DATA_ROOT/raw"
+raw_host="$FL_BRATS_RAW_ROOT"
 processed_host="$FL_BRATS_DATA_ROOT/processed"
 partitions_host="$FL_BRATS_DATA_ROOT/partitions"
 log_host="${FL_BRATS_LOG_ROOT:-$PWD/logs}"
 container_root="/datasets/${USER}/fedbrats"
 
-[[ -d "$raw_host/brats2021" ]] || { echo "Missing raw dataset: $raw_host/brats2021" >&2; exit 1; }
+[[ -d "$raw_host" ]] || { echo "Missing raw training dataset: $raw_host" >&2; exit 1; }
 mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "$log_host"
 
 echo "hostname=$(hostname)"
@@ -29,7 +30,7 @@ echo "started=$(date --iso-8601=seconds)"
 
 # Raw data are bound read-only; all generated artefacts are separately writable.
 runner=(apptainer exec --cleanenv
-  --bind "$raw_host:$container_root/raw:ro"
+  --bind "$raw_host:$container_root/raw/brats2021:ro"
   --bind "$processed_host:$container_root/processed:rw"
   --bind "$partitions_host:$container_root/partitions:rw"
   --bind "$log_host:/logs:rw"
