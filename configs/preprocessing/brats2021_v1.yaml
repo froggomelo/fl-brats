@@ -1,4 +1,4 @@
-materialize: false
+materialize: true
 resume: true
 overwrite: false
 output_format: nifti
