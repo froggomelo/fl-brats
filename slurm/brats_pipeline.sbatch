@@ -4,7 +4,7 @@
 #SBATCH --job-name=brats-pipeline
 #SBATCH --partition=bigbatch
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=10
 #SBATCH --time=72:00:00
 #SBATCH --output=logs/brats_pipeline_%j.out
 #SBATCH --error=logs/brats_pipeline_%j.err
