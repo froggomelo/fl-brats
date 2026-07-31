@@ -5,7 +5,7 @@
 #SBATCH --mem=4G
 #SBATCH --output=logs/brats_partition_%j.out
 set -euo pipefail
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
 if [[ -f "$repo_root/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
