@@ -85,6 +85,11 @@ def _override_values(context: typer.Context) -> dict[str, Any]:
     return resolved_dict(_config(list(context.args) or None))
 
 
+def _values_from_overrides(overrides: list[str] | None) -> dict[str, Any]:
+    """Resolve explicit Hydra-style override arguments."""
+    return resolved_dict(_config(overrides))
+
+
 @app.command()
 def version() -> None:
     """Print only the package version."""
@@ -346,7 +351,6 @@ def validate_data(
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def preprocess_data(
-    context: typer.Context,
     index_path: Path | None = typer.Option(None, "--index-path"),
     raw_root: Path | None = typer.Option(None, "--raw-root"),
     output_dir: Path | None = typer.Option(None, "--output-dir"),
@@ -356,9 +360,10 @@ def preprocess_data(
     subject_id: str | None = None,
     limit: int | None = None,
     validate_only: bool = False,
+    overrides: Overrides = None,
 ) -> None:
     """Materialize reusable subjects atomically (or validate the selected index)."""
-    values = _override_values(context)
+    values = _values_from_overrides(overrides)
     data = values["data"]
     index_path = index_path or Path(data["processed_root"]) / "dataset_index.csv"
     raw_root = raw_root or Path(data["raw_root"])
