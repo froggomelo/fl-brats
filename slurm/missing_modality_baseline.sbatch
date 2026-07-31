@@ -16,8 +16,17 @@
 
 set -euo pipefail
 
-: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE to the built fl-brats image}"
-data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/fedbrats}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$repo_root/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$repo_root/.env"
+  set +a
+fi
+
+: "${APPTAINER_IMAGE:=${FL_BRATS_IMAGE:-}}"
+: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE or FL_BRATS_IMAGE to the built fl-brats image}"
+data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
 log_root="${FL_BRATS_LOG_ROOT:-logs}"
 cache_root="${FL_BRATS_CACHE_ROOT:-cache}"

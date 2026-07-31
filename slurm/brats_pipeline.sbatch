@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Complete BraTS 2021 preprocessing pipeline. Submit with:
-#   sbatch --export=ALL,FL_BRATS_DATA_ROOT=/datasets/$USER/fedbrats,FL_BRATS_IMAGE=/path/fl-brats.sif slurm/brats_pipeline.sbatch
+#   sbatch --export=ALL slurm/brats_pipeline.sbatch
 #SBATCH --job-name=brats-pipeline
 #SBATCH --partition=bigbatch
 #SBATCH --ntasks=1
@@ -11,15 +11,23 @@
 
 set -euo pipefail
 
-: "${FL_BRATS_DATA_ROOT:?Set FL_BRATS_DATA_ROOT, e.g. /datasets/$USER/fedbrats}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$repo_root/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$repo_root/.env"
+  set +a
+fi
+
+: "${FL_BRATS_DATA_ROOT:?Set FL_BRATS_DATA_ROOT, e.g. /datasets/$USER/brats}"
 : "${FL_BRATS_IMAGE:?Set FL_BRATS_IMAGE to the Apptainer SIF image}"
-: "${FL_BRATS_RAW_ROOT:=/datasets/${USER}/brats/raw/brats2021/PKG - RSNA-ASNR-MICCAI-BraTS-2021/RSNA-ASNR-MICCAI-BraTS-2021/BraTS2021_TrainingSet}"
+: "${FL_BRATS_RAW_ROOT:=$FL_BRATS_DATA_ROOT/raw/brats2021}"
 
 raw_host="$FL_BRATS_RAW_ROOT"
 processed_host="$FL_BRATS_DATA_ROOT/processed"
 partitions_host="$FL_BRATS_DATA_ROOT/partitions"
 log_host="${FL_BRATS_LOG_ROOT:-$PWD/logs}"
-container_root="/datasets/${USER}/fedbrats"
+container_root="/datasets/${USER}/brats"
 
 [[ -d "$raw_host" ]] || { echo "Missing raw training dataset: $raw_host" >&2; exit 1; }
 mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "$log_host"

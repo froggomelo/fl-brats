@@ -16,15 +16,24 @@ set -euo pipefail
 
 trap 'echo "Received termination signal" >&2; exit 143' TERM INT
 
-: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE to the built fl-brats .sif image}"
-fedbrats_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/fedbrats}"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$repo_root/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$repo_root/.env"
+  set +a
+fi
+
+: "${APPTAINER_IMAGE:=${FL_BRATS_IMAGE:-}}"
+: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE or FL_BRATS_IMAGE to the built fl-brats .sif image}"
+data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
 log_root="${FL_BRATS_LOG_ROOT:-logs}"
 cache_root="${FL_BRATS_CACHE_ROOT:-cache}"
 checkpoint_root="${FL_BRATS_CHECKPOINT_ROOT:-checkpoints}"
-split_path="${SPLIT_MANIFEST_PATH:-${fedbrats_root}/partitions/fixed_quantity_skew/split_manifest.json}"
-partition_path="${PARTITION_MANIFEST_PATH:-${fedbrats_root}/partitions/fixed_quantity_skew/manifest.json}"
-index_path="${DATASET_INDEX_PATH:-${fedbrats_root}/processed/brats2021_v1/dataset_index.csv}"
+split_path="${SPLIT_MANIFEST_PATH:-${data_root}/partitions/fixed_quantity_skew/split_manifest.json}"
+partition_path="${PARTITION_MANIFEST_PATH:-${data_root}/partitions/fixed_quantity_skew/manifest.json}"
+index_path="${DATASET_INDEX_PATH:-${data_root}/processed/brats2021_v1/dataset_index.csv}"
 weights_path="${INITIAL_WEIGHTS_PATH:-artifacts/initial_weights/unet_seed_42.pt}"
 
 mkdir -p "$output_root" "$log_root/slurm" "$cache_root" "$checkpoint_root"
@@ -36,7 +45,7 @@ echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} partition=${SLURM_JOB_PA
 nvidia-smi || true
 
 apptainer exec --nv --cleanenv \
-  --bind "$fedbrats_root:$fedbrats_root:ro" \
+  --bind "$data_root:$data_root:ro" \
   --bind "$output_root:$output_root" \
   --bind "$log_root:$log_root" \
   --bind "$cache_root:$cache_root" \
