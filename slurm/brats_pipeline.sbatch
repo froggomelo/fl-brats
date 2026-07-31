@@ -30,9 +30,7 @@ log_host="${FL_BRATS_LOG_ROOT:-$PWD/logs}"
 container_root="/datasets/${USER}/brats"
 
 [[ -d "$raw_host" ]] || { echo "Missing raw training dataset: $raw_host" >&2; exit 1; }
-mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "$log_host"
-export MPLCONFIGDIR="${MPLCONFIGDIR:-$log_host/matplotlib}"
-mkdir -p "$MPLCONFIGDIR"
+mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "$log_host/matplotlib"
 
 echo "hostname=$(hostname)"
 echo "job_id=${SLURM_JOB_ID:-unknown} node_list=${SLURM_JOB_NODELIST:-unknown}"
@@ -40,6 +38,7 @@ echo "started=$(date --iso-8601=seconds)"
 
 # Raw data are bound read-only; all generated artefacts are separately writable.
 runner=(apptainer exec --cleanenv
+  --env MPLCONFIGDIR=/logs/matplotlib
   --bind "$raw_host:$container_root/raw/brats2021:ro"
   --bind "$processed_host:$container_root/processed:rw"
   --bind "$partitions_host:$container_root/partitions:rw"
