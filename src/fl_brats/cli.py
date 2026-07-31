@@ -90,6 +90,46 @@ def _values_from_overrides(overrides: list[str] | None) -> dict[str, Any]:
     return resolved_dict(_config(overrides))
 
 
+def _extract_preprocess_options(tokens: list[str] | None) -> tuple[list[str] | None, dict[str, Any]]:
+    """Allow Typer options accidentally captured after Hydra-style arguments."""
+    if not tokens:
+        return None, {}
+    hydra: list[str] = []
+    options: dict[str, Any] = {}
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token == "--workers":
+            if index + 1 >= len(tokens):
+                raise typer.BadParameter("--workers requires an integer value")
+            options["workers"] = int(tokens[index + 1])
+            index += 2
+            continue
+        if token == "--resume":
+            options["resume"] = True
+            index += 1
+            continue
+        if token == "--overwrite":
+            options["overwrite"] = True
+            index += 1
+            continue
+        if token == "--limit":
+            if index + 1 >= len(tokens):
+                raise typer.BadParameter("--limit requires an integer value")
+            options["limit"] = int(tokens[index + 1])
+            index += 2
+            continue
+        if token == "--subject-id":
+            if index + 1 >= len(tokens):
+                raise typer.BadParameter("--subject-id requires a value")
+            options["subject_id"] = tokens[index + 1]
+            index += 2
+            continue
+        hydra.append(token)
+        index += 1
+    return hydra or None, options
+
+
 @app.command()
 def version() -> None:
     """Print only the package version."""
@@ -364,6 +404,12 @@ def preprocess_data(
     overrides: Overrides = None,
 ) -> None:
     """Materialize reusable subjects atomically (or validate the selected index)."""
+    overrides, captured_options = _extract_preprocess_options(overrides)
+    resume = bool(captured_options.get("resume", resume))
+    overwrite = bool(captured_options.get("overwrite", overwrite))
+    subject_id = cast(str | None, captured_options.get("subject_id", subject_id))
+    limit = cast(int | None, captured_options.get("limit", limit))
+    workers = int(captured_options.get("workers", workers))
     values = _values_from_overrides(overrides)
     data = values["data"]
     index_path = index_path or Path(data["processed_root"]) / "dataset_index.csv"

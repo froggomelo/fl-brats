@@ -12,6 +12,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+from fl_brats.data.modalities import MODALITIES, modality_counts
 from fl_brats.training.engine import evaluate, train_local_epochs
 
 from .client import FedAvgClient
@@ -31,7 +32,7 @@ class ModelFedAvgClient(FedAvgClient):
         self,
         model: torch.nn.Module,
         keys: list[str] | None = None,
-        train_fn: Callable[[], dict[str, float]] | None = None,
+        train_fn: Callable[[], dict[str, Any]] | None = None,
         evaluate_fn: Callable[[], dict[str, float]] | None = None,
         examples: int | None = None,
         *,
@@ -78,7 +79,7 @@ class ModelFedAvgClient(FedAvgClient):
     def get_parameters(self, config: dict[str, Any]) -> list[np.ndarray]:
         return self.get_model_parameters()
 
-    def _train(self) -> dict[str, float]:
+    def _train(self) -> dict[str, Any]:
         assert (
             self.train_loader is not None
             and self.loss_fn is not None
@@ -94,6 +95,11 @@ class ModelFedAvgClient(FedAvgClient):
             epochs=self.local_epochs,
         )
         result["local_training_seconds"] = time.monotonic() - started
+        if self.train_loader is not None:
+            masks = [item["modality_mask"] for item in getattr(self.train_loader.dataset, "data", []) if "modality_mask" in item]
+            if masks:
+                counts = modality_counts(torch.as_tensor(masks, dtype=torch.bool))
+                result.update({f"fedamm_modality_count_{modality}": float(counts[modality]) for modality in MODALITIES})
         return result
 
     def _evaluate(self) -> dict[str, float]:
@@ -101,9 +107,12 @@ class ModelFedAvgClient(FedAvgClient):
         return evaluate(self.model, self.validation_loader, self.loss_fn, self.device)
 
     @staticmethod
-    def _finite(metrics: dict[str, float]) -> dict[str, float]:
-        output = {key: float(value) for key, value in metrics.items()}
-        if not all(math.isfinite(value) for value in output.values()):
+    def _finite(metrics: dict[str, Any]) -> dict[str, Any]:
+        output: dict[str, Any] = {}
+        for key, value in metrics.items():
+            output[key] = value if isinstance(value, str) else float(value)
+        numeric = [value for value in output.values() if isinstance(value, float)]
+        if not all(math.isfinite(value) for value in numeric):
             raise ValueError("client produced non-finite loss or metric")
         return output
 
@@ -111,6 +120,8 @@ class ModelFedAvgClient(FedAvgClient):
         self, parameters: list[np.ndarray], config: dict[str, Any]
     ) -> tuple[list[np.ndarray], int, dict[str, Any]]:
         self.set_model_parameters(parameters)
+        if "fedamm_global_prototypes_json" in config:
+            setattr(self.model, "global_prototypes_json", config["fedamm_global_prototypes_json"])
         metrics = self._finite(self.train_fn())
         arrays = self.get_model_parameters()
         metrics["client_id"] = self.client_id  # Flower scalar contract permits strings.

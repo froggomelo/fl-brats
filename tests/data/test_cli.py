@@ -34,3 +34,30 @@ def test_preprocess_data_accepts_hydra_style_overrides(raw_root: Path, tmp_path:
 
     assert result.exit_code == 0, result.stdout
     assert '"mode": "manifest-only"' in result.stdout
+
+
+def test_preprocess_data_accepts_options_after_hydra_overrides(raw_root: Path, tmp_path: Path) -> None:
+    make_subject(raw_root)
+    processed = tmp_path / "processed"
+    index_path, _, _ = build_dataset_index(raw_root, processed)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "preprocess-data",
+            "--index-path",
+            str(index_path),
+            "--raw-root",
+            str(raw_root),
+            "--output-dir",
+            str(processed),
+            "preprocessing=brats2021_v1",
+            "--workers",
+            "4",
+            "preprocessing.materialize=false",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert '"mode": "manifest-only"' in result.stdout
+    assert "OverrideParseException" not in result.stdout

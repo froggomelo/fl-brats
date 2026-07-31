@@ -3,7 +3,6 @@
 from typing import Any
 
 import torch
-from monai.networks.nets import UNet  # type: ignore[attr-defined]
 
 
 class MaskConcatUNet(torch.nn.Module):
@@ -13,7 +12,7 @@ class MaskConcatUNet(torch.nn.Module):
     uses_modality_specific_encoders = False
     aggregation_strategy = "fedavg"
 
-    def __init__(self, network: UNet, concat_mask: bool) -> None:
+    def __init__(self, network: torch.nn.Module, concat_mask: bool) -> None:
         super().__init__()
         self.network, self.concat_mask = network, concat_mask
 
@@ -34,6 +33,8 @@ class MaskConcatUNet(torch.nn.Module):
 
 
 def create_unet(config: dict[str, Any]) -> MaskConcatUNet:
+    from monai.networks.nets import UNet  # type: ignore[attr-defined]
+
     concat_mask = bool(config.get("concat_mask", False))
     network = UNet(
         spatial_dims=int(config.get("spatial_dims", 3)),

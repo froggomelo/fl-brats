@@ -6,7 +6,11 @@ from fl_brats.data.modalities import (
     CompleteMissingnessPolicy,
     all_non_empty_modality_combinations,
     combination_to_mask,
+    combination_id_to_mask,
     mask_to_combination,
+    mask_to_combination_id,
+    modality_combination_counts,
+    modality_counts,
 )
 from fl_brats.models.unet import MaskConcatUNet
 
@@ -14,6 +18,12 @@ from fl_brats.models.unet import MaskConcatUNet
 def test_combinations_and_round_trip() -> None:
     assert len(all_non_empty_modality_combinations()) == 15
     assert mask_to_combination(combination_to_mask(("t1", "flair"))) == ("t1", "flair")
+    mask = torch.tensor([[True, False, False, True], [False, True, True, False]])
+    ids = mask_to_combination_id(mask)
+    assert ids.tolist() == [9, 6]
+    assert torch.equal(combination_id_to_mask(ids), mask)
+    assert modality_counts(mask) == {"t1": 1, "t1ce": 1, "t2": 1, "flair": 1}
+    assert modality_combination_counts(mask) == {6: 1, 9: 1}
 
 
 def test_policies_are_stable_and_nonempty() -> None:

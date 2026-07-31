@@ -8,7 +8,7 @@ import torch
 from monai.data import CacheDataset, Dataset, PersistentDataset  # type: ignore[attr-defined]
 from torch.utils.data import DataLoader
 
-from .modalities import MODALITIES, combination_to_mask
+from .modalities import MODALITIES, combination_to_mask, mask_to_combination_id
 
 
 def records_from_index(index_path: Path, subject_ids: list[str]) -> list[dict[str, Any]]:
@@ -43,6 +43,7 @@ class BraTSDataset(Dataset):
             restored[mask] = image
             result["image"] = restored
         result["modality_mask"] = mask
+        result["modality_combination_id"] = mask_to_combination_id(mask)
         result["available_modalities"] = tuple(record["available_modalities"])
         result["subject_id"] = record["subject_id"]
         result["client_id"] = record["client_id"]

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import random
 from itertools import combinations
-from typing import Mapping, Protocol
+from typing import Iterable, Mapping, Protocol
 
 import torch
 
@@ -54,6 +54,50 @@ def mask_to_combination(mask: torch.Tensor | list[bool]) -> tuple[str, ...]:
     if not result:
         raise ValueError("a sample must have at least one modality")
     return result
+
+
+def validate_modality_mask(mask: torch.Tensor) -> torch.Tensor:
+    """Validate canonical non-empty modality masks and return bool [B, 4]."""
+    value = mask.bool()
+    if value.ndim == 1:
+        value = value.unsqueeze(0)
+    if value.ndim != 2 or value.shape[1] != len(MODALITIES):
+        raise ValueError("modality mask must have shape [4] or [B, 4]")
+    if not value.any(dim=1).all():
+        raise ValueError("each sample requires at least one modality")
+    return value
+
+
+def mask_to_combination_id(mask: torch.Tensor | list[bool]) -> torch.Tensor:
+    """Encode canonical availability masks as non-zero four-bit IDs in [1, 15]."""
+    value = torch.as_tensor(mask, dtype=torch.bool)
+    batched = validate_modality_mask(value)
+    weights = torch.tensor([1, 2, 4, 8], dtype=torch.long, device=batched.device)
+    ids = (batched.long() * weights).sum(dim=1)
+    return ids if value.ndim == 2 else ids.squeeze(0)
+
+
+def combination_id_to_mask(combination_id: torch.Tensor | int) -> torch.Tensor:
+    """Decode non-zero four-bit modality-combination IDs to bool masks."""
+    ids = torch.as_tensor(combination_id, dtype=torch.long)
+    if ((ids < 1) | (ids > 15)).any():
+        raise ValueError("modality combination IDs must be in [1, 15]")
+    bits = torch.tensor([1, 2, 4, 8], dtype=torch.long, device=ids.device)
+    masks = (ids.unsqueeze(-1) & bits).ne(0)
+    return masks if ids.ndim > 0 else masks.squeeze(0)
+
+
+def modality_counts(masks: torch.Tensor | Iterable[Iterable[bool]]) -> dict[str, int]:
+    """Count available samples per canonical modality."""
+    batched = validate_modality_mask(torch.as_tensor(masks, dtype=torch.bool))
+    sums = batched.long().sum(dim=0).tolist()
+    return {modality: int(sums[index]) for index, modality in enumerate(MODALITIES)}
+
+
+def modality_combination_counts(masks: torch.Tensor | Iterable[Iterable[bool]]) -> dict[int, int]:
+    """Count samples per non-empty four-bit modality-combination ID."""
+    ids = mask_to_combination_id(torch.as_tensor(masks, dtype=torch.bool)).view(-1)
+    return {int(key): int((ids == key).sum()) for key in ids.unique(sorted=True)}
 
 
 def all_non_empty_modality_combinations() -> tuple[tuple[str, ...], ...]:

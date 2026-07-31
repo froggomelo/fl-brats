@@ -1,0 +1,7 @@
+name: fedamm
+spatial_dims: 3
+in_channels: 4
+out_channels: 3
+channels: [8, 16, 32, 64]
+prototype_layer: -1
+prototype_loss_weight: 1.0

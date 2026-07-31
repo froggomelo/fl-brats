@@ -1,10 +1,6 @@
 """BraTS discovery, validation, preprocessing manifests, and data loading."""
 
-from .brats import BraTSDataset, build_dataloader
-from .discovery import SubjectRecord, discover_records
 from .labels import brats_to_regions
-from .preprocessing import preprocess_index
-from .validation import validate_subject
 
 __all__ = [
     "BraTSDataset",
@@ -15,3 +11,23 @@ __all__ = [
     "preprocess_index",
     "validate_subject",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"BraTSDataset", "build_dataloader"}:
+        from .brats import BraTSDataset, build_dataloader
+
+        return {"BraTSDataset": BraTSDataset, "build_dataloader": build_dataloader}[name]
+    if name in {"SubjectRecord", "discover_records"}:
+        from .discovery import SubjectRecord, discover_records
+
+        return {"SubjectRecord": SubjectRecord, "discover_records": discover_records}[name]
+    if name == "preprocess_index":
+        from .preprocessing import preprocess_index
+
+        return preprocess_index
+    if name == "validate_subject":
+        from .validation import validate_subject
+
+        return validate_subject
+    raise AttributeError(name)
