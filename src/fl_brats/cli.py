@@ -341,7 +341,10 @@ def validate_data(
     typer.echo("Dataset index is valid.")
 
 
-@app.command("preprocess-data")
+@app.command(
+    "preprocess-data",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def preprocess_data(
     context: typer.Context,
     index_path: Path | None = typer.Option(None, "--index-path"),

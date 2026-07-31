@@ -23,6 +23,8 @@ container_root="/datasets/${USER}/fedbrats"
 
 [[ -d "$raw_host" ]] || { echo "Missing raw training dataset: $raw_host" >&2; exit 1; }
 mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "$log_host"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-$log_host/matplotlib}"
+mkdir -p "$MPLCONFIGDIR"
 
 echo "hostname=$(hostname)"
 echo "job_id=${SLURM_JOB_ID:-unknown} node_list=${SLURM_JOB_NODELIST:-unknown}"
