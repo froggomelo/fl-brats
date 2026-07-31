@@ -360,6 +360,7 @@ def preprocess_data(
     subject_id: str | None = None,
     limit: int | None = None,
     validate_only: bool = False,
+    workers: int = typer.Option(0, "--workers", min=0),
     overrides: Overrides = None,
 ) -> None:
     """Materialize reusable subjects atomically (or validate the selected index)."""
@@ -386,6 +387,7 @@ def preprocess_data(
                 overwrite=overwrite,
                 subject_id=subject_id,
                 limit=limit,
+                workers=workers,
             ),
             indent=2,
         )

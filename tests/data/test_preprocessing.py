@@ -39,6 +39,27 @@ def test_materialization_records_transformed_geometry_and_updates_crop_affine(
     assert metadata["segmentation_labels_present"] == [0, 1, 2, 4]
 
 
+def test_materialization_can_process_subjects_in_parallel(
+    raw_root: Path, tmp_path: Path
+) -> None:
+    make_subject(raw_root, subject_id="BraTS2021_00000")
+    make_subject(raw_root, subject_id="BraTS2021_00001")
+    processed = tmp_path / "processed"
+    index, _, _ = build_dataset_index(raw_root, processed)
+
+    summary = preprocess_index(
+        index,
+        raw_root,
+        processed,
+        {"materialize": True},
+        workers=2,
+    )
+
+    assert summary["completed"] == 2
+    assert (processed / "subjects" / "BraTS2021_00000" / "complete.json").exists()
+    assert (processed / "subjects" / "BraTS2021_00001" / "complete.json").exists()
+
+
 def test_materialization_optionally_resamples_all_inputs(raw_root: Path, tmp_path: Path) -> None:
     make_subject(raw_root, affine=np.diag([2.0, 2.0, 2.0, 1.0]))
     processed = tmp_path / "processed"

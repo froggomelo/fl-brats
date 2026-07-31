@@ -4,6 +4,7 @@ import csv
 import json
 import shutil
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -282,6 +283,24 @@ def preprocess_subject(
         raise
 
 
+def _preprocess_subject_task(
+    row: dict[str, str],
+    raw_root: Path,
+    output_root: Path,
+    config: dict[str, Any],
+    resume: bool,
+    overwrite: bool,
+) -> str:
+    return preprocess_subject(
+        row,
+        raw_root,
+        output_root,
+        config,
+        resume=resume,
+        overwrite=overwrite,
+    )
+
+
 def preprocess_index(
     index_path: Path, raw_root: Path, output_root: Path, config: dict[str, Any], **kwargs: Any
 ) -> dict[str, Any]:
@@ -299,27 +318,51 @@ def preprocess_index(
     started = time.monotonic()
     counts = {"completed": 0, "skipped": 0, "failed": 0}
     materialize = bool(config.get("materialize", False))
+    workers = int(kwargs.get("workers") or config.get("workers", 0) or 0)
     if materialize:
-        for row in rows:
-            try:
-                counts[
-                    preprocess_subject(
+        resume = bool(kwargs.get("resume", False))
+        overwrite = bool(kwargs.get("overwrite", False))
+        if workers > 1 and len(rows) > 1:
+            with ProcessPoolExecutor(max_workers=workers) as executor:
+                futures = [
+                    executor.submit(
+                        _preprocess_subject_task,
                         row,
                         raw_root,
                         output_root,
                         config,
-                        resume=kwargs.get("resume", False),
-                        overwrite=kwargs.get("overwrite", False),
+                        resume,
+                        overwrite,
                     )
-                ] += 1
-            except Exception:
-                counts["failed"] += 1
+                    for row in rows
+                ]
+                for future in as_completed(futures):
+                    try:
+                        counts[future.result()] += 1
+                    except Exception:
+                        counts["failed"] += 1
+        else:
+            for row in rows:
+                try:
+                    counts[
+                        preprocess_subject(
+                            row,
+                            raw_root,
+                            output_root,
+                            config,
+                            resume=resume,
+                            overwrite=overwrite,
+                        )
+                    ] += 1
+                except Exception:
+                    counts["failed"] += 1
     summary = {
         "mode": "materialized" if materialize else "manifest-only",
         "subjects_attempted": len(rows),
         **counts,
         "total_runtime_seconds": time.monotonic() - started,
         "output_format": config.get("output_format", "nifti"),
+        "workers": workers if materialize else 0,
         "preprocessing_config_hash": sha256_payload(config),
         "dataset_index_hash": sha256_file(index_path),
     }

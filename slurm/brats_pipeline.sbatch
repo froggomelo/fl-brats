@@ -65,7 +65,8 @@ run preprocess-data --index-path "$processed/dataset_index.csv" --raw-root "$raw
 
 # 4. Materialize reusable volumes atomically and resume safely after requeueing.
 run preprocess-data --index-path "$processed/dataset_index.csv" --raw-root "$raw" \
-  --output-dir "$processed" --resume preprocessing=brats2021_v1 preprocessing.materialize=true
+  --output-dir "$processed" --resume --workers "${SLURM_CPUS_PER_TASK:-1}" \
+  preprocessing=brats2021_v1 preprocessing.materialize=true
 
 # 5. Freeze split and fixed quantity-skew partition, then deep-verify references.
 run create-split --index-path "$processed/dataset_index.csv" \
