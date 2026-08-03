@@ -2,7 +2,7 @@
 # Submit with: sbatch --export=ALL,APPTAINER_IMAGE=/path/fl-brats.sif slurm/centralized_baseline.sbatch
 # Overrides are supported, for example: sbatch --partition=gpu --time=24:00:00 ...
 #SBATCH --job-name=fedbrats-central
-#SBATCH --partition=stampede
+#SBATCH --partition=batch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
