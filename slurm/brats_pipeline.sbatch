@@ -2,7 +2,7 @@
 # Complete BraTS 2021 preprocessing pipeline. Submit with:
 #   sbatch --export=ALL slurm/brats_pipeline.sbatch
 #SBATCH --job-name=brats-pipeline
-#SBATCH --partition=bigbatch
+#SBATCH --partition=stampede
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=10
 #SBATCH --time=72:00:00
