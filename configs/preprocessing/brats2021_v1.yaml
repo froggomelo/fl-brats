@@ -1,7 +1,6 @@
 materialize: true
 resume: true
 overwrite: false
-workers: 0
 output_format: nifti
 target_orientation: RAS
 resample:

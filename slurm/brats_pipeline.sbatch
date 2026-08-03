@@ -22,7 +22,6 @@ fi
 : "${FL_BRATS_DATA_ROOT:?Set FL_BRATS_DATA_ROOT, e.g. /datasets/$USER/brats}"
 : "${FL_BRATS_IMAGE:?Set FL_BRATS_IMAGE to the Apptainer SIF image}"
 : "${FL_BRATS_RAW_ROOT:=$FL_BRATS_DATA_ROOT/raw/brats2021}"
-: "${FL_BRATS_PREPROCESS_WORKERS:=4}"
 
 raw_host="$FL_BRATS_RAW_ROOT"
 processed_host="$FL_BRATS_DATA_ROOT/processed"
@@ -35,7 +34,6 @@ mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "
 
 echo "hostname=$(hostname)"
 echo "job_id=${SLURM_JOB_ID:-unknown} node_list=${SLURM_JOB_NODELIST:-unknown}"
-echo "preprocess_workers=$FL_BRATS_PREPROCESS_WORKERS"
 echo "started=$(date --iso-8601=seconds)"
 
 # Raw data are bound read-only; all generated artefacts are separately writable.
@@ -67,7 +65,7 @@ run preprocess-data --index-path "$processed/dataset_index.csv" --raw-root "$raw
 
 # 4. Materialize reusable volumes atomically and resume safely after requeueing.
 run preprocess-data --index-path "$processed/dataset_index.csv" --raw-root "$raw" \
-  --output-dir "$processed" --resume --workers "$FL_BRATS_PREPROCESS_WORKERS" \
+  --output-dir "$processed" --resume \
   preprocessing=brats2021_v1 preprocessing.materialize=true
 
 # 5. Freeze split and fixed quantity-skew partition, then deep-verify references.

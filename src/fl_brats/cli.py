@@ -99,12 +99,6 @@ def _extract_preprocess_options(tokens: list[str] | None) -> tuple[list[str] | N
     index = 0
     while index < len(tokens):
         token = tokens[index]
-        if token == "--workers":
-            if index + 1 >= len(tokens):
-                raise typer.BadParameter("--workers requires an integer value")
-            options["workers"] = int(tokens[index + 1])
-            index += 2
-            continue
         if token == "--resume":
             options["resume"] = True
             index += 1
@@ -400,7 +394,6 @@ def preprocess_data(
     subject_id: str | None = None,
     limit: int | None = None,
     validate_only: bool = False,
-    workers: int = typer.Option(0, "--workers", min=0),
     overrides: Overrides = None,
 ) -> None:
     """Materialize reusable subjects atomically (or validate the selected index)."""
@@ -409,7 +402,6 @@ def preprocess_data(
     overwrite = bool(captured_options.get("overwrite", overwrite))
     subject_id = cast(str | None, captured_options.get("subject_id", subject_id))
     limit = cast(int | None, captured_options.get("limit", limit))
-    workers = int(captured_options.get("workers", workers))
     values = _values_from_overrides(overrides)
     data = values["data"]
     index_path = index_path or Path(data["processed_root"]) / "dataset_index.csv"
@@ -433,7 +425,6 @@ def preprocess_data(
                 overwrite=overwrite,
                 subject_id=subject_id,
                 limit=limit,
-                workers=workers,
             ),
             indent=2,
         )

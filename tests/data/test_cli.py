@@ -52,8 +52,7 @@ def test_preprocess_data_accepts_options_after_hydra_overrides(raw_root: Path, t
             "--output-dir",
             str(processed),
             "preprocessing=brats2021_v1",
-            "--workers",
-            "4",
+            "--resume",
             "preprocessing.materialize=false",
         ],
     )

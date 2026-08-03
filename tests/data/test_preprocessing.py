@@ -39,7 +39,7 @@ def test_materialization_records_transformed_geometry_and_updates_crop_affine(
     assert metadata["segmentation_labels_present"] == [0, 1, 2, 4]
 
 
-def test_materialization_can_process_subjects_in_parallel(
+def test_materialization_processes_multiple_subjects(
     raw_root: Path, tmp_path: Path
 ) -> None:
     make_subject(raw_root, subject_id="BraTS2021_00000")
@@ -52,7 +52,6 @@ def test_materialization_can_process_subjects_in_parallel(
         raw_root,
         processed,
         {"materialize": True},
-        workers=2,
     )
 
     assert summary["completed"] == 2
