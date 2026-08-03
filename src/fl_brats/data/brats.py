@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from monai.data import CacheDataset, Dataset, PersistentDataset  # type: ignore[attr-defined]
+from monai.data import (  # type: ignore[attr-defined]
+    CacheDataset,
+    Dataset,
+    PersistentDataset,
+    list_data_collate,
+)
 from torch.utils.data import DataLoader
 
 from .modalities import MODALITIES, combination_to_mask, mask_to_combination_id
@@ -117,4 +122,5 @@ def build_dataloader(
         num_workers=workers,
         generator=generator,
         pin_memory=torch.cuda.is_available(),
+        collate_fn=list_data_collate,
     )
