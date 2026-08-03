@@ -25,6 +25,7 @@ fi
 : "${APPTAINER_IMAGE:=${FL_BRATS_IMAGE:-}}"
 : "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE or FL_BRATS_IMAGE to the built fl-brats .sif image}"
 data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
+raw_root="${FL_BRATS_RAW_ROOT:-${data_root}/raw/brats2021}"
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
 log_root="${FL_BRATS_LOG_ROOT:-logs}"
 cache_root="${FL_BRATS_CACHE_ROOT:-cache}"
@@ -43,8 +44,10 @@ echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} partition=${SLURM_JOB_PA
 nvidia-smi || true
 
 apptainer exec --nv --cleanenv \
+  --env "FL_BRATS_RAW_ROOT=$raw_root" \
   --bind "$repo_root/src:/workspace/src:ro" \
   --bind "$repo_root/configs:/workspace/configs:ro" \
+  --bind "$raw_root:$raw_root:ro" \
   --bind "$data_root:$data_root:ro" \
   --bind "$output_root:$output_root" \
   --bind "$log_root:$log_root" \

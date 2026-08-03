@@ -2,6 +2,7 @@
 
 import csv
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,8 @@ from .modalities import MODALITIES, combination_to_mask, mask_to_combination_id
 
 
 def _index_path_root(index_path: Path) -> Path | None:
+    if raw_root := os.environ.get("FL_BRATS_RAW_ROOT"):
+        return Path(raw_root)
     summary_path = index_path.with_name("dataset_summary.json")
     if not summary_path.exists():
         return None
