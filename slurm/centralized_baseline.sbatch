@@ -43,10 +43,13 @@ echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} partition=${SLURM_JOB_PA
 nvidia-smi || true
 
 apptainer exec --nv --cleanenv \
+  --bind "$repo_root/src:/workspace/src:ro" \
+  --bind "$repo_root/configs:/workspace/configs:ro" \
   --bind "$data_root:$data_root:ro" \
   --bind "$output_root:$output_root" \
   --bind "$log_root:$log_root" \
   --bind "$cache_root:$cache_root" \
+  --bind "$cache_root:/cache" \
   --bind "$checkpoint_root:$checkpoint_root" \
   "$APPTAINER_IMAGE" \
   fedbrats train-centralized \

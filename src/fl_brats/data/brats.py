@@ -1,6 +1,7 @@
 """Manifest-backed datasets shared by centralized and client execution."""
 
 import csv
+import json
 from pathlib import Path
 from typing import Any
 
@@ -11,13 +12,33 @@ from torch.utils.data import DataLoader
 from .modalities import MODALITIES, combination_to_mask, mask_to_combination_id
 
 
+def _index_path_root(index_path: Path) -> Path | None:
+    summary_path = index_path.with_name("dataset_summary.json")
+    if not summary_path.exists():
+        return None
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    raw_root = summary.get("raw_root")
+    return Path(raw_root) if raw_root else None
+
+
+def _resolve_record_path(path: str, root: Path | None) -> str:
+    value = Path(path)
+    if value.is_absolute() or root is None or not path:
+        return path
+    return str(root / value)
+
+
 def records_from_index(index_path: Path, subject_ids: list[str]) -> list[dict[str, Any]]:
+    root = _index_path_root(index_path)
     with index_path.open(encoding="utf-8") as f:
         rows = {r["subject_id"]: r for r in csv.DictReader(f)}
     return [
         {
-            "image": [rows[s][f"{m}_path"] for m in ("t1", "t1ce", "t2", "flair")],
-            "label": rows[s]["seg_path"],
+            "image": [
+                _resolve_record_path(rows[s][f"{m}_path"], root)
+                for m in ("t1", "t1ce", "t2", "flair")
+            ],
+            "label": _resolve_record_path(rows[s]["seg_path"], root),
             "subject_id": s,
             "client_id": "centralized",
             "available_modalities": MODALITIES,
