@@ -6,11 +6,10 @@
 #   INITIAL_WEIGHTS_SEED=42
 #   MODEL_CONFIG=configs/model/unet_baseline.yaml
 #SBATCH --job-name=fedbrats-initw
-#SBATCH --partition=bigbatch
+#SBATCH --partition=stampede
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=8G
 #SBATCH --time=00:20:00
 #SBATCH --output=logs/slurm/init_weights_%j.out
 #SBATCH --error=logs/slurm/init_weights_%j.err
