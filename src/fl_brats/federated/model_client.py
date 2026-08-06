@@ -20,6 +20,14 @@ from .communication import payload_metrics
 from .parameters import load_arrays, state_keys, state_to_arrays
 
 
+def modality_count_metrics(records: list[dict[str, Any]]) -> dict[str, float]:
+    masks = [item["modality_mask"] for item in records if "modality_mask" in item]
+    if not masks:
+        return {}
+    counts = modality_counts(torch.stack([mask.bool() for mask in masks]))
+    return {f"fedamm_modality_count_{modality}": float(counts[modality]) for modality in MODALITIES}
+
+
 class ModelFedAvgClient(FedAvgClient):
     """A deterministic, model-owning Flower client for segmentation workloads.
 
@@ -96,10 +104,7 @@ class ModelFedAvgClient(FedAvgClient):
         )
         result["local_training_seconds"] = time.monotonic() - started
         if self.train_loader is not None:
-            masks = [item["modality_mask"] for item in getattr(self.train_loader.dataset, "data", []) if "modality_mask" in item]
-            if masks:
-                counts = modality_counts(torch.as_tensor(masks, dtype=torch.bool))
-                result.update({f"fedamm_modality_count_{modality}": float(counts[modality]) for modality in MODALITIES})
+            result.update(modality_count_metrics(getattr(self.train_loader.dataset, "data", [])))
         return result
 
     def _evaluate(self) -> dict[str, float]:
