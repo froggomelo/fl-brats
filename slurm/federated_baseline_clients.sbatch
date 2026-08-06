@@ -52,6 +52,17 @@ while [[ ! -s "$address_file" ]]; do
   sleep 2
 done
 server_address="$(<"$address_file")"
+server_host="${server_address%:*}"
+server_port="${server_address##*:}"
+
+deadline=$((SECONDS + ${FEDERATED_SERVER_WAIT_SECONDS:-300}))
+while ! timeout 2 bash -c ":</dev/tcp/${server_host}/${server_port}" 2>/dev/null; do
+  if (( SECONDS >= deadline )); then
+    echo "Timed out waiting for Flower server port: $server_address" >&2
+    exit 4
+  fi
+  sleep 2
+done
 
 echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} client_id=$client_id server=$server_address"
 nvidia-smi || true
