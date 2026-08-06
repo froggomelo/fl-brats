@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
-# Submit with: sbatch --export=ALL slurm/federated_baseline.sbatch
-# Optional overrides:
-#   FEDERATED_ROUNDS=10 FEDERATED_CLIENTS=4 FEDERATED_BATCH_SIZE=1 sbatch --export=ALL slurm/federated_baseline.sbatch
-#   FEDERATED_RUN_DIR=outputs/federated/my_run sbatch --export=ALL slurm/federated_baseline.sbatch
-#SBATCH --job-name=fedbrats-fedavg
+# Server process for the distributed basic U-Net FedAvg run.
+# Usually launched by: slurm/federated_baseline_submit.sh
+#SBATCH --job-name=fedbrats-fedavg-srv
 #SBATCH --partition=batch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=4
 #SBATCH --time=48:00:00
-#SBATCH --output=logs/slurm/federated_%j.out
-#SBATCH --error=logs/slurm/federated_%j.err
+#SBATCH --output=logs/slurm/federated_server_%j.out
+#SBATCH --error=logs/slurm/federated_server_%j.err
 
 set -euo pipefail
 
@@ -35,20 +32,23 @@ log_root="${FL_BRATS_LOG_ROOT:-logs}"
 cache_root="${FL_BRATS_CACHE_ROOT:-cache}"
 checkpoint_root="${FL_BRATS_CHECKPOINT_ROOT:-checkpoints}"
 partition_root="${PARTITION_ROOT:-${data_root}/partitions/fixed_quantity_skew}"
-run_dir="${FEDERATED_RUN_DIR:-${output_root}/federated/unet_baseline_${SLURM_JOB_ID:-manual}_$(date +%Y%m%d_%H%M%S)}"
+run_id="${FEDERATED_RUN_ID:-unet_baseline_${SLURM_JOB_ID:-manual}}"
+run_dir="${FEDERATED_RUN_DIR:-${output_root}/federated/${run_id}}"
+port="${FEDERATED_SERVER_PORT:-8080}"
+host="$(hostname -f 2>/dev/null || hostname)"
+address="${host}:${port}"
 
-mkdir -p "$output_root/federated" "$log_root/slurm" "$cache_root" "$checkpoint_root"
+mkdir -p "$run_dir" "$log_root/slurm" "$cache_root" "$checkpoint_root"
 for required in "$partition_root/client_0.json" "$partition_root/manifest.json" "$partition_root/split_manifest.json"; do
   [[ -f "$required" ]] || { echo "Required federated input missing: $required" >&2; exit 2; }
 done
+printf '%s\n' "$address" > "$run_dir/server_address.txt"
 
-echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} partition=${SLURM_JOB_PARTITION:-unknown}"
+echo "hostname=$host job=${SLURM_JOB_ID:-unknown} address=$address"
 echo "run_dir=$run_dir"
-nvidia-smi || true
 
-apptainer exec --nv --cleanenv \
+apptainer exec --cleanenv \
   --env "FL_BRATS_RAW_ROOT=$raw_root" \
-  --env "FL_BRATS_PIN_MEMORY=false" \
   --bind "$repo_root/src:/workspace/src:ro" \
   --bind "$repo_root/configs:/workspace/configs:ro" \
   --bind "$raw_root:$raw_root:ro" \
@@ -59,7 +59,8 @@ apptainer exec --nv --cleanenv \
   --bind "$cache_root:/cache" \
   --bind "$checkpoint_root:$checkpoint_root" \
   "$APPTAINER_IMAGE" \
-  fedbrats train-federated \
+  fedbrats start-federated-server \
+    --server-address "$address" \
     --run-dir "$run_dir" \
     experiment=federated_unet_baseline \
     training=federated_client \
@@ -73,6 +74,4 @@ apptainer exec --nv --cleanenv \
     "min_evaluate_clients=${FEDERATED_MIN_CLIENTS:-${FEDERATED_CLIENTS:-4}}" \
     "min_available_clients=${FEDERATED_MIN_CLIENTS:-${FEDERATED_CLIENTS:-4}}" \
     "local_batch_size=${FEDERATED_BATCH_SIZE:-1}" \
-    "num_workers=${SLURM_CPUS_PER_TASK:-0}" \
-    "pin_memory=false" \
-    "device=cuda"
+    "pin_memory=false"

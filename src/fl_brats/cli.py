@@ -769,13 +769,14 @@ def start_federated_server(
     context: typer.Context,
     config: Path | None = typer.Option(None, "--config"),
     server_address: str | None = typer.Option(None, "--server-address"),
+    run_dir: Path | None = typer.Option(None, "--run-dir"),
 ) -> None:
     """Start the standalone Flower server for physically distributed clients."""
     values = _experiment_values(config, context)
     address = server_address or values.get("server_address")
     if not address:
         raise typer.BadParameter("--server-address or server_address in config is required")
-    start_server(str(address), values)
+    start_server(str(address), values, run_dir=run_dir)
 
 
 @app.command("start-federated-client")
