@@ -9,3 +9,4 @@ require_complete_subjects: true
 allow_unexpected_labels: false
 relative_paths_in_manifests: true
 follow_symlinks: false
+divisible_by: 16

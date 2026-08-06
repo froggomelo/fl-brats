@@ -5,6 +5,7 @@ from typing import Any
 from monai.transforms import (  # type: ignore[attr-defined]
     Compose,
     CropForegroundd,
+    DivisiblePadd,
     EnsureChannelFirstd,
     EnsureTyped,
     LoadImaged,
@@ -39,6 +40,7 @@ def build_transforms(config: dict[str, Any], training: bool) -> Compose:
         NormalizeIntensityd("image", nonzero=True, channel_wise=True),
         BraTSRegionsd(),
         SpatialPadd(keys, spatial_size=config.get("patch_size", [96, 96, 96])),
+        DivisiblePadd(keys, k=config.get("divisible_by", 16)),
     ]
     if training:
         transforms += [
