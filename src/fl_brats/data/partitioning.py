@@ -12,6 +12,7 @@ from .modalities import (
     MissingModalityPolicy,
     NoMissingnessPolicy,
     combination_to_mask,
+    mask_to_combination_id,
     policy_fingerprint,
 )
 
@@ -49,6 +50,7 @@ def create_partition(
     output_dir.mkdir(parents=True, exist_ok=True)
     clients = []
     policy = missingness_policy or NoMissingnessPolicy()
+    fingerprint = policy_fingerprint(missingness_config or {"enabled": False})
     if hasattr(policy, "explicit"):
         known_clients = {f"client_{number}" for number in range(len(fractions))}
         unknown_clients = set(policy.explicit) - known_clients  # type: ignore[attr-defined]
@@ -72,6 +74,8 @@ def create_partition(
             references.append(
                 {
                     "subject_id": subject,
+                    "client_id": f"client_{client_id}",
+                    "split": "train",
                     "index_row": row_number,
                     "paths": {
                         role: row[f"{role}_path"] if role in available else None
@@ -81,6 +85,9 @@ def create_partition(
                     "available_modalities": list(available),
                     "missing_modalities": [m for m in MODALITIES if m not in available],
                     "modality_mask": mask,
+                    "modality_combination_id": int(mask_to_combination_id(mask)),
+                    "missingness_seed": seed,
+                    "missingness_realisation_id": fingerprint,
                 }
             )
         client = {
@@ -94,9 +101,7 @@ def create_partition(
             "dataset_index_hash": split["dataset_index_hash"],
             "source_split_hash": split["split_manifest_hash"],
             "partition_seed": seed,
-            "missingness_policy_fingerprint": policy_fingerprint(
-                missingness_config or {"enabled": False}
-            ),
+            "missingness_policy_fingerprint": fingerprint,
             "missingness_mode": (missingness_config or {}).get("mode", "none"),
         }
         client["client_manifest_hash"] = sha256_payload(client)
@@ -117,9 +122,7 @@ def create_partition(
             "(minimum one subject where feasible)"
         ),
         "clients": clients,
-        "missingness_policy_fingerprint": policy_fingerprint(
-            missingness_config or {"enabled": False}
-        ),
+        "missingness_policy_fingerprint": fingerprint,
     }
     payload["partition_manifest_hash"] = sha256_payload(payload)
     (output_dir / "manifest.json").write_text(

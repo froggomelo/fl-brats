@@ -7,6 +7,10 @@ model:
   out_channels: 3
   channels: [8, 16, 32, 64]
   prototype_loss_weight: 1.0
+  prototype_distillation_enabled: true
+  global_prototype_alignment_enabled: true
+  emit_prototypes: true
+  modality_weighted_aggregation: true
 missing_modalities:
   enabled: true
   mode: arbitrary

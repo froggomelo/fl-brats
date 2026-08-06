@@ -39,6 +39,21 @@ def aggregate_fedamm_arrays(keys: list[str], results: Any) -> list[np.ndarray]:
     return output
 
 
+def aggregate_sample_count_arrays(results: Any) -> list[np.ndarray]:
+    """Ordinary sample-count-weighted FedAvg over every tensor."""
+    output: list[np.ndarray] = []
+    client_arrays = [(parameters_to_ndarrays(fit_res.parameters), fit_res) for _, fit_res in results]
+    for index in range(len(client_arrays[0][0])):
+        output.append(
+            _weighted_average([(arrays[index], float(fit_res.num_examples)) for arrays, fit_res in client_arrays])
+        )
+    return output
+
+
+def uses_modality_weighted_aggregation(model: Any) -> bool:
+    return bool(getattr(model, "modality_weighted_aggregation", True))
+
+
 class GlobalPrototypeLibrary:
     """Server-side prototype store grouped by modality-combination ID."""
 
@@ -85,6 +100,7 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
     def __init__(self, *, model: Any, clusters_per_combination: int = 1, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.keys = state_keys(model)
+        self.modality_weighted_aggregation = uses_modality_weighted_aggregation(model)
         self.prototype_library = GlobalPrototypeLibrary(clusters_per_combination)
 
     def aggregate_fit(self, server_round: int, results: Any, failures: Any) -> tuple[Parameters | None, dict[str, Any]]:
@@ -96,7 +112,10 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
         if not results:
             self.writer.write_client_records(records)
             return None, {}
-        parameters = ndarrays_to_parameters(aggregate_fedamm_arrays(self.keys, results))
+        if self.modality_weighted_aggregation:
+            parameters = ndarrays_to_parameters(aggregate_fedamm_arrays(self.keys, results))
+        else:
+            parameters = ndarrays_to_parameters(aggregate_sample_count_arrays(results))
         prototype_metrics = self.prototype_library.update_from_results(results)
         import time
         from dataclasses import asdict

@@ -17,6 +17,7 @@ from fl_brats.data.brats import build_dataloader, build_dataset, records_from_cl
 from fl_brats.data.transforms import build_transforms
 from fl_brats.losses.segmentation import create_loss
 from fl_brats.models.factory import create_model, model_report
+from fl_brats.data.hashing import sha256_file
 
 from .model_client import ModelFedAvgClient
 from .parameters import state_to_arrays
@@ -35,6 +36,19 @@ def _device(requested: str) -> torch.device:
     if requested.startswith("cuda") and not torch.cuda.is_available():
         raise ValueError("CUDA was requested but is unavailable")
     return torch.device(requested)
+
+
+def _load_initial_weights(model: torch.nn.Module, values: dict[str, Any]) -> str | None:
+    path_value = values.get("initial_weights") or values.get("initial_checkpoint")
+    if not path_value:
+        return None
+    path = Path(path_value)
+    payload = torch.load(path, map_location="cpu", weights_only=True)
+    state = payload.get("model_state", payload) if isinstance(payload, dict) else payload
+    if not isinstance(state, dict):
+        raise ValueError(f"initial weights do not contain a state dict: {path}")
+    model.load_state_dict(state, strict=True)
+    return sha256_file(path)
 
 
 def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -> ModelFedAvgClient:
@@ -65,6 +79,7 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
         bool(pin_memory) if pin_memory is not None else None,
     )
     model = create_model(model_config)
+    _load_initial_weights(model, values)
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=float(values.get("learning_rate", 1e-4)),
@@ -108,6 +123,7 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
             port = int(sock.getsockname()[1])
     address = str(values.get("server_address") or f"127.0.0.1:{port}")
     server_model = create_model(values.get("model", {}))
+    initial_weight_hash = _load_initial_weights(server_model, values)
     strategy = create_research_fedavg(values, run_dir=run_dir, model=server_model)
     history: list[Any] = []
 
@@ -161,6 +177,7 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
         "model_name": values.get("model", {}).get("name"),
         "model_family": values.get("model", {}).get("name"),
         "seed": values.get("seed"),
+        "initial_weight_hash": initial_weight_hash,
         "number_of_clients": len(clients),
         "completed_rounds": strategy.state.completed_round,
         "best_validation_dice": mean,

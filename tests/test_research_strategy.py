@@ -13,6 +13,8 @@ from fl_brats.federated.research import (
     ExperimentState,
     RoundArtifactWriter,
 )
+from fl_brats.federated.strategy import create_research_fedavg
+from fl_brats.models.factory import create_model
 
 
 def test_server_artifacts_and_checkpoint_are_atomic_and_named(tmp_path) -> None:
@@ -50,3 +52,20 @@ def test_fedamm_aggregates_modality_encoders_by_modality_counts() -> None:
     arrays = aggregate_fedamm_arrays(keys, [(None, first), (None, second)])
     assert arrays[0].tolist() == [2.0]
     assert arrays[1].tolist() == [17.5]
+
+
+def test_fedamm_architecture_uses_plain_strategy_when_configured_as_fedavg(tmp_path) -> None:
+    model = create_model(
+        {
+            "name": "fedamm",
+            "channels": [2, 4],
+            "out_channels": 3,
+            "modality_weighted_aggregation": False,
+        }
+    )
+    strategy = create_research_fedavg(
+        {"strategy": "fedavg", "model": {"name": "fedamm"}, "num_clients": 1},
+        run_dir=tmp_path,
+        model=model,
+    )
+    assert strategy.__class__.__name__ == "ResearchFedAvgStrategy"

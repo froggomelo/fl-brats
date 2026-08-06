@@ -2,6 +2,7 @@ import torch
 
 from fl_brats.models.factory import create_model
 from fl_brats.models.fedamm import FedAMMOutput, masked_mean, semantic_prototypes
+from fl_brats.training.engine import train_one_epoch
 
 
 def test_fedamm_forward_uses_typed_output_and_masks_missing_modalities() -> None:
@@ -32,3 +33,32 @@ def test_semantic_prototypes_pool_class_features() -> None:
     prototypes = semantic_prototypes(features, target)
     assert prototypes.shape == (1, 3, 2)
     assert torch.allclose(prototypes[:, 0], torch.ones(1, 2))
+
+
+def test_fedamm_architecture_can_run_plain_missing_modality_fedavg_control() -> None:
+    model = create_model(
+        {
+            "name": "fedamm",
+            "channels": [2, 4],
+            "out_channels": 3,
+            "prototype_distillation_enabled": False,
+            "global_prototype_alignment_enabled": False,
+            "emit_prototypes": False,
+            "modality_weighted_aggregation": False,
+        }
+    )
+    loader = [
+        {
+            "image": torch.randn(2, 4, 8, 8, 8),
+            "label": torch.zeros(2, 3, 8, 8, 8),
+            "modality_mask": torch.tensor([[True, False, True, False], [False, True, False, True]]),
+        }
+    ]
+    result = train_one_epoch(
+        model,
+        loader,  # type: ignore[arg-type]
+        torch.nn.BCEWithLogitsLoss(),
+        torch.optim.Adam(model.parameters(), lr=1e-4),
+        torch.device("cpu"),
+    )
+    assert "fedamm_prototypes_json" not in result

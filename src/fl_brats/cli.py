@@ -527,14 +527,15 @@ def create_initial_weights(
     output_dir: Path = typer.Option(Path("artifacts/initial_weights"), "--output-dir"),
     seed: int = 42,
 ) -> None:
-    """Create one hashed U-Net initialization shared by both controlled baselines."""
+    """Create one hashed initialization shared by controlled baselines."""
     import torch
 
     values = yaml.safe_load(model_config.read_text(encoding="utf-8"))
     torch.manual_seed(seed)
     model = create_model(values)
     output_dir.mkdir(parents=True, exist_ok=True)
-    path = output_dir / f"unet_seed_{seed}.pt"
+    name = str(values.get("name", "model")).replace("/", "_")
+    path = output_dir / f"{name}_seed_{seed}.pt"
     torch.save(model.state_dict(), path)
     digest = sha256_file(path)
     metadata = {"seed": seed, "initial_weight_hash": digest, "model": model_report(model, values)}

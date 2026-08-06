@@ -1,0 +1,21 @@
+name: federated_missing_modality_fedavg
+training: federated_client
+comparison_mode: fedamm_matched_arbitrary_missing_modalities_control
+strategy: fedavg
+model:
+  name: fedamm
+  out_channels: 3
+  channels: [8, 16, 32, 64]
+  prototype_loss_weight: 0.0
+  prototype_distillation_enabled: false
+  global_prototype_alignment_enabled: false
+  emit_prototypes: false
+  modality_weighted_aggregation: false
+missing_modalities:
+  enabled: true
+  mode: arbitrary
+  seed: 42
+  require_at_least_one: true
+  arbitrary:
+    per_modality_missing_probability: {t1: 0.25, t1ce: 0.25, t2: 0.25, flair: 0.25}
+    combination_probabilities: {}

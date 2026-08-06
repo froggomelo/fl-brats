@@ -88,6 +88,10 @@ class FedAMMUNet(nn.Module):
         self.prototype_layer = int(config.get("prototype_layer", -1))
         self.prototype_temperature = float(config.get("prototype_temperature", 1.0))
         self.prototype_loss_weight = float(config.get("prototype_loss_weight", 1.0))
+        self.prototype_distillation_enabled = bool(config.get("prototype_distillation_enabled", True))
+        self.global_prototype_alignment_enabled = bool(config.get("global_prototype_alignment_enabled", True))
+        self.emit_prototypes = bool(config.get("emit_prototypes", True))
+        self.modality_weighted_aggregation = bool(config.get("modality_weighted_aggregation", True))
         self.modality_encoders = nn.ModuleDict({modality: ModalityEncoder(channels) for modality in MODALITIES})
         self.decoder = SharedDecoder(channels, int(config.get("out_channels", 3)))
 
@@ -117,6 +121,7 @@ class FedAMMUNet(nn.Module):
             modality_mask=mask,
             combination_ids=mask_to_combination_id(mask),
         )
+        setattr(output, "global_prototype_alignment_enabled", self.global_prototype_alignment_enabled)
         if hasattr(self, "global_prototypes_json"):
             setattr(output, "global_prototypes_json", getattr(self, "global_prototypes_json"))
         return output
@@ -158,15 +163,24 @@ def semantic_prototypes(features: torch.Tensor, target: torch.Tensor) -> torch.T
     return numerator / denominator
 
 
-def fedamm_auxiliary_loss(output: FedAMMOutput, target: torch.Tensor, prototype_weight: float = 1.0) -> torch.Tensor:
-    teacher = semantic_prototypes(output.fused_features, target).detach()
+def fedamm_auxiliary_loss(
+    output: FedAMMOutput,
+    target: torch.Tensor,
+    prototype_weight: float = 1.0,
+    *,
+    distillation_enabled: bool = True,
+) -> torch.Tensor:
+    if prototype_weight <= 0:
+        return output.logits.new_zeros(())
     losses = []
-    for modality, features in output.unimodal_features.items():
-        index = MODALITIES.index(modality)
-        present = output.modality_mask[:, index]
-        if present.any():
-            student = semantic_prototypes(features[present], target[present])
-            losses.append(F.mse_loss(student, teacher[present]))
+    if distillation_enabled:
+        teacher = semantic_prototypes(output.fused_features, target).detach()
+        for modality, features in output.unimodal_features.items():
+            index = MODALITIES.index(modality)
+            present = output.modality_mask[:, index]
+            if present.any():
+                student = semantic_prototypes(features[present], target[present])
+                losses.append(F.mse_loss(student, teacher[present]))
     global_loss = global_prototype_alignment_loss(output, target)
     if global_loss is not None:
         losses.append(global_loss)
@@ -176,6 +190,8 @@ def fedamm_auxiliary_loss(output: FedAMMOutput, target: torch.Tensor, prototype_
 
 
 def global_prototype_alignment_loss(output: FedAMMOutput, target: torch.Tensor) -> torch.Tensor | None:
+    if not bool(getattr(output, "global_prototype_alignment_enabled", True)):
+        return None
     payload = getattr(output, "global_prototypes_json", None)
     if not isinstance(payload, str) or not payload:
         return None

@@ -26,9 +26,17 @@ def logits_from_output(output: torch.Tensor | FedAMMOutput) -> torch.Tensor:
 
 def batch_loss(model_output: torch.Tensor | FedAMMOutput, target: torch.Tensor, loss_fn: Any, model: torch.nn.Module) -> torch.Tensor:
     loss = loss_fn(logits_from_output(model_output), target)
-    if isinstance(model_output, FedAMMOutput):
+    if isinstance(model_output, FedAMMOutput) and (
+        getattr(model, "prototype_distillation_enabled", True)
+        or getattr(model, "global_prototype_alignment_enabled", True)
+    ):
         weight = float(getattr(model, "prototype_loss_weight", 1.0))
-        loss = loss + fedamm_auxiliary_loss(model_output, target, weight)
+        loss = loss + fedamm_auxiliary_loss(
+            model_output,
+            target,
+            weight,
+            distillation_enabled=bool(getattr(model, "prototype_distillation_enabled", True)),
+        )
     return loss
 
 
@@ -54,7 +62,7 @@ def train_one_epoch(
         n = len(batch["image"])
         total += float(loss.detach()) * n
         samples += n
-        if isinstance(output, FedAMMOutput):
+        if isinstance(output, FedAMMOutput) and getattr(model, "emit_prototypes", True):
             prototypes = semantic_prototypes(output.fused_features.detach(), batch["label"].detach()).cpu()
             for combo_id, prototype in zip(output.combination_ids.detach().cpu().tolist(), prototypes, strict=True):
                 key = int(combo_id)

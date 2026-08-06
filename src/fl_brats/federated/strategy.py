@@ -39,7 +39,7 @@ def create_research_fedavg(
         accept_failures=bool(config.get("accept_failures", False)),
         evaluate_fn=evaluate_fn,
     )
-    if config.get("strategy") == "fedamm" or getattr(model, "aggregation_strategy", None) == "fedamm":
+    if config.get("strategy") == "fedamm":
         return FedAMMStrategy(
             model=model,
             clusters_per_combination=int(config.get("fedamm", {}).get("clusters_per_combination", 1)),
