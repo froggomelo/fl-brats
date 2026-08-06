@@ -738,11 +738,33 @@ def evaluate_checkpoint(
 def _experiment_values(config: Path | None, context: typer.Context) -> dict[str, Any]:
     """Load a standalone experiment YAML or the repository's composed config."""
     if config is None:
-        return _override_values(context)
+        return _federated_runtime_values(_override_values(context))
     loaded = yaml.safe_load(config.read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise typer.BadParameter("--config must contain a YAML mapping")
-    return loaded
+    return _federated_runtime_values(loaded)
+
+
+def _federated_runtime_values(values: dict[str, Any]) -> dict[str, Any]:
+    """Expose nested Hydra config groups as the flat keys used by Flower helpers."""
+    runtime = dict(values)
+    data = values.get("data", {})
+    training = values.get("training", {})
+    federated = values.get("federated", {})
+    optimizer = values.get("optimizer", {})
+    if isinstance(data, dict):
+        runtime.setdefault("partition_root", data.get("partition_root"))
+    if isinstance(training, dict):
+        runtime.setdefault("local_batch_size", training.get("batch_size"))
+        runtime.setdefault("batch_size", training.get("batch_size"))
+        runtime.setdefault("num_workers", training.get("num_workers"))
+        runtime.setdefault("pin_memory", training.get("pin_memory"))
+    if isinstance(federated, dict):
+        runtime.update({key: value for key, value in federated.items() if key not in runtime})
+    if isinstance(optimizer, dict):
+        runtime.setdefault("learning_rate", optimizer.get("lr"))
+        runtime.setdefault("weight_decay", optimizer.get("weight_decay"))
+    return runtime
 
 
 @app.command("train-federated")

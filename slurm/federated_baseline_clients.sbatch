@@ -78,10 +78,9 @@ apptainer exec --nv --cleanenv \
     model=unet_baseline \
     federated=fedavg \
     "data.partition_root=$partition_root" \
-    "partition_root=$partition_root" \
-    "num_rounds=${FEDERATED_ROUNDS:-50}" \
-    "num_clients=${FEDERATED_CLIENTS:-4}" \
-    "local_batch_size=${FEDERATED_BATCH_SIZE:-1}" \
-    "num_workers=${SLURM_CPUS_PER_TASK:-0}" \
-    "pin_memory=false" \
+    "federated.num_rounds=${FEDERATED_ROUNDS:-50}" \
+    "federated.num_clients=${FEDERATED_CLIENTS:-4}" \
+    "training.batch_size=${FEDERATED_BATCH_SIZE:-1}" \
+    "training.num_workers=${SLURM_CPUS_PER_TASK:-0}" \
+    "training.pin_memory=false" \
     "device=cuda"
