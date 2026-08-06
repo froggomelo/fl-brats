@@ -61,10 +61,12 @@ class BraTSDataset(Dataset):
     def __init__(self, data: list[dict[str, Any]], transform: Any = None) -> None:
         super().__init__(data=data, transform=transform)
 
-    def __getitem__(self, index: int) -> dict[str, Any]:
-        record = self.data[index]
-        result = super().__getitem__(index)
-        mask = record["modality_mask"].clone() if isinstance(record["modality_mask"], torch.Tensor) else torch.tensor(record["modality_mask"], dtype=torch.bool)
+    def _attach_metadata(self, result: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+        mask = (
+            record["modality_mask"].clone()
+            if isinstance(record["modality_mask"], torch.Tensor)
+            else torch.tensor(record["modality_mask"], dtype=torch.bool)
+        )
         image = result["image"]
         # LoadImaged stacks only available images. Restore the invariant four-channel layout.
         if image.shape[0] != 4:
@@ -77,6 +79,13 @@ class BraTSDataset(Dataset):
         result["subject_id"] = record["subject_id"]
         result["client_id"] = record["client_id"]
         return result
+
+    def __getitem__(self, index: int) -> dict[str, Any] | list[dict[str, Any]]:
+        record = self.data[index]
+        result = super().__getitem__(index)
+        if isinstance(result, list):
+            return [self._attach_metadata(sample, record) for sample in result]
+        return self._attach_metadata(result, record)
 
 
 def records_from_client_manifest(path: Path) -> list[dict[str, Any]]:
