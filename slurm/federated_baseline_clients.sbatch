@@ -7,7 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --array=0-3
-#SBATCH --time=48:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/slurm/federated_client_%A_%a.out
 #SBATCH --error=logs/slurm/federated_client_%A_%a.err
 
