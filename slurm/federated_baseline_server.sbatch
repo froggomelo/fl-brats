@@ -62,7 +62,8 @@ apptainer exec --cleanenv \
   fedbrats start-federated-server \
     --server-address "$address" \
     --run-dir "$run_dir" \
-    experiment=federated_unet_baseline \
+    experiment_name=federated_unet_baseline \
+    run_name="$run_id" \
     training=federated_client \
     model=unet_baseline \
     federated=fedavg \
