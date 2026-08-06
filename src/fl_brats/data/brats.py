@@ -48,6 +48,19 @@ def _resolve_record_path(path: str, root: Path | None) -> str:
     return str(root / value)
 
 
+def _client_manifest_root(path: Path) -> Path | None:
+    if raw_root := os.environ.get("FL_BRATS_RAW_ROOT"):
+        return Path(raw_root)
+    partition_path = path.with_name("manifest.json")
+    if not partition_path.exists():
+        return None
+    partition = json.loads(partition_path.read_text(encoding="utf-8"))
+    index_value = partition.get("dataset_index_path")
+    if not index_value:
+        return None
+    return _index_path_root(Path(index_value))
+
+
 def records_from_index(index_path: Path, subject_ids: list[str]) -> list[dict[str, Any]]:
     root = _index_path_root(index_path)
     with index_path.open(encoding="utf-8") as f:
@@ -102,18 +115,30 @@ class BraTSDataset(Dataset):
 
 def records_from_client_manifest(path: Path) -> list[dict[str, Any]]:
     """Load client records without ever exposing unavailable modality paths to MONAI."""
-    import json
     payload = json.loads(path.read_text(encoding="utf-8"))
+    root = _client_manifest_root(path)
     records = []
     for reference in payload["subjects"]:
         mask = torch.tensor(reference.get("modality_mask", [True] * 4), dtype=torch.bool)
         if not mask.any():
             raise ValueError(f"subject {reference['subject_id']} has no available modalities")
         # MONAI LoadImaged accepts a list of files, so use a zero tensor later only for missing slots.
-        records.append({"image": [reference["paths"][m] for m in MODALITIES if mask[MODALITIES.index(m)]],
-                        "label": reference["paths"]["seg"], "subject_id": reference["subject_id"],
-                        "client_id": str(payload["client_id"]), "available_modalities": tuple(reference.get("available_modalities", MODALITIES)),
-                        "modality_mask": mask})
+        records.append(
+            {
+                "image": [
+                    _resolve_record_path(reference["paths"][m], root)
+                    for m in MODALITIES
+                    if mask[MODALITIES.index(m)]
+                ],
+                "label": _resolve_record_path(reference["paths"]["seg"], root),
+                "subject_id": reference["subject_id"],
+                "client_id": str(payload["client_id"]),
+                "available_modalities": tuple(
+                    reference.get("available_modalities", MODALITIES)
+                ),
+                "modality_mask": mask,
+            }
+        )
     return records
 
 

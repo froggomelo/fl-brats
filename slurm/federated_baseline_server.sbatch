@@ -73,5 +73,6 @@ apptainer exec --cleanenv \
     "federated.min_fit_clients=${FEDERATED_MIN_CLIENTS:-${FEDERATED_CLIENTS:-4}}" \
     "federated.min_evaluate_clients=${FEDERATED_MIN_CLIENTS:-${FEDERATED_CLIENTS:-4}}" \
     "federated.min_available_clients=${FEDERATED_MIN_CLIENTS:-${FEDERATED_CLIENTS:-4}}" \
+    "federated.round_timeout_seconds=${FEDERATED_ROUND_TIMEOUT_SECONDS:-1800}" \
     "training.batch_size=${FEDERATED_BATCH_SIZE:-1}" \
     "training.pin_memory=false"

@@ -63,7 +63,7 @@ apptainer exec --nv --cleanenv \
     --output-root "$output_root/centralized" \
     --epochs "${CENTRALIZED_EPOCHS:-50}" \
     --batch-size "${CENTRALIZED_BATCH_SIZE:-1}" \
-    --workers "${SLURM_CPUS_PER_TASK:-0}" \
+    --workers "${CENTRALIZED_WORKERS:-0}" \
     --no-pin-memory \
     --seed "${FL_BRATS_SEED:-42}" \
     --device cuda

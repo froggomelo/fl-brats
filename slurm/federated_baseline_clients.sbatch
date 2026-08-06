@@ -81,6 +81,6 @@ apptainer exec --nv --cleanenv \
     "federated.num_rounds=${FEDERATED_ROUNDS:-50}" \
     "federated.num_clients=${FEDERATED_CLIENTS:-4}" \
     "training.batch_size=${FEDERATED_BATCH_SIZE:-1}" \
-    "training.num_workers=${SLURM_CPUS_PER_TASK:-0}" \
+    "training.num_workers=${FEDERATED_WORKERS:-0}" \
     "training.pin_memory=false" \
     "device=cuda"
