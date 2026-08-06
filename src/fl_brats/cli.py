@@ -764,7 +764,10 @@ def train_federated(
     typer.echo(json.dumps({"run_dir": str(run_dir), "status": summary["status"]}))
 
 
-@app.command("start-federated-server")
+@app.command(
+    "start-federated-server",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def start_federated_server(
     context: typer.Context,
     config: Path | None = typer.Option(None, "--config"),
@@ -779,7 +782,10 @@ def start_federated_server(
     start_server(str(address), values, run_dir=run_dir)
 
 
-@app.command("start-federated-client")
+@app.command(
+    "start-federated-client",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def start_federated_client(
     context: typer.Context,
     client_id: str = typer.Option(..., "--client-id"),
