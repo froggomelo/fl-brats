@@ -552,6 +552,14 @@ def train_centralized(
     epochs: int = typer.Option(50, "--epochs", min=1),
     batch_size: int = typer.Option(1, "--batch-size", min=1),
     workers: int = typer.Option(0, "--workers", min=0),
+    pin_memory: bool | None = typer.Option(
+        None,
+        "--pin-memory/--no-pin-memory",
+        help=(
+            "Pin host memory for CUDA DataLoader transfers. Defaults to CUDA availability "
+            "unless FL_BRATS_PIN_MEMORY is set."
+        ),
+    ),
     seed: int = typer.Option(42, "--seed"),
     device: str = typer.Option("auto", "--device"),
 ) -> None:
@@ -596,7 +604,9 @@ def train_centralized(
             data_values.get("cache_mode", "dataset"),
             cache_base / name,
         )
-        return build_dataloader(dataset, batch_size, training, workers, seed), len(records)
+        return build_dataloader(
+            dataset, batch_size, training, workers, seed, pin_memory
+        ), len(records)
 
     train_loader, train_count = loader(split["train_subjects"], True, "train")
     validation_loader, validation_count = loader(split["validation_subjects"], False, "validation")

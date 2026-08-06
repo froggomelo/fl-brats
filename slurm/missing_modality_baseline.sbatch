@@ -60,4 +60,4 @@ fi
 run create-partition --split-path "$partition_root/split_manifest.json" --output-dir "$partition_root" "${overrides[@]}"
 run verify-manifests --partition-root "$partition_root"
 run inspect-modalities --partition-root "$partition_root"
-run train-centralized --index-path "$index_path" --split-path "$partition_root/split_manifest.json" --partition-path "$partition_root/manifest.json" --initial-weights "$weights_path" --output-root "$output_root/missing_modality" --epochs "${EPOCHS:-50}" --batch-size "${BATCH_SIZE:-1}" --workers "${SLURM_CPUS_PER_TASK:-0}" --seed "${FL_BRATS_SEED:-42}" --device cuda
+run train-centralized --index-path "$index_path" --split-path "$partition_root/split_manifest.json" --partition-path "$partition_root/manifest.json" --initial-weights "$weights_path" --output-root "$output_root/missing_modality" --epochs "${EPOCHS:-50}" --batch-size "${BATCH_SIZE:-1}" --workers "${SLURM_CPUS_PER_TASK:-0}" --no-pin-memory --seed "${FL_BRATS_SEED:-42}" --device cuda

@@ -219,6 +219,7 @@ class ProjectConfig(BaseModel):
     checkpoint_root: Path
     device: str
     num_workers: int = Field(ge=0)
+    pin_memory: bool = False
     precision: Literal["float32", "float16", "bfloat16"]
     resume: str | None = None
     tags: list[str] = Field(default_factory=list)

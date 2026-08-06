@@ -18,6 +18,18 @@ from torch.utils.data import DataLoader
 from .modalities import MODALITIES, combination_to_mask, mask_to_combination_id
 
 
+def _env_flag(name: str) -> bool | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean value, got {value!r}")
+
+
 def _index_path_root(index_path: Path) -> Path | None:
     if raw_root := os.environ.get("FL_BRATS_RAW_ROOT"):
         return Path(raw_root)
@@ -121,15 +133,24 @@ def build_dataset(
 
 
 def build_dataloader(
-    dataset: Dataset, batch_size: int, training: bool, workers: int = 0, seed: int = 42
+    dataset: Dataset,
+    batch_size: int,
+    training: bool,
+    workers: int = 0,
+    seed: int = 42,
+    pin_memory: bool | None = None,
 ) -> DataLoader[Any]:
     generator = torch.Generator().manual_seed(seed)
+    if pin_memory is None:
+        pin_memory = _env_flag("FL_BRATS_PIN_MEMORY")
+    if pin_memory is None:
+        pin_memory = torch.cuda.is_available()
     return DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=training,
         num_workers=workers,
         generator=generator,
-        pin_memory=torch.cuda.is_available(),
+        pin_memory=pin_memory,
         collate_fn=list_data_collate,
     )

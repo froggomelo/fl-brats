@@ -1,6 +1,7 @@
 epochs: 50
 batch_size: 1
 num_workers: 4
+pin_memory: false
 amp: true
 gradient_clip_norm: null
 early_stopping_patience: 10

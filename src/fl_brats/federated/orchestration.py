@@ -47,12 +47,14 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
         raise ValueError(f"client {client_id!r} has an empty partition")
     data = values.get("data", {})
     model_config = values.get("model", {})
+    pin_memory = values.get("pin_memory")
     train = build_dataloader(
         build_dataset(records, build_transforms(data, True)),
         int(values.get("local_batch_size", values.get("batch_size", 1))),
         True,
         int(values.get("num_workers", 0)),
         int(values.get("seed", 42)),
+        bool(pin_memory) if pin_memory is not None else None,
     )
     valid = build_dataloader(
         build_dataset(records, build_transforms(data, False)),
@@ -60,6 +62,7 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
         False,
         int(values.get("num_workers", 0)),
         int(values.get("seed", 42)),
+        bool(pin_memory) if pin_memory is not None else None,
     )
     model = create_model(model_config)
     optimizer = torch.optim.Adam(

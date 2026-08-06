@@ -1,6 +1,7 @@
+import pytest
 import torch
 
-from fl_brats.data.brats import BraTSDataset
+from fl_brats.data.brats import BraTSDataset, build_dataloader
 from fl_brats.data.modalities import MODALITIES, combination_to_mask
 
 
@@ -45,3 +46,34 @@ def test_dataset_restores_missing_modality_channels_for_sample_lists() -> None:
     assert torch.equal(sample["image"][1], torch.zeros(2, 2, 2))
     assert torch.equal(sample["image"][2], torch.zeros(2, 2, 2))
     assert torch.equal(sample["image"][3], torch.ones(2, 2, 2))
+
+
+def test_dataloader_pin_memory_can_be_disabled_explicitly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+
+    loader = build_dataloader([], batch_size=1, training=False, pin_memory=False)
+
+    assert loader.pin_memory is False
+
+
+def test_dataloader_pin_memory_honors_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setenv("FL_BRATS_PIN_MEMORY", "false")
+
+    loader = build_dataloader([], batch_size=1, training=False)
+
+    assert loader.pin_memory is False
+
+
+def test_dataloader_pin_memory_defaults_to_cuda_availability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+
+    loader = build_dataloader([], batch_size=1, training=False)
+
+    assert loader.pin_memory is True
