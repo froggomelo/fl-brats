@@ -35,6 +35,10 @@ checkpoint_root="${FL_BRATS_CHECKPOINT_ROOT:-checkpoints}"
 partition_root="${PARTITION_ROOT:-${data_root}/partitions/fixed_quantity_skew}"
 run_id="${FEDERATED_RUN_ID:-unet_baseline_manual}"
 run_dir="${FEDERATED_RUN_DIR:-${output_root}/federated/${run_id}}"
+experiment_name="${FEDERATED_EXPERIMENT_NAME:-federated_unet_baseline}"
+model_config="${FEDERATED_MODEL:-unet_baseline}"
+strategy_config="${FEDERATED_STRATEGY:-fedavg}"
+read -r -a extra_overrides <<< "${FEDERATED_OVERRIDES:-}"
 client_index="${SLURM_ARRAY_TASK_ID:-0}"
 client_id="client_${client_index}"
 address_file="$run_dir/server_address.txt"
@@ -83,15 +87,16 @@ apptainer exec --nv --cleanenv \
   fedbrats start-federated-client \
     --client-id "$client_id" \
     --server-address "$server_address" \
-    experiment_name=federated_unet_baseline \
+    "experiment_name=$experiment_name" \
     run_name="$run_id" \
     training=federated_client \
-    model=unet_baseline \
-    federated=fedavg \
+    "model=$model_config" \
+    "federated=$strategy_config" \
     "data.partition_root=$partition_root" \
     "federated.num_rounds=${FEDERATED_ROUNDS:-50}" \
     "federated.num_clients=${FEDERATED_CLIENTS:-4}" \
     "training.batch_size=${FEDERATED_BATCH_SIZE:-1}" \
     "training.num_workers=${FEDERATED_WORKERS:-0}" \
     "training.pin_memory=false" \
-    "device=cuda"
+    "device=cuda" \
+    "${extra_overrides[@]}"
