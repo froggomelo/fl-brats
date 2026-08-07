@@ -2,6 +2,7 @@
 
 import csv
 import json
+import os
 from pathlib import Path
 
 from .hashing import sha256_file, sha256_payload
@@ -37,9 +38,13 @@ def verify_manifests(root: Path, check_nifti: bool = False) -> list[str]:
     rows = list(csv.DictReader(index_path.open(encoding="utf-8")))
     by_id = {row["subject_id"]: (i, row) for i, row in enumerate(rows)}
     raw_root = (
-        Path(
-            json.loads((index_path.parent / "dataset_summary.json").read_text()).get(
-                "raw_root", index_path.parent
+        Path(os.environ["FL_BRATS_RAW_ROOT"])
+        if os.environ.get("FL_BRATS_RAW_ROOT")
+        else (
+            Path(
+                json.loads((index_path.parent / "dataset_summary.json").read_text()).get(
+                    "raw_root", index_path.parent
+                )
             )
         )
         if (index_path.parent / "dataset_summary.json").exists()

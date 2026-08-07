@@ -15,5 +15,6 @@ fi
 echo "host=$(hostname) job=${SLURM_JOB_ID:-local}"
 : "${FL_BRATS_DATA_ROOT:?set FL_BRATS_DATA_ROOT}"
 : "${FL_BRATS_IMAGE:?set FL_BRATS_IMAGE}"
+raw_root="${FL_BRATS_RAW_ROOT:-$FL_BRATS_DATA_ROOT/raw/brats2021}"
 container_root="/datasets/${USER}/brats"
-apptainer exec --bind "$FL_BRATS_DATA_ROOT:$container_root:ro" "$FL_BRATS_IMAGE" fedbrats validate-data --root "$container_root/raw/brats2021" --strict
+apptainer exec --bind "$raw_root:$container_root/raw/brats2021:ro" "$FL_BRATS_IMAGE" fedbrats validate-data --root "$container_root/raw/brats2021" --strict

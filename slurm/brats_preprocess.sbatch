@@ -15,5 +15,6 @@ fi
 trap 'echo "termination received; completed subjects remain resumable"; exit 143' TERM INT
 : "${FL_BRATS_DATA_ROOT:?set FL_BRATS_DATA_ROOT}"
 : "${FL_BRATS_IMAGE:?set FL_BRATS_IMAGE}"
+raw_root="${FL_BRATS_RAW_ROOT:-$FL_BRATS_DATA_ROOT/raw/brats2021}"
 container_root="/datasets/${USER}/brats"
-apptainer exec --bind "$FL_BRATS_DATA_ROOT/raw:$container_root/raw:ro" --bind "$FL_BRATS_DATA_ROOT/processed:$container_root/processed:rw" "$FL_BRATS_IMAGE" fedbrats preprocess-data --index-path "$container_root/processed/brats2021_v1/dataset_index.csv" --raw-root "$container_root/raw/brats2021" --output-dir "$container_root/processed/brats2021_v1" --resume
+apptainer exec --bind "$raw_root:$container_root/raw/brats2021:ro" --bind "$FL_BRATS_DATA_ROOT/processed:$container_root/processed:rw" "$FL_BRATS_IMAGE" fedbrats preprocess-data --index-path "$container_root/processed/brats2021_v1/dataset_index.csv" --raw-root "$container_root/raw/brats2021" --output-dir "$container_root/processed/brats2021_v1" --resume
