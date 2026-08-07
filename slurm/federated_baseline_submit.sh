@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$script_dir/.." && pwd)"
 if [[ -f "$repo_root/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -26,12 +27,12 @@ client_array_last=$((FEDERATED_CLIENTS - 1))
 
 server_job="$(
   sbatch --parsable --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir" \
-    slurm/federated_baseline_server.sbatch
+    "$repo_root/slurm/federated_baseline_server.sbatch"
 )"
 client_job="$(
   sbatch --parsable --array="0-${client_array_last}" \
     --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir",FEDERATED_SERVER_JOB_ID="$server_job",FEDERATED_CLIENTS="$FEDERATED_CLIENTS" \
-    slurm/federated_baseline_clients.sbatch
+    "$repo_root/slurm/federated_baseline_clients.sbatch"
 )"
 cleanup_job="$(
   sbatch --parsable --dependency=afterany:"$client_job" \

@@ -14,7 +14,8 @@ set -euo pipefail
 
 trap 'echo "Received termination signal" >&2; exit 143' TERM INT
 
-repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$script_dir/.." && pwd)"
 if [[ -f "$repo_root/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
