@@ -12,7 +12,13 @@ fi
 
 data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
 partition_root="${PARTITION_ROOT:-${data_root}/partitions/missing_modality_arbitrary_025}"
-PARTITION_ROOT="$partition_root" bash "$repo_root/slurm/prepare_missing_modality_partition.sh"
+for required in "$partition_root/client_0.json" "$partition_root/manifest.json" "$partition_root/split_manifest.json"; do
+  [[ -f "$required" ]] || {
+    echo "Required missing-modality partition input missing: $required" >&2
+    echo "Create it first with: PARTITION_ROOT=\"$partition_root\" bash \"$repo_root/slurm/prepare_missing_modality_partition.sh\"" >&2
+    exit 2
+  }
+done
 
 export PARTITION_ROOT="$partition_root"
 export FEDERATED_RUN_ID="${FEDERATED_RUN_ID:-missing_modality_fedavg_$(date +%Y%m%d_%H%M%S)}"
