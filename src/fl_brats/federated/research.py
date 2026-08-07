@@ -29,6 +29,7 @@ class ClientRoundRecord:
     dice_wt: float | None
     dice_tc: float | None
     dice_et: float | None
+    mean_dice: float | None
     fit_seconds: float | None
     upload_payload_bytes: int
     download_payload_bytes: int
@@ -79,6 +80,9 @@ class RoundArtifactWriter:
 
     def write_round_record(self, record: Mapping[str, Any]) -> None:
         self._append(self.run_dir / "metrics" / "rounds.jsonl", record)
+
+    def write_evaluation_record(self, record: Mapping[str, Any]) -> None:
+        self._append(self.run_dir / "metrics" / "evaluation_rounds.jsonl", record)
 
     def write_communication_record(self, record: Mapping[str, Any]) -> None:
         self._append(self.run_dir / "communication" / "rounds.jsonl", record)
@@ -157,12 +161,10 @@ class ResearchFedAvgStrategy(FedAvg):
         if parameters is None:
             self.writer.write_client_records(records)
             return None, metrics
-        round_metric = self._mean(records, "dice_wt")
         elapsed = time.perf_counter() - self._round_started.pop(server_round)
         round_record = {
             "schema_version": SCHEMA_VERSION,
             "round": server_round,
-            "client_wt_dice_mean": round_metric,
             "round_wall_seconds": elapsed,
             "successful_clients": sum(record.status == "completed" for record in records),
         }
@@ -172,11 +174,6 @@ class ResearchFedAvgStrategy(FedAvg):
         next_state.downloaded_bytes += sum(record.download_payload_bytes for record in records)
         checkpoint = self.checkpoints.save_round(server_round, parameters, next_state, round_record)
         next_state.latest_checkpoint = str(checkpoint)
-        if round_metric is not None and (
-            next_state.best_metric is None or round_metric > next_state.best_metric
-        ):
-            next_state.best_metric, next_state.best_round = round_metric, server_round
-            next_state.best_checkpoint = str(self.checkpoints.save_alias(checkpoint, "best.pt"))
         self.writer.write_client_records(records)
         self.writer.write_round_record(round_record)
         self.writer.write_communication_record(
@@ -190,12 +187,56 @@ class ResearchFedAvgStrategy(FedAvg):
         self.writer.write_state(self.state)
         return parameters, metrics
 
+    def aggregate_evaluate(
+        self, server_round: int, results: Any, failures: Any
+    ) -> tuple[float | None, dict[str, Any]]:
+        loss, metrics = super().aggregate_evaluate(server_round, results, failures)
+        records = self._evaluation_records(server_round, results, failures)
+        mean_dice = self._weighted_mean(records, "mean_dice")
+        record = {
+            "schema_version": SCHEMA_VERSION,
+            "round": server_round,
+            "validation_loss": loss,
+            "validation_wt_dice": self._weighted_mean(records, "dice_wt"),
+            "validation_tc_dice": self._weighted_mean(records, "dice_tc"),
+            "validation_et_dice": self._weighted_mean(records, "dice_et"),
+            "validation_mean_dice": mean_dice,
+            "successful_clients": sum(item.status == "completed" for item in records),
+            "failed_clients": sum(item.status == "failed" for item in records),
+        }
+        if failures:
+            record["failures"] = [str(failure) for failure in failures]
+        self.writer.write_evaluation_record(record)
+        next_state = ExperimentState(**asdict(self.state))
+        if mean_dice is not None and next_state.latest_checkpoint is not None and (
+            next_state.best_metric is None or mean_dice > next_state.best_metric
+        ):
+            next_state.best_metric, next_state.best_round = mean_dice, server_round
+            next_state.best_checkpoint = str(
+                self.checkpoints.save_alias(Path(next_state.latest_checkpoint), "best.pt")
+            )
+            self.state = next_state
+            self.writer.write_state(self.state)
+        return loss, metrics
+
     @staticmethod
     def _mean(records: list[ClientRoundRecord], field: str) -> float | None:
         values = [
             getattr(record, field) for record in records if getattr(record, field) is not None
         ]
         return sum(values) / len(values) if values else None
+
+    @staticmethod
+    def _weighted_mean(records: list[ClientRoundRecord], field: str) -> float | None:
+        weighted = [
+            (record.num_examples, getattr(record, field))
+            for record in records
+            if getattr(record, field) is not None and record.num_examples > 0
+        ]
+        total = sum(num_examples for num_examples, _ in weighted)
+        if total <= 0:
+            return None
+        return sum(num_examples * float(value) for num_examples, value in weighted) / total
 
     def _records(self, round_number: int, results: Any, failures: Any) -> list[ClientRoundRecord]:
         records: list[ClientRoundRecord] = []
@@ -211,6 +252,7 @@ class ResearchFedAvgStrategy(FedAvg):
                     self._float(metric, "wt_dice"),
                     self._float(metric, "tc_dice"),
                     self._float(metric, "et_dice"),
+                    self._float(metric, "mean_dice"),
                     self._float(metric, "local_training_seconds"),
                     int(metric.get("upload_numpy_array_bytes", 0)),
                     int(metric.get("download_payload_bytes", 0)),
@@ -229,6 +271,51 @@ class ResearchFedAvgStrategy(FedAvg):
                     None,
                     None,
                     None,
+                    None,
+                    0,
+                    0,
+                    "failed",
+                    str(failure),
+                )
+            )
+        return records
+
+    def _evaluation_records(
+        self, round_number: int, results: Any, failures: Any
+    ) -> list[ClientRoundRecord]:
+        records: list[ClientRoundRecord] = []
+        for proxy, result in results:
+            metric = result.metrics
+            records.append(
+                ClientRoundRecord(
+                    round_number,
+                    str(metric.get("client_id", proxy.cid)),
+                    result.num_examples,
+                    None,
+                    self._float(metric, "loss"),
+                    self._float(metric, "wt_dice"),
+                    self._float(metric, "tc_dice"),
+                    self._float(metric, "et_dice"),
+                    self._float(metric, "mean_dice"),
+                    None,
+                    0,
+                    0,
+                    "completed",
+                )
+            )
+        for failure in failures:
+            records.append(
+                ClientRoundRecord(
+                    round_number,
+                    "unknown",
+                    0,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
                     0,
                     0,
                     "failed",
@@ -241,3 +328,23 @@ class ResearchFedAvgStrategy(FedAvg):
     def _float(metrics: Mapping[str, Any], key: str) -> float | None:
         value = metrics.get(key)
         return float(value) if isinstance(value, (float, int)) else None
+
+
+def weighted_average_metrics(results: list[tuple[int, Mapping[str, Any]]]) -> dict[str, float]:
+    """Aggregate numeric Flower client metrics by each client's example count."""
+    total = sum(num_examples for num_examples, _ in results)
+    if total <= 0:
+        return {}
+    keys = sorted(
+        {
+            key
+            for _, metrics in results
+            for key, value in metrics.items()
+            if isinstance(value, (float, int))
+        }
+    )
+    return {
+        key: sum(float(metrics.get(key, 0.0)) * num_examples for num_examples, metrics in results)
+        / total
+        for key in keys
+    }

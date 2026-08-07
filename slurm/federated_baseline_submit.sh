@@ -17,13 +17,20 @@ mkdir -p "$run_dir"
 # DataLoader multiprocessing is opt-in on this cluster because PyTorch tensor
 # IPC can fail with "received 0 items of ancdata" under Apptainer.
 : "${FEDERATED_WORKERS:=0}"
+: "${FEDERATED_CLIENTS:=4}"
+if ! [[ "$FEDERATED_CLIENTS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "FEDERATED_CLIENTS must be a positive integer, got: $FEDERATED_CLIENTS" >&2
+  exit 2
+fi
+client_array_last=$((FEDERATED_CLIENTS - 1))
 
 server_job="$(
   sbatch --parsable --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir" \
     slurm/federated_baseline_server.sbatch
 )"
 client_job="$(
-  sbatch --parsable --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir",FEDERATED_SERVER_JOB_ID="$server_job" \
+  sbatch --parsable --array="0-${client_array_last}" \
+    --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir",FEDERATED_SERVER_JOB_ID="$server_job",FEDERATED_CLIENTS="$FEDERATED_CLIENTS" \
     slurm/federated_baseline_clients.sbatch
 )"
 cleanup_job="$(

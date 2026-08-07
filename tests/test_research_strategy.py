@@ -22,7 +22,11 @@ def test_server_artifacts_and_checkpoint_are_atomic_and_named(tmp_path) -> None:
     writer = RoundArtifactWriter(tmp_path)
     state = ExperimentState(completed_round=1, uploaded_bytes=12)
     writer.write_client_records(
-        [ClientRoundRecord(1, "client_0", 2, 0.3, 0.2, 0.6, 0.5, 0.4, 1.0, 12, 10, "completed")]
+        [
+            ClientRoundRecord(
+                1, "client_0", 2, 0.3, 0.2, 0.6, 0.5, 0.4, 0.5, 1.0, 12, 10, "completed"
+            )
+        ]
     )
     writer.write_round_record({"round": 1})
     writer.write_communication_record({"round": 1, "uploaded_bytes": 12})

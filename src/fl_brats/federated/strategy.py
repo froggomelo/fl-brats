@@ -24,7 +24,12 @@ def create_research_fedavg(
 ) -> Any:
     """Build the classic Flower strategy with server-owned experiment artifacts."""
     from .fedamm import FedAMMStrategy
-    from .research import CheckpointManager, ResearchFedAvgStrategy, RoundArtifactWriter
+    from .research import (
+        CheckpointManager,
+        ResearchFedAvgStrategy,
+        RoundArtifactWriter,
+        weighted_average_metrics,
+    )
 
     common = dict(
         writer=RoundArtifactWriter(run_dir),
@@ -38,6 +43,8 @@ def create_research_fedavg(
         ),
         accept_failures=bool(config.get("accept_failures", False)),
         evaluate_fn=evaluate_fn,
+        fit_metrics_aggregation_fn=weighted_average_metrics,
+        evaluate_metrics_aggregation_fn=weighted_average_metrics,
     )
     if config.get("strategy") == "fedamm":
         return FedAMMStrategy(

@@ -48,7 +48,7 @@ from fl_brats.training.checkpointing import (
     load_checkpoint,
     save_checkpoint,
 )
-from fl_brats.training.engine import evaluate, train_one_epoch
+from fl_brats.training.engine import evaluate, forward_batch, logits_from_output, train_one_epoch
 from fl_brats.utils.environment import collect_environment, write_environment_report
 from fl_brats.utils.logging import configure_logging
 from fl_brats.utils.paths import (
@@ -617,25 +617,19 @@ def train_centralized(
     for epoch in range(1, epochs + 1):
         training = train_one_epoch(model, train_loader, loss_fn, optimizer, selected)
         validation = evaluate(model, validation_loader, loss_fn, selected)
-        metrics_file.write_text(
-            metrics_file.read_text()
-            + json.dumps(
-                {
-                    "epoch": epoch,
-                    **training,
-                    **{f"validation_{k}": v for k, v in validation.items()},
-                }
-            )
-            + "\n"
-            if metrics_file.exists()
-            else json.dumps(
-                {
-                    "epoch": epoch,
-                    **training,
-                    **{f"validation_{k}": v for k, v in validation.items()},
-                }
-            )
-            + "\n"
+        record = {
+            "epoch": epoch,
+            **training,
+            **{f"validation_{k}": v for k, v in validation.items()},
+        }
+        with metrics_file.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+        typer.echo(
+            "epoch={epoch}/{epochs} train_loss={train_loss:.4f} "
+            "val_loss={validation_loss:.4f} val_mean_dice={validation_mean_dice:.4f} "
+            "val_wt={validation_wt_dice:.4f} val_tc={validation_tc_dice:.4f} "
+            "val_et={validation_et_dice:.4f}".format(epochs=epochs, **record),
+            err=True,
         )
         save_checkpoint(
             run_dir / "checkpoints" / "last.pt",
@@ -685,6 +679,12 @@ def train_centralized(
         "evaluation_policy": "empty ground truth and empty prediction score Dice 1",
     }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    typer.echo(
+        "best_epoch={best_validation_epoch} best_val_mean_dice={best_validation_mean_dice:.4f} "
+        "test_mean_dice={test_mean_dice:.4f} test_wt={test_wt_dice:.4f} "
+        "test_tc={test_tc_dice:.4f} test_et={test_et_dice:.4f}".format(**summary),
+        err=True,
+    )
     typer.echo(str(run_dir))
 
 
@@ -733,6 +733,183 @@ def evaluate_checkpoint(
     }
     (destination / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     typer.echo(json.dumps(summary, indent=2))
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        raise typer.BadParameter(f"metrics file does not exist: {path}")
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+@app.command("plot-dice")
+def plot_dice(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    output: Path | None = typer.Option(None, "--output"),
+) -> None:
+    """Plot centralized epoch Dice or federated round Dice from a run directory."""
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError as error:
+        raise typer.BadParameter("matplotlib is required to plot Dice curves") from error
+
+    centralized = run_dir / "metrics.jsonl"
+    federated = run_dir / "metrics" / "evaluation_rounds.jsonl"
+    if federated.exists():
+        records = _read_jsonl(federated)
+        x_key = "round"
+        series = {
+            "Mean Dice": "validation_mean_dice",
+            "WT Dice": "validation_wt_dice",
+            "TC Dice": "validation_tc_dice",
+            "ET Dice": "validation_et_dice",
+            "Loss": "validation_loss",
+        }
+        xlabel = "Federated Round"
+    elif centralized.exists():
+        records = _read_jsonl(centralized)
+        x_key = "epoch"
+        series = {
+            "Mean Dice": "validation_mean_dice",
+            "WT Dice": "validation_wt_dice",
+            "TC Dice": "validation_tc_dice",
+            "ET Dice": "validation_et_dice",
+            "Loss": "validation_loss",
+        }
+        xlabel = "Epoch"
+    else:
+        raise typer.BadParameter(
+            f"no centralized or federated metrics found under {run_dir}"
+        )
+
+    fig, ax1 = plt.subplots(figsize=(9, 5))
+    ax2 = ax1.twinx()
+    xs = [record[x_key] for record in records]
+    for label, key in series.items():
+        ys = [record.get(key) for record in records]
+        if not any(value is not None for value in ys):
+            continue
+        axis = ax2 if key.endswith("loss") else ax1
+        axis.plot(xs, ys, marker="o", markersize=3, linewidth=1.6, label=label)
+    ax1.set_xlabel(xlabel)
+    ax1.set_ylabel("Dice")
+    ax2.set_ylabel("Loss")
+    ax1.set_ylim(0, 1)
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    handles2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(handles1 + handles2, labels1 + labels2, loc="best")
+    ax1.grid(True, alpha=0.3)
+    fig.tight_layout()
+    destination = output or run_dir / "metrics" / "dice_curve.png"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(destination, dpi=160)
+    plt.close(fig)
+    typer.echo(str(destination))
+
+
+@app.command("visualize-segmentation")
+def visualize_segmentation(
+    checkpoint: Path = typer.Option(..., "--checkpoint"),
+    index_path: Path | None = typer.Option(
+        None,
+        "--index-path",
+        help=(
+            "Dataset index CSV. Defaults to DATASET_INDEX_PATH or "
+            "FL_BRATS_DATA_ROOT/processed/brats2021_v1/dataset_index.csv."
+        ),
+    ),
+    subjects: str = typer.Option(..., "--subjects", help="Comma-separated subject IDs"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+    device: str = typer.Option("auto", "--device"),
+    threshold: float = typer.Option(0.5, "--threshold", min=0.0, max=1.0),
+) -> None:
+    """Save brain-scan segmentation overlays for checkpoint predictions."""
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import torch
+    except ImportError as error:
+        raise typer.BadParameter("matplotlib, numpy, and torch are required") from error
+
+    payload = load_checkpoint(checkpoint)
+    model_values = payload.get("model_config")
+    if not isinstance(model_values, dict) or "model_state" not in payload:
+        raise typer.BadParameter("checkpoint lacks model_config or model_state")
+    selected = torch.device(
+        "cuda"
+        if device == "auto" and torch.cuda.is_available()
+        else "cpu"
+        if device == "auto"
+        else device
+    )
+    model = create_model(model_values).to(selected)
+    model.load_state_dict(payload["model_state"], strict=True)
+    model.eval()
+    if index_path is None:
+        if value := os.environ.get("DATASET_INDEX_PATH"):
+            index_path = Path(value)
+        elif data_root := os.environ.get("FL_BRATS_DATA_ROOT"):
+            index_path = Path(data_root) / "processed" / "brats2021_v1" / "dataset_index.csv"
+        else:
+            raise typer.BadParameter(
+                "pass --index-path or set DATASET_INDEX_PATH/FL_BRATS_DATA_ROOT"
+            )
+    if not index_path.is_file():
+        raise typer.BadParameter(f"dataset index CSV does not exist: {index_path}")
+    values = resolved_dict(_config(None))
+    data = values["data"]
+    ids = [item.strip() for item in subjects.split(",") if item.strip()]
+    loader = build_dataloader(
+        build_dataset(records_from_index(index_path, ids), build_transforms(data, False)),
+        1,
+        False,
+        workers=0,
+        pin_memory=False,
+    )
+    destination = output_dir or checkpoint.parent.parent / "visualizations" / "segmentation"
+    destination.mkdir(parents=True, exist_ok=True)
+    colors = {
+        "wt": np.array([1.0, 0.25, 0.15]),
+        "tc": np.array([0.1, 0.75, 1.0]),
+        "et": np.array([1.0, 0.85, 0.1]),
+    }
+    saved: list[str] = []
+    with torch.no_grad():
+        for batch in loader:
+            batch = {
+                k: v.to(selected) if isinstance(v, torch.Tensor) else v
+                for k, v in batch.items()
+            }
+            logits = logits_from_output(forward_batch(model, batch))
+            prediction = (torch.sigmoid(logits)[0].detach().cpu() >= threshold).numpy()
+            label = batch["label"][0].detach().cpu().numpy().astype(bool)
+            image = batch["image"][0, 3].detach().cpu().numpy()
+            subject_id = str(batch["subject_id"][0])
+            z = int(np.argmax(label.sum(axis=(0, 1, 2))))
+            if label[:, :, :, z].sum() == 0:
+                z = image.shape[-1] // 2
+            base = image[:, :, z]
+            base = (base - base.min()) / (base.max() - base.min() + 1e-8)
+            overlays = [("Ground truth", label), ("Prediction", prediction)]
+            fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+            for axis, (title, mask) in zip(axes, overlays, strict=True):
+                rgb = np.repeat(base[..., None], 3, axis=-1)
+                for channel, key in enumerate(("wt", "tc", "et")):
+                    active = mask[channel, :, :, z]
+                    rgb[active] = 0.55 * rgb[active] + 0.45 * colors[key]
+                axis.imshow(np.rot90(rgb), interpolation="nearest")
+                axis.set_title(title)
+                axis.axis("off")
+            fig.suptitle(f"{subject_id} slice {z}")
+            fig.tight_layout()
+            path = destination / f"{subject_id}_slice_{z:03d}.png"
+            fig.savefig(path, dpi=160)
+            plt.close(fig)
+            saved.append(str(path))
+    typer.echo(json.dumps({"saved": saved}, indent=2))
 
 
 def _experiment_values(config: Path | None, context: typer.Context) -> dict[str, Any]:

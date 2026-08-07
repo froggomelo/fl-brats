@@ -10,10 +10,10 @@ readme = "README.md"
 requires-python = ">=3.11,<3.12"
 authors = [{name = "FL-BraTS Contributors", email = "research@example.invalid"}]
 classifiers = ["Development Status :: 3 - Alpha", "Intended Audience :: Science/Research", "License :: OSI Approved :: MIT License", "Programming Language :: Python :: 3.11"]
-dependencies = ["torch", "torchvision", "monai", "flwr", "hydra-core", "omegaconf", "mlflow", "optuna", "nibabel", "pandas", "numpy", "pydantic", "pydantic-settings", "python-dotenv", "psutil", "rich", "typer", "pyyaml", "platformdirs"]
+dependencies = ["torch", "torchvision", "monai", "flwr", "hydra-core", "omegaconf", "mlflow", "optuna", "nibabel", "pandas", "numpy", "matplotlib", "pydantic", "pydantic-settings", "python-dotenv", "psutil", "rich", "typer", "pyyaml", "platformdirs"]
 
 [project.optional-dependencies]
-notebooks = ["jupyterlab", "ipykernel", "matplotlib"]
+notebooks = ["jupyterlab", "ipykernel"]
 cluster = []
 cuda = []
 
