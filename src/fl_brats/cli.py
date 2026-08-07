@@ -458,7 +458,10 @@ def inspect_split(manifest_path: Path = typer.Option(..., "--manifest-path")) ->
     typer.echo(manifest_path.read_text(encoding="utf-8"))
 
 
-@app.command("create-partition")
+@app.command(
+    "create-partition",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def create_partition_command(
     context: typer.Context,
     split_path: Path = typer.Option(..., "--split-path"),

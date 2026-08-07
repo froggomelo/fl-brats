@@ -19,12 +19,14 @@ cache_root="${FL_BRATS_CACHE_ROOT:-cache}"
 checkpoint_root="${FL_BRATS_CHECKPOINT_ROOT:-checkpoints}"
 partition_root="${PARTITION_ROOT:-${data_root}/partitions/missing_modality_arbitrary_025}"
 index_path="${DATASET_INDEX_PATH:-${data_root}/processed/brats2021_v1/dataset_index.csv}"
+mpl_config_dir="${MPLCONFIGDIR:-${cache_root}/matplotlib}"
 
-mkdir -p "$partition_root" "$output_root" "$log_root/slurm" "$cache_root" "$checkpoint_root"
+mkdir -p "$partition_root" "$output_root" "$log_root/slurm" "$cache_root" "$checkpoint_root" "$mpl_config_dir"
 [[ -f "$index_path" ]] || { echo "Dataset index missing: $index_path" >&2; exit 2; }
 
 run_fedbrats() {
   apptainer exec --cleanenv \
+    --env "MPLCONFIGDIR=$mpl_config_dir" \
     --bind "$repo_root/src:/workspace/src:ro" \
     --bind "$repo_root/configs:/workspace/configs:ro" \
     --bind "$data_root:$data_root:ro" \
