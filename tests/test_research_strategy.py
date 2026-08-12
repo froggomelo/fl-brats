@@ -24,7 +24,21 @@ def test_server_artifacts_and_checkpoint_are_atomic_and_named(tmp_path) -> None:
     writer.write_client_records(
         [
             ClientRoundRecord(
-                1, "client_0", 2, 0.3, 0.2, 0.6, 0.5, 0.4, 0.5, 1.0, 12, 10, "completed"
+                1,
+                "client_0",
+                2,
+                0.3,
+                0.2,
+                0.6,
+                0.5,
+                0.4,
+                0.5,
+                1.0,
+                12,
+                10,
+                0.25,
+                0.05,
+                "completed",
             )
         ]
     )

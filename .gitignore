@@ -28,4 +28,6 @@ notebooks/.ipynb_checkpoints/
 .vscode/
 .DS_Store
 *.sif
+.apptainer-cache/
+.apptainer-tmp/
 slurm-*.out

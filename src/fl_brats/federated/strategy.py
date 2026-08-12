@@ -23,7 +23,10 @@ def create_research_fedavg(
     config: dict[str, Any], *, run_dir: Any, model: Any, evaluate_fn: Any = None
 ) -> Any:
     """Build the classic Flower strategy with server-owned experiment artifacts."""
+    from flwr.common import ndarrays_to_parameters
+
     from .fedamm import FedAMMStrategy
+    from .parameters import state_to_arrays
     from .research import (
         CheckpointManager,
         ResearchFedAvgStrategy,
@@ -45,6 +48,7 @@ def create_research_fedavg(
         evaluate_fn=evaluate_fn,
         fit_metrics_aggregation_fn=weighted_average_metrics,
         evaluate_metrics_aggregation_fn=weighted_average_metrics,
+        initial_parameters=ndarrays_to_parameters(state_to_arrays(model)[1]),
     )
     if config.get("strategy") == "fedamm":
         return FedAMMStrategy(

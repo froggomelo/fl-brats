@@ -1,0 +1,15 @@
+strategy: fedprox
+server_address: null
+server_port: 8080
+num_rounds: 50
+num_clients: 4
+fraction_fit: 1.0
+fraction_evaluate: 1.0
+min_fit_clients: 4
+min_evaluate_clients: 4
+min_available_clients: 4
+local_epochs: 1
+accept_failures: false
+weighted_by_examples: true
+server_evaluation: true
+round_timeout_seconds: null

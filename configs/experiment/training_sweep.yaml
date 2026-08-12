@@ -1,0 +1,11 @@
+name: training_sweep
+seeds: [42]
+training:
+  max_rounds: 100
+fedavg:
+  local_epochs: [1, 5, 10, 20]
+  batch_size: [4, 8, 16]
+fedprox:
+  local_epochs: [5, 10, 20]
+  batch_size: [4, 8, 16]
+  mu: 0.01

@@ -22,9 +22,10 @@ error_feedback:
   enabled: false
 sparsification:
   enabled: false
-  mode: topk_fraction
+  method: topk
   fraction: 1.0
   error_feedback: true
+  scope: global
 communication:
   quantize_uplink: true
   quantize_downlink: false

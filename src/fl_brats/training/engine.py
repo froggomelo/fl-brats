@@ -40,12 +40,33 @@ def batch_loss(model_output: torch.Tensor | FedAMMOutput, target: torch.Tensor, 
     return loss
 
 
+def proximal_penalty(
+    model: torch.nn.Module,
+    global_parameters: list[torch.Tensor] | None,
+    device: torch.device,
+) -> torch.Tensor:
+    """Return sum(||w_local - w_global||^2) over trainable parameters."""
+    if global_parameters is None:
+        return torch.zeros((), device=device)
+    penalty = torch.zeros((), device=device)
+    for local, global_parameter in zip(
+        (parameter for parameter in model.parameters() if parameter.requires_grad),
+        global_parameters,
+        strict=True,
+    ):
+        penalty = penalty + torch.sum((local - global_parameter.to(device=device)) ** 2)
+    return penalty
+
+
 def train_one_epoch(
     model: torch.nn.Module,
     loader: DataLoader[Any],
     loss_fn: Any,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    *,
+    proximal_mu: float = 0.0,
+    proximal_global_parameters: list[torch.Tensor] | None = None,
 ) -> dict[str, Any]:
     model.train()
     total = 0.0
@@ -57,6 +78,10 @@ def train_one_epoch(
         optimizer.zero_grad(set_to_none=True)
         output = forward_batch(model, batch)
         loss = batch_loss(output, batch["label"], loss_fn, model)
+        if proximal_mu:
+            loss = loss + 0.5 * proximal_mu * proximal_penalty(
+                model, proximal_global_parameters, device
+            )
         loss.backward()
         optimizer.step()
         n = len(batch["image"])

@@ -21,7 +21,7 @@ fl_brats_select_apptainer_image() {
       stampede)
         selected="${FL_BRATS_IMAGE_STAMPEDE:-$repo_root/apptainer/fl-brats-stampede.sif}"
         ;;
-      batch)
+      batch|bigbatch)
         selected="${FL_BRATS_IMAGE_BATCH:-$repo_root/apptainer/fl-brats-batch.sif}"
         ;;
       *)

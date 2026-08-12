@@ -6,3 +6,5 @@ Apptainer is the primary no-sudo cluster runtime. Set user-owned `FL_BRATS_*` pa
 - `apptainer/fl-brats-stampede.sif` replaces PyTorch with the CUDA 11.8 wheel pair for older stampede GPUs.
 
 SLURM jobs source `apptainer/select_image.sh` and choose the image from `SLURM_JOB_PARTITION`. Use `FL_BRATS_IMAGE_STAMPEDE` or `FL_BRATS_IMAGE_BATCH` to override those defaults. A direct `APPTAINER_IMAGE` value is still treated as an explicit one-off override. Set `FL_BRATS_USE_GPU=1` for local `apptainer/run.sh` GPU checks.
+
+The image build sets `UV_HTTP_TIMEOUT=300` by default so large PyTorch/CUDA wheels have enough time to download and extract on slower cluster links. Override `UV_HTTP_TIMEOUT` before running `./apptainer/build.sh` if your builder needs a different value.

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .orchestration import configured_rounds
 from .strategy import create_fedavg
 
 
@@ -31,7 +32,7 @@ def start_server(
     fl.server.start_server(
         server_address=address,
         config=fl.server.ServerConfig(
-            num_rounds=int(config.get("num_rounds", 50)),
+            num_rounds=configured_rounds(config),
             round_timeout=config.get("round_timeout_seconds"),
         ),
         strategy=strategy or create_fedavg(config),

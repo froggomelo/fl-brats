@@ -170,9 +170,10 @@ class QuantizationConfig(BaseModel):
     sparsification: dict[str, object] = Field(
         default_factory=lambda: {
             "enabled": False,
-            "mode": "topk_fraction",
+            "method": "topk",
             "fraction": 1.0,
             "error_feedback": True,
+            "scope": "global",
         }
     )
     communication: dict[str, object] = Field(
@@ -193,6 +194,10 @@ class QuantizationConfig(BaseModel):
         fraction = self.sparsification.get("fraction", 1.0)
         if not 0 < float(fraction) <= 1:
             raise ValueError("sparsification fraction must be in (0, 1]")
+        if self.sparsification.get("method", "topk") != "topk":
+            raise ValueError("sparsification method must be topk")
+        if self.sparsification.get("scope", "global") != "global":
+            raise ValueError("sparsification scope must be global")
         if self.rounding == "stochastic" and not self.enabled:
             raise ValueError(
                 "stochastic rounding requires enabled quantization and configured seed"

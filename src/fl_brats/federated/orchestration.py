@@ -51,6 +51,13 @@ def _load_initial_weights(model: torch.nn.Module, values: dict[str, Any]) -> str
     return sha256_file(path)
 
 
+def configured_rounds(values: dict[str, Any]) -> int:
+    training = values.get("training", {})
+    if isinstance(training, dict) and training.get("max_rounds") is not None:
+        return int(training["max_rounds"])
+    return int(values.get("max_rounds", values.get("num_rounds", 50)))
+
+
 def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -> ModelFedAvgClient:
     """Create a client using only its own manifest file."""
     path = partition_root / f"{client_id}.json"
@@ -94,6 +101,9 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
         device=_device(str(values.get("device", "auto"))),
         local_epochs=int(values.get("local_epochs", 1)),
         client_id=client_id,
+        strategy=str(values.get("strategy", "fedavg")),
+        fedprox_mu=float(values.get("fedprox", {}).get("mu", values.get("fedprox_mu", 0.0))),
+        quantization_config=values.get("quantization", {}),
     )
 
 
@@ -131,7 +141,7 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
         history.append(
             fl.server.start_server(
                 server_address=address,
-                config=fl.server.ServerConfig(num_rounds=int(values.get("num_rounds", 1))),
+                config=fl.server.ServerConfig(num_rounds=configured_rounds(values)),
                 strategy=strategy,
             )
         )
@@ -167,9 +177,8 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
     evaluations = [client.evaluate(client.get_model_parameters(), {})[2] for client in clients]
     mean = sum(item["mean_dice"] for item in evaluations) / len(evaluations)
     arrays = state_to_arrays(model)[1]
-    total_bytes = (
-        sum(array.nbytes for array in arrays) * len(clients) * int(values.get("num_rounds", 1))
-    )
+    rounds = configured_rounds(values)
+    total_bytes = sum(array.nbytes for array in arrays) * len(clients) * rounds
     summary = {
         "schema_version": 1,
         "run_id": run_dir.name,
@@ -177,6 +186,16 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
         "model_name": values.get("model", {}).get("name"),
         "model_family": values.get("model", {}).get("name"),
         "seed": values.get("seed"),
+        "strategy": values.get("strategy", "fedavg"),
+        "local_epochs": values.get("local_epochs"),
+        "batch_size": values.get("local_batch_size", values.get("batch_size")),
+        "max_rounds": rounds,
+        "actual_rounds": strategy.state.completed_round,
+        "optimizer": values.get("optimizer", {}).get("name", "adam"),
+        "learning_rate": values.get("learning_rate"),
+        "fedprox_mu": values.get("fedprox", {}).get("mu", values.get("fedprox_mu"))
+        if values.get("strategy") == "fedprox"
+        else None,
         "initial_weight_hash": initial_weight_hash,
         "number_of_clients": len(clients),
         "completed_rounds": strategy.state.completed_round,

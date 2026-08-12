@@ -11,10 +11,15 @@ from typing import Any, Mapping
 
 import numpy as np
 import torch
-from flwr.common import Parameters, parameters_to_ndarrays
+from flwr.common import Parameters, ndarrays_to_parameters, parameters_to_ndarrays
 from flwr.server.strategy import FedAvg
 
 from .parameters import load_arrays, state_to_arrays
+from .sparsification import (
+    aggregate_sparse_updates,
+    is_sparse_parameter_payload,
+    sparse_update_from_ndarrays,
+)
 
 SCHEMA_VERSION = 1
 
@@ -33,6 +38,8 @@ class ClientRoundRecord:
     fit_seconds: float | None
     upload_payload_bytes: int
     download_payload_bytes: int
+    client_update_l2: float | None
+    normalized_client_update_l2: float | None
     status: str
     error: str | None = None
 
@@ -151,22 +158,33 @@ class ResearchFedAvgStrategy(FedAvg):
         super().__init__(**kwargs)
         self.writer, self.checkpoints, self.state = writer, checkpoints, ExperimentState()
         self._round_started: dict[int, float] = {}
+        self._current_arrays = state_to_arrays(checkpoints.model)[1]
+        self._keys = state_to_arrays(checkpoints.model)[0]
 
     def aggregate_fit(
         self, server_round: int, results: Any, failures: Any
     ) -> tuple[Parameters | None, dict[str, Any]]:
         self._round_started[server_round] = time.perf_counter()
         records = self._records(server_round, results, failures)
-        parameters, metrics = super().aggregate_fit(server_round, results, failures)
+        if self._uses_sparse_payloads(results):
+            parameters, metrics = self._aggregate_sparse_fit(results)
+        else:
+            parameters, metrics = super().aggregate_fit(server_round, results, failures)
         if parameters is None:
             self.writer.write_client_records(records)
             return None, metrics
+        self._current_arrays = parameters_to_ndarrays(parameters)
         elapsed = time.perf_counter() - self._round_started.pop(server_round)
         round_record = {
             "schema_version": SCHEMA_VERSION,
             "round": server_round,
             "round_wall_seconds": elapsed,
             "successful_clients": sum(record.status == "completed" for record in records),
+            "mean_client_drift": self._mean(records, "client_update_l2"),
+            "max_client_drift": self._max(records, "client_update_l2"),
+            "mean_normalized_client_drift": self._mean(
+                records, "normalized_client_update_l2"
+            ),
         }
         next_state = ExperimentState(**asdict(self.state))
         next_state.completed_round = server_round
@@ -186,6 +204,25 @@ class ResearchFedAvgStrategy(FedAvg):
         self.state = next_state
         self.writer.write_state(self.state)
         return parameters, metrics
+
+    def _uses_sparse_payloads(self, results: Any) -> bool:
+        if not results:
+            return False
+        decoded = [
+            is_sparse_parameter_payload(parameters_to_ndarrays(result.parameters))
+            for _, result in results
+        ]
+        if any(decoded) and not all(decoded):
+            raise ValueError("cannot mix sparse and dense client update payloads in one round")
+        return all(decoded)
+
+    def _aggregate_sparse_fit(self, results: Any) -> tuple[Parameters | None, dict[str, Any]]:
+        updates = []
+        for _, result in results:
+            update = sparse_update_from_ndarrays(parameters_to_ndarrays(result.parameters))
+            updates.append((update, int(result.num_examples)))
+        arrays = aggregate_sparse_updates(updates, self._keys, self._current_arrays)
+        return ndarrays_to_parameters(arrays), {}
 
     def aggregate_evaluate(
         self, server_round: int, results: Any, failures: Any
@@ -227,6 +264,13 @@ class ResearchFedAvgStrategy(FedAvg):
         return sum(values) / len(values) if values else None
 
     @staticmethod
+    def _max(records: list[ClientRoundRecord], field: str) -> float | None:
+        values = [
+            getattr(record, field) for record in records if getattr(record, field) is not None
+        ]
+        return max(values) if values else None
+
+    @staticmethod
     def _weighted_mean(records: list[ClientRoundRecord], field: str) -> float | None:
         weighted = [
             (record.num_examples, getattr(record, field))
@@ -256,6 +300,8 @@ class ResearchFedAvgStrategy(FedAvg):
                     self._float(metric, "local_training_seconds"),
                     int(metric.get("upload_numpy_array_bytes", 0)),
                     int(metric.get("download_payload_bytes", 0)),
+                    self._float(metric, "client_update_l2"),
+                    self._float(metric, "normalized_client_update_l2"),
                     "completed",
                 )
             )
@@ -274,6 +320,8 @@ class ResearchFedAvgStrategy(FedAvg):
                     None,
                     0,
                     0,
+                    None,
+                    None,
                     "failed",
                     str(failure),
                 )
@@ -300,6 +348,8 @@ class ResearchFedAvgStrategy(FedAvg):
                     None,
                     0,
                     0,
+                    None,
+                    None,
                     "completed",
                 )
             )
@@ -318,6 +368,8 @@ class ResearchFedAvgStrategy(FedAvg):
                     None,
                     0,
                     0,
+                    None,
+                    None,
                     "failed",
                     str(failure),
                 )

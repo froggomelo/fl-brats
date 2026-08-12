@@ -1,5 +1,6 @@
 epochs: 1
 batch_size: 1
+max_rounds: null
 num_workers: 4
 pin_memory: false
 amp: true

@@ -39,6 +39,7 @@ from fl_brats.federated.quantization import (
     eligible_state,
 )
 from fl_brats.federated.server import start_server
+from fl_brats.federated.sweep import load_sweep_config, run_sweep
 from fl_brats.losses.segmentation import create_loss
 from fl_brats.models.factory import create_model, model_report
 from fl_brats.sam.validation import verify_pretrained
@@ -939,8 +940,13 @@ def _federated_runtime_values(values: dict[str, Any]) -> dict[str, Any]:
         runtime.setdefault("batch_size", training.get("batch_size"))
         runtime.setdefault("num_workers", training.get("num_workers"))
         runtime.setdefault("pin_memory", training.get("pin_memory"))
+        if training.get("max_rounds") is not None:
+            runtime["max_rounds"] = training.get("max_rounds")
+            runtime["num_rounds"] = training.get("max_rounds")
     if isinstance(federated, dict):
         runtime.update({key: value for key, value in federated.items() if key not in runtime})
+        if federated.get("strategy") is not None:
+            runtime["strategy"] = federated["strategy"]
     if isinstance(optimizer, dict):
         runtime.setdefault("learning_rate", optimizer.get("lr"))
         runtime.setdefault("weight_decay", optimizer.get("weight_decay"))
@@ -964,6 +970,24 @@ def train_federated(
         typer.echo(f"ERROR: {error}", err=True)
         raise typer.Exit(1) from error
     typer.echo(json.dumps({"run_dir": str(run_dir), "status": summary["status"]}))
+
+
+@app.command("sweep-training-config")
+def sweep_training_config(
+    context: typer.Context,
+    config: Path | None = typer.Option(None, "--config"),
+    sweep_config: Path | None = typer.Option(None, "--sweep-config"),
+    output_root: Path = typer.Option(Path("outputs/experiments"), "--output-root"),
+    force: bool = typer.Option(False, "--force"),
+) -> None:
+    """Run the FedAvg/FedProx local-epoch and batch-size sweep."""
+    values = _experiment_values(config, context)
+    try:
+        summaries = run_sweep(values, load_sweep_config(sweep_config), output_root, force=force)
+    except (ValueError, RuntimeError, OSError) as error:
+        typer.echo(f"ERROR: {error}", err=True)
+        raise typer.Exit(1) from error
+    typer.echo(json.dumps({"runs": len(summaries), "output_root": str(output_root)}))
 
 
 @app.command(

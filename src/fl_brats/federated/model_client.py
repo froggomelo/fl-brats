@@ -18,6 +18,7 @@ from fl_brats.training.engine import evaluate, train_local_epochs
 from .client import FedAvgClient
 from .communication import payload_metrics
 from .parameters import load_arrays, state_keys, state_to_arrays
+from .sparsification import create_sparse_update, sparse_update_to_ndarrays
 
 
 def modality_count_metrics(records: list[dict[str, Any]]) -> dict[str, float]:
@@ -51,13 +52,23 @@ class ModelFedAvgClient(FedAvgClient):
         device: torch.device | str = "cpu",
         local_epochs: int = 1,
         client_id: str = "unknown",
+        strategy: str = "fedavg",
+        fedprox_mu: float = 0.0,
+        quantization_config: dict[str, Any] | None = None,
     ) -> None:
         self.device = torch.device(device)
         self.model = model.to(self.device)
         self.keys = keys or state_keys(model)
         self.train_loader, self.validation_loader = train_loader, validation_loader
         self.loss_fn, self.optimizer = loss_fn, optimizer
+        if strategy not in {"fedavg", "fedprox", "fedamm"}:
+            raise ValueError(f"unsupported federated strategy: {strategy}")
         self.local_epochs, self.client_id = local_epochs, client_id
+        self.strategy, self.fedprox_mu = strategy, fedprox_mu
+        self.quantization_config = quantization_config or {}
+        self._sparsification_residual: torch.Tensor | None = None
+        self._global_arrays_before_fit: list[np.ndarray] | None = None
+        self._proximal_global_parameters: list[torch.Tensor] | None = None
         if examples is None:
             examples = len(cast(Sized, train_loader.dataset)) if train_loader is not None else 0
         if examples <= 0:
@@ -101,6 +112,8 @@ class ModelFedAvgClient(FedAvgClient):
             self.optimizer,
             self.device,
             epochs=self.local_epochs,
+            proximal_mu=self.fedprox_mu if self.strategy == "fedprox" else 0.0,
+            proximal_global_parameters=self._proximal_global_parameters,
         )
         result["local_training_seconds"] = time.monotonic() - started
         if self.train_loader is not None:
@@ -125,22 +138,100 @@ class ModelFedAvgClient(FedAvgClient):
         self, parameters: list[np.ndarray], config: dict[str, Any]
     ) -> tuple[list[np.ndarray], int, dict[str, Any]]:
         self.set_model_parameters(parameters)
+        self._global_arrays_before_fit = [item.copy() for item in parameters]
+        self._proximal_global_parameters = (
+            [
+                parameter.detach().clone().to(self.device)
+                for parameter in self.model.parameters()
+                if parameter.requires_grad
+            ]
+            if self.strategy == "fedprox"
+            else None
+        )
         if "fedamm_global_prototypes_json" in config:
             setattr(self.model, "global_prototypes_json", config["fedamm_global_prototypes_json"])
         metrics = self._finite(self.train_fn())
         arrays = self.get_model_parameters()
         metrics["client_id"] = self.client_id  # Flower scalar contract permits strings.
         metrics["download_payload_bytes"] = float(sum(item.nbytes for item in parameters))
-        metrics.update(
-            {
-                f"upload_{key}": float(value)
-                for key, value in payload_metrics(
-                    arrays, int(config.get("server_round", 0)), 0, "uplink"
-                ).items()
-                if isinstance(value, (int, float))
-            }
-        )
-        return arrays, self.examples, metrics
+        upload_arrays = arrays
+        sparse = self.quantization_config.get("sparsification", {})
+        sparse_enabled = bool(sparse.get("enabled", False))
+        if sparse_enabled:
+            if self._global_arrays_before_fit is None:
+                raise ValueError("sparse update requires cached global parameters")
+            quant_enabled = bool(self.quantization_config.get("enabled", False))
+            quant_mode = str(self.quantization_config.get("mode", "none"))
+            bit_width = int(self.quantization_config.get("fixed", {}).get("bit_width", 8))
+            if quant_enabled and quant_mode != "fixed":
+                raise ValueError("combined sparse+quantized updates currently require fixed mode")
+            update, self._sparsification_residual = create_sparse_update(
+                client_id=self.client_id,
+                round_index=int(config.get("server_round", 0)),
+                keys=self.keys,
+                local_arrays=arrays,
+                global_arrays=self._global_arrays_before_fit,
+                sample_count=self.examples,
+                fraction=float(sparse.get("fraction", 1.0)),
+                residual=self._sparsification_residual
+                if bool(sparse.get("error_feedback", True))
+                else None,
+                quantize_values=quant_enabled,
+                bit_width=bit_width,
+                scheme=self.quantization_config.get("scheme", "symmetric"),
+                granularity=self.quantization_config.get("granularity", "per_tensor"),
+                rounding=self.quantization_config.get("rounding", "nearest"),
+                seed=(
+                    int(config["server_round"])
+                    if self.quantization_config.get("rounding") == "stochastic"
+                    else None
+                ),
+            )
+            upload_arrays = sparse_update_to_ndarrays(update)
+            metrics.update(
+                {
+                    "upload_scalar_parameter_count": float(update.total_parameters),
+                    "upload_transmitted_parameter_count": float(update.selected_count),
+                    "upload_sparsification_fraction": float(update.fraction),
+                    "upload_actual_sparse_payload_bytes": float(update.payload_bytes),
+                    "upload_metadata_bytes": float(update.metadata_bytes),
+                    "upload_numpy_array_bytes": float(sum(item.nbytes for item in upload_arrays)),
+                    "upload_compression_ratio": float(
+                        (update.total_parameters * 4)
+                        / max(sum(item.nbytes for item in upload_arrays), 1)
+                    ),
+                }
+            )
+        else:
+            metrics.update(
+                {
+                    f"upload_{key}": float(value)
+                    for key, value in payload_metrics(
+                        arrays, int(config.get("server_round", 0)), 0, "uplink"
+                    ).items()
+                    if isinstance(value, (int, float))
+                }
+            )
+        if self._global_arrays_before_fit is not None:
+            squared = 0.0
+            global_squared = 0.0
+            for local, global_array in zip(arrays, self._global_arrays_before_fit, strict=True):
+                delta = local.astype(np.float64, copy=False) - global_array.astype(
+                    np.float64, copy=False
+                )
+                squared += float(np.sum(delta * delta))
+                global_squared += float(
+                    np.sum(global_array.astype(np.float64, copy=False) ** 2)
+                )
+            l2 = float(np.sqrt(squared))
+            norm = float(np.sqrt(global_squared))
+            metrics["client_update_l2"] = l2
+            metrics["normalized_client_update_l2"] = l2 / norm if norm > 0 else 0.0
+        metrics["strategy"] = self.strategy
+        if self.strategy == "fedprox":
+            metrics["fedprox_mu"] = float(self.fedprox_mu)
+        self._proximal_global_parameters = None
+        return upload_arrays, self.examples, metrics
 
     def evaluate(
         self, parameters: list[np.ndarray], config: dict[str, Any]
