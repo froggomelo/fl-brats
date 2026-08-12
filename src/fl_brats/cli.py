@@ -39,7 +39,11 @@ from fl_brats.federated.quantization import (
     eligible_state,
 )
 from fl_brats.federated.server import start_server
-from fl_brats.federated.sweep import load_sweep_config, run_sweep
+from fl_brats.federated.sweep import (
+    load_sweep_config,
+    run_fedavg_full_factorial_sweep,
+    run_sweep,
+)
 from fl_brats.losses.segmentation import create_loss
 from fl_brats.models.factory import create_model, model_report
 from fl_brats.sam.validation import verify_pretrained
@@ -979,15 +983,27 @@ def sweep_training_config(
     sweep_config: Path | None = typer.Option(None, "--sweep-config"),
     output_root: Path = typer.Option(Path("outputs/experiments"), "--output-root"),
     force: bool = typer.Option(False, "--force"),
+    full_factorial_fedavg: bool = typer.Option(False, "--full-factorial-fedavg"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
-    """Run the FedAvg/FedProx local-epoch and batch-size sweep."""
+    """Run or prepare training-configuration sweeps."""
     values = _experiment_values(config, context)
     try:
-        summaries = run_sweep(values, load_sweep_config(sweep_config), output_root, force=force)
+        loaded = load_sweep_config(sweep_config)
+        if full_factorial_fedavg:
+            summaries = run_fedavg_full_factorial_sweep(
+                values, loaded, output_root, dry_run=dry_run, force=force
+            )
+        else:
+            summaries = run_sweep(values, loaded, output_root, force=force)
     except (ValueError, RuntimeError, OSError) as error:
         typer.echo(f"ERROR: {error}", err=True)
         raise typer.Exit(1) from error
-    typer.echo(json.dumps({"runs": len(summaries), "output_root": str(output_root)}))
+    payload = {"runs": len(summaries), "output_root": str(output_root)}
+    if full_factorial_fedavg and dry_run:
+        payload["dry_run"] = True
+        payload["message"] = "FedAvg sweep validated with 360 unique configurations."
+    typer.echo(json.dumps(payload))
 
 
 @app.command(

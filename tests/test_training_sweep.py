@@ -3,8 +3,10 @@ import json
 from fl_brats.federated.sweep import (
     DEFAULT_SWEEP,
     SweepRun,
+    generate_fedavg_full_factorial_runs,
     generate_sweep_runs,
     summarize_run,
+    write_fedavg_sweep_manifest,
     write_sweep_summary,
 )
 
@@ -21,6 +23,31 @@ def test_sweep_run_id_is_deterministic() -> None:
     second = SweepRun("fedprox", local_epochs=10, batch_size=8, seed=42, mu=0.01)
 
     assert first.run_id == second.run_id == "E10_B08_mu0p01_seed42"
+
+
+def test_fedavg_full_factorial_generates_360_unique_runs(tmp_path) -> None:
+    runs = generate_fedavg_full_factorial_runs({}, tmp_path / "fedavg_sweep")
+    rows = [run.manifest_row() for run in runs]
+
+    assert len(rows) == 360
+    assert len({row["run_id"] for row in rows}) == 360
+    assert {row["alpha"] for row in rows} == {0.001, 0.1, 1.0}
+    assert {
+        "fedavg_K3_E1_B4_C1_skew-moderate_alpha0p001",
+        "fedavg_K3_E1_B4_C1_skew-moderate_alpha0p1",
+        "fedavg_K8_E20_B16_C1_skew-even_alpha1",
+    }.issubset({row["run_id"] for row in rows})
+
+
+def test_fedavg_full_factorial_manifest_is_written(tmp_path) -> None:
+    sweep_root = tmp_path / "fedavg_sweep"
+    runs = generate_fedavg_full_factorial_runs({}, sweep_root)
+
+    rows = write_fedavg_sweep_manifest(sweep_root, runs)
+
+    assert len(rows) == 360
+    assert (sweep_root / "sweep_manifest.csv").exists()
+    assert json.loads((sweep_root / "sweep_manifest.json").read_text())[0]["status"] == "pending"
 
 
 def test_sweep_summary_combines_synthetic_outputs(tmp_path) -> None:

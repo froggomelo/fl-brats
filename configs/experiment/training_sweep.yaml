@@ -9,3 +9,16 @@ fedprox:
   local_epochs: [5, 10, 20]
   batch_size: [4, 8, 16]
   mu: 0.01
+fedavg_full_factorial:
+  name: fedavg_sweep
+  client_counts: [3, 4, 5, 6, 8]
+  local_epochs: [1, 5, 10, 20]
+  batch_size: [4, 8, 16]
+  client_fraction: 1.0
+  data_skew: [moderate, even]
+  alpha: [0.001, 0.1, 1.0]
+  partition_seed: 42
+  model_seed: 42
+  training_seed: 42
+  max_rounds: 100
+  partition_root: data/partitions/fedavg_sweep
