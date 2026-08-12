@@ -39,8 +39,8 @@ the required BraTS 2021 raw, processed, and fixed-quantity-skew partition layout
 Apptainer is the primary cluster runtime and requires no sudo to execute. On a cluster, run `scripts/bootstrap_cluster.sh` with Python 3.11 available, then use user-owned bind paths.
 
 ```bash
-apptainer exec fl-brats.sif fedbrats info
-apptainer exec --nv --bind /path/to/data:/data:ro --bind /path/to/outputs:/outputs fl-brats.sif fedbrats check-environment
+bash apptainer/build.sh
+FL_BRATS_PARTITION=stampede FL_BRATS_USE_GPU=1 ./apptainer/run.sh check-environment
 sbatch slurm/environment_check.sbatch
 ```
 

@@ -10,8 +10,9 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-: "${APPTAINER_IMAGE:=${FL_BRATS_IMAGE:-}}"
-: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE or FL_BRATS_IMAGE to the built fl-brats image}"
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root"
+[[ -f "$APPTAINER_IMAGE" ]] || { echo "Apptainer image missing: $APPTAINER_IMAGE" >&2; exit 2; }
 
 data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
 raw_root="${FL_BRATS_RAW_ROOT:-${data_root}/raw/brats2021}"

@@ -27,8 +27,9 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-: "${APPTAINER_IMAGE:=${FL_BRATS_IMAGE:-}}"
-: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE or FL_BRATS_IMAGE to the built fl-brats .sif image}"
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root"
+[[ -f "$APPTAINER_IMAGE" ]] || { echo "Apptainer image missing: $APPTAINER_IMAGE" >&2; exit 2; }
 
 model_config="${MODEL_CONFIG:-configs/model/unet_baseline.yaml}"
 output_dir="${INITIAL_WEIGHTS_DIR:-artifacts/initial_weights}"

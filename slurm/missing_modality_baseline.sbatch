@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # Arbitrary example:
-# sbatch --export=ALL,APPTAINER_IMAGE=/path/fl-brats.sif,MM_MODE=arbitrary,MM_T1CE_PROBABILITY=0.4 slurm/missing_modality_baseline.sbatch
+# sbatch --export=ALL,MM_MODE=arbitrary,MM_T1CE_PROBABILITY=0.4 slurm/missing_modality_baseline.sbatch
 # Complete-policy example:
-# sbatch --export=ALL,APPTAINER_IMAGE=/path/fl-brats.sif,MM_MODE=complete,MM_CLIENT_POLICY='{client_0: [t1,t1ce,t2,flair], client_1: [t1,t2,flair], client_2: [t2,flair]}' slurm/missing_modality_baseline.sbatch
+# sbatch --export=ALL,MM_MODE=complete,MM_CLIENT_POLICY='{client_0: [t1,t1ce,t2,flair], client_1: [t1,t2,flair], client_2: [t2,flair]}' slurm/missing_modality_baseline.sbatch
 #SBATCH --job-name=brats-missing-modality
-#SBATCH --partition=bigbatch
+#SBATCH --partition=stampede
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/slurm/missing_modality_%j.out
 #SBATCH --error=logs/slurm/missing_modality_%j.err
@@ -24,8 +23,9 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-: "${APPTAINER_IMAGE:=${FL_BRATS_IMAGE:-}}"
-: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE or FL_BRATS_IMAGE to the built fl-brats image}"
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root"
+[[ -f "$APPTAINER_IMAGE" ]] || { echo "Apptainer image missing: $APPTAINER_IMAGE" >&2; exit 2; }
 data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
 log_root="${FL_BRATS_LOG_ROOT:-logs}"
@@ -40,6 +40,7 @@ mkdir -p "$partition_root" "$output_root" "$log_root/slurm" "$cache_root" "$chec
 [[ -f "$index_path" && -f "$weights_path" ]] || { echo "Index or initial weights missing" >&2; exit 2; }
 
 run() {
+  echo "partition=${SLURM_JOB_PARTITION:-unknown} image=$APPTAINER_IMAGE"
   apptainer exec --nv --cleanenv \
     --bind "$data_root:$data_root:ro" --bind "$partition_root:$partition_root" \
     --bind "$output_root:$output_root" --bind "$log_root:$log_root" \

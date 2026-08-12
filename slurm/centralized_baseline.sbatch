@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Submit with: sbatch --export=ALL,APPTAINER_IMAGE=/path/fl-brats.sif slurm/centralized_baseline.sbatch
-# Overrides are supported, for example: sbatch --partition=gpu --time=24:00:00 ...
+# Submit with: sbatch --export=ALL slurm/centralized_baseline.sbatch
+# Overrides are supported, for example: sbatch --partition=batch --time=24:00:00 ...
 #SBATCH --job-name=fedbrats-central
-#SBATCH --partition=batch
+#SBATCH --partition=stampede
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
@@ -22,8 +22,9 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-: "${APPTAINER_IMAGE:=${FL_BRATS_IMAGE:-}}"
-: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE or FL_BRATS_IMAGE to the built fl-brats .sif image}"
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root"
+[[ -f "$APPTAINER_IMAGE" ]] || { echo "Apptainer image missing: $APPTAINER_IMAGE" >&2; exit 2; }
 data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
 raw_root="${FL_BRATS_RAW_ROOT:-${data_root}/raw/brats2021}"
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
@@ -41,6 +42,7 @@ for required in "$index_path" "$split_path" "$partition_path" "$weights_path"; d
 done
 
 echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} partition=${SLURM_JOB_PARTITION:-unknown}"
+echo "image=$APPTAINER_IMAGE"
 nvidia-smi || true
 
 apptainer exec --nv --cleanenv \

@@ -2,7 +2,7 @@
 # Four-client array for the distributed basic U-Net FedAvg run.
 # Usually launched by: slurm/federated_baseline_submit.sh
 #SBATCH --job-name=fedbrats-fedavg-cli
-#SBATCH --partition=batch
+#SBATCH --partition=stampede
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
@@ -24,8 +24,9 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-: "${APPTAINER_IMAGE:=${FL_BRATS_IMAGE:-}}"
-: "${APPTAINER_IMAGE:?Set APPTAINER_IMAGE or FL_BRATS_IMAGE to the built fl-brats .sif image}"
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root"
+[[ -f "$APPTAINER_IMAGE" ]] || { echo "Apptainer image missing: $APPTAINER_IMAGE" >&2; exit 2; }
 
 data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
 raw_root="${FL_BRATS_RAW_ROOT:-${data_root}/raw/brats2021}"
@@ -70,6 +71,7 @@ while ! timeout 2 bash -c ":</dev/tcp/${server_host}/${server_port}" 2>/dev/null
 done
 
 echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} client_id=$client_id server=$server_address"
+echo "partition=${SLURM_JOB_PARTITION:-unknown} image=$APPTAINER_IMAGE"
 nvidia-smi || true
 
 apptainer exec --nv --cleanenv \

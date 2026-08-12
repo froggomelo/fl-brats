@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-image="${APPTAINER_IMAGE:-$repo_root/apptainer/fl-brats.sif}"
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root" "${FL_BRATS_PARTITION:-${SLURM_JOB_PARTITION:-batch}}"
+image="$APPTAINER_IMAGE"
 : "${FL_BRATS_DATA_ROOT:?set FL_BRATS_DATA_ROOT}"
 : "${FL_BRATS_OUTPUT_ROOT:?set FL_BRATS_OUTPUT_ROOT}"
 : "${FL_BRATS_LOG_ROOT:?set FL_BRATS_LOG_ROOT}"

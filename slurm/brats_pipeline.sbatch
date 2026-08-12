@@ -19,8 +19,11 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root"
+
 : "${FL_BRATS_DATA_ROOT:?Set FL_BRATS_DATA_ROOT, e.g. /datasets/$USER/brats}"
-: "${FL_BRATS_IMAGE:?Set FL_BRATS_IMAGE to the Apptainer SIF image}"
+[[ -f "$APPTAINER_IMAGE" ]] || { echo "Apptainer image missing: $APPTAINER_IMAGE" >&2; exit 1; }
 : "${FL_BRATS_RAW_ROOT:=$FL_BRATS_DATA_ROOT/raw/brats2021}"
 
 raw_host="$FL_BRATS_RAW_ROOT"
@@ -34,6 +37,8 @@ mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "
 
 echo "hostname=$(hostname)"
 echo "job_id=${SLURM_JOB_ID:-unknown} node_list=${SLURM_JOB_NODELIST:-unknown}"
+echo "partition=${SLURM_JOB_PARTITION:-unknown}"
+echo "image=$APPTAINER_IMAGE"
 echo "started=$(date --iso-8601=seconds)"
 
 # Raw data are bound read-only; all generated artefacts are separately writable.
@@ -43,7 +48,7 @@ runner=(apptainer exec --cleanenv
   --bind "$processed_host:$container_root/processed:rw"
   --bind "$partitions_host:$container_root/partitions:rw"
   --bind "$log_host:/logs:rw"
-  "$FL_BRATS_IMAGE" fedbrats)
+  "$APPTAINER_IMAGE" fedbrats)
 
 run() { echo "+ fedbrats $*"; "${runner[@]}" "$@"; }
 on_signal() { echo "Termination received; completed subjects remain resumable." >&2; exit 143; }

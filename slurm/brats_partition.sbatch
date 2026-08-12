@@ -12,8 +12,18 @@ if [[ -f "$repo_root/.env" ]]; then
   . "$repo_root/.env"
   set +a
 fi
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root"
+[[ -f "$APPTAINER_IMAGE" ]] || { echo "Apptainer image missing: $APPTAINER_IMAGE" >&2; exit 2; }
 : "${FL_BRATS_DATA_ROOT:?set FL_BRATS_DATA_ROOT}"
 root="$FL_BRATS_DATA_ROOT"
-fedbrats create-split --index-path "$root/processed/brats2021_v1/dataset_index.csv" --manifest-path "$root/partitions/fixed_quantity_skew/split_manifest.json"
-fedbrats create-partition --split-path "$root/partitions/fixed_quantity_skew/split_manifest.json" --output-dir "$root/partitions/fixed_quantity_skew"
-fedbrats verify-manifests --partition-root "$root/partitions/fixed_quantity_skew"
+echo "host=$(hostname) job=${SLURM_JOB_ID:-local} partition=${SLURM_JOB_PARTITION:-unknown}"
+echo "image=$APPTAINER_IMAGE"
+run_fedbrats() {
+  apptainer exec --cleanenv \
+    --bind "$root:$root" \
+    "$APPTAINER_IMAGE" fedbrats "$@"
+}
+run_fedbrats create-split --index-path "$root/processed/brats2021_v1/dataset_index.csv" --manifest-path "$root/partitions/fixed_quantity_skew/split_manifest.json"
+run_fedbrats create-partition --split-path "$root/partitions/fixed_quantity_skew/split_manifest.json" --output-dir "$root/partitions/fixed_quantity_skew"
+run_fedbrats verify-manifests --partition-root "$root/partitions/fixed_quantity_skew"
