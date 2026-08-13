@@ -12,6 +12,7 @@ fi
 
 data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
 partition_root="${PARTITION_ROOT:-${data_root}/partitions/missing_modality_arbitrary_025}"
+initial_weights_path="${INITIAL_WEIGHTS_PATH:-artifacts/initial_weights/fedamm_seed_${FL_BRATS_SEED:-42}.pt}"
 for required in "$partition_root/client_0.json" "$partition_root/manifest.json" "$partition_root/split_manifest.json"; do
   [[ -f "$required" ]] || {
     echo "Required missing-modality partition input missing: $required" >&2
@@ -21,6 +22,7 @@ for required in "$partition_root/client_0.json" "$partition_root/manifest.json" 
 done
 
 export PARTITION_ROOT="$partition_root"
+export INITIAL_WEIGHTS_PATH="$initial_weights_path"
 export FEDERATED_RUN_ID="${FEDERATED_RUN_ID:-missing_modality_fedavg_$(date +%Y%m%d_%H%M%S)}"
 export FEDERATED_EXPERIMENT_NAME="federated_missing_modality_fedavg"
 export FEDERATED_MODEL="fedamm"
