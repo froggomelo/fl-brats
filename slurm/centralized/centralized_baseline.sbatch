@@ -31,22 +31,28 @@ output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
 log_root="${FL_BRATS_LOG_ROOT:-logs}"
 cache_root="${FL_BRATS_CACHE_ROOT:-cache}"
 checkpoint_root="${FL_BRATS_CHECKPOINT_ROOT:-checkpoints}"
+run_seed="${FL_BRATS_SEED:-42}"
+run_job_id="${SLURM_JOB_ID:-manual_$$}"
+centralized_output_root="${output_root}/centralized/seed_${run_seed}_job_${run_job_id}"
+centralized_cache_root="${cache_root}/centralized/seed_${run_seed}_job_${run_job_id}"
 split_path="${SPLIT_MANIFEST_PATH:-${data_root}/partitions/fixed_quantity_skew/split_manifest.json}"
 partition_path="${PARTITION_MANIFEST_PATH:-${data_root}/partitions/fixed_quantity_skew/manifest.json}"
 index_path="${DATASET_INDEX_PATH:-${data_root}/processed/brats2021_v1/dataset_index.csv}"
 weights_path="${INITIAL_WEIGHTS_PATH:-artifacts/initial_weights/unet_seed_42.pt}"
 
-mkdir -p "$output_root" "$log_root/slurm" "$cache_root" "$checkpoint_root"
+mkdir -p "$centralized_output_root" "$log_root/slurm" "$centralized_cache_root" "$checkpoint_root"
 for required in "$index_path" "$split_path" "$partition_path" "$weights_path"; do
   [[ -f "$required" ]] || { echo "Required frozen input missing: $required" >&2; exit 2; }
 done
 
 echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} partition=${SLURM_JOB_PARTITION:-unknown}"
 echo "image=$APPTAINER_IMAGE"
+echo "output_root=$centralized_output_root cache_root=$centralized_cache_root"
 nvidia-smi || true
 
 apptainer exec --nv --cleanenv \
   --env "FL_BRATS_RAW_ROOT=$raw_root" \
+  --env "FL_BRATS_CACHE_ROOT=$centralized_cache_root" \
   --bind "$repo_root/src:/workspace/src:ro" \
   --bind "$repo_root/configs:/workspace/configs:ro" \
   --bind "$raw_root:$raw_root:ro" \
@@ -62,10 +68,10 @@ apptainer exec --nv --cleanenv \
     --split-path "$split_path" \
     --partition-path "$partition_path" \
     --initial-weights "$weights_path" \
-    --output-root "$output_root/centralized" \
+    --output-root "$centralized_output_root" \
     --epochs "${CENTRALIZED_EPOCHS:-50}" \
     --batch-size "${CENTRALIZED_BATCH_SIZE:-1}" \
     --workers "${CENTRALIZED_WORKERS:-0}" \
     --no-pin-memory \
-    --seed "${FL_BRATS_SEED:-42}" \
+    --seed "$run_seed" \
     --device cuda

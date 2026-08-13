@@ -33,7 +33,7 @@ for seed in $seeds; do
 
   echo "centralized_seed_${seed}_job=$job_id epochs=$epochs weights=$weights_path"
 
-  if [[ "${FL_BRATS_CHAIN_SEEDS:-1}" == "1" ]]; then
+  if [[ "${FL_BRATS_CHAIN_SEEDS:-0}" == "1" ]]; then
     dependency=(--dependency=afterok:"$job_id")
   else
     dependency=()

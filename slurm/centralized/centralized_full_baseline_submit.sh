@@ -32,7 +32,7 @@ for seed in $seeds; do
     job_id="$(sbatch --parsable "${sbatch_args[@]}" --export="$export_vars" "$repo_root/slurm/centralized/centralized_baseline.sbatch")"
   fi
   echo "centralized_seed_${seed}_job=$job_id epochs=$epochs weights=$weights_path"
-  if [[ "${FL_BRATS_CHAIN_SEEDS:-1}" == "1" ]]; then
+  if [[ "${FL_BRATS_CHAIN_SEEDS:-0}" == "1" ]]; then
     dependency=(--dependency=afterok:"$job_id")
   fi
 done

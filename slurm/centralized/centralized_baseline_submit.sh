@@ -9,4 +9,7 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
+export FL_BRATS_IMAGE_STAMPEDE=$repo_root/stampede.sif
+export FL_BRATS_IMAGE_BATCH=$repo_root/batch.sif
+
 sbatch --export=ALL slurm/centralized/centralized_baseline.sbatch
