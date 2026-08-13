@@ -12,4 +12,9 @@ Submit with `sbatch slurm/environment/environment_check.sbatch` and inspect the 
 - `environment/`: cluster setup and environment checks.
 - `templates/`: placeholders for future job templates.
 
+Submit concurrent centralized seed runs with
+`bash slurm/centralized/centralized_sweep_submit.sh`. Set
+`FL_BRATS_PARTITION=stampede|bigbatch` or edit the script's `partition` default;
+the worker automatically selects the matching Apptainer image.
+
 `missing_modality/missing_modality_baseline.sbatch` creates a deterministic split and missing-modality partition, validates and reports it, then runs the baseline training workflow. Configure it through exported variables, notably `MM_MODE=complete|arbitrary|mixed`, `MM_T1CE_PROBABILITY`, and `MM_CLIENT_POLICY`.

@@ -12,6 +12,9 @@ fi
 
 mkdir -p "$repo_root/logs/slurm"
 
+# Change this default to "bigbatch" when needed, or set FL_BRATS_PARTITION
+# when invoking this script. The worker selects the matching Apptainer image:
+# stampede -> fl-brats-stampede.sif; bigbatch/batch -> fl-brats-batch.sif.
 partition="${FL_BRATS_PARTITION:-stampede}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
 epochs="${CENTRALIZED_EPOCHS:-200}"
