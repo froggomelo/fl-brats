@@ -15,7 +15,7 @@ set -euo pipefail
 trap 'echo "Received termination signal" >&2; exit 143' TERM INT
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd -- "$script_dir/../../.." && pwd)"
+repo_root="${FL_BRATS_REPO_ROOT:-$(cd -- "$script_dir/../../.." && pwd)}"
 if [[ -f "$repo_root/.env" ]]; then
   set -a
   # shellcheck disable=SC1091

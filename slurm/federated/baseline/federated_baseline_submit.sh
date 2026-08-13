@@ -28,12 +28,12 @@ client_array_last=$((FEDERATED_CLIENTS - 1))
 
 server_job="$(
   sbatch --parsable --partition="$training_partition" \
-    --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir" \
+    --export=ALL,FL_BRATS_REPO_ROOT="$repo_root",FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir" \
     "$repo_root/slurm/federated/baseline/federated_baseline_server.sbatch"
 )"
 client_job="$(
   sbatch --parsable --partition="$training_partition" --array="0-${client_array_last}" \
-    --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir",FEDERATED_SERVER_JOB_ID="$server_job",FEDERATED_CLIENTS="$FEDERATED_CLIENTS" \
+    --export=ALL,FL_BRATS_REPO_ROOT="$repo_root",FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir",FEDERATED_SERVER_JOB_ID="$server_job",FEDERATED_CLIENTS="$FEDERATED_CLIENTS" \
     "$repo_root/slurm/federated/baseline/federated_baseline_clients.sbatch"
 )"
 cleanup_job="$(
