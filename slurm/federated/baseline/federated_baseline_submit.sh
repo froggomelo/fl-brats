@@ -11,6 +11,7 @@ if [[ -f "$repo_root/.env" ]]; then
 fi
 
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
+training_partition="${FL_BRATS_SLURM_PARTITION:-stampede}"
 run_id="${FEDERATED_RUN_ID:-unet_baseline_$(date +%Y%m%d_%H%M%S)}"
 run_dir="${FEDERATED_RUN_DIR:-${output_root}/federated/${run_id}}"
 mkdir -p "$run_dir"
@@ -26,11 +27,12 @@ fi
 client_array_last=$((FEDERATED_CLIENTS - 1))
 
 server_job="$(
-  sbatch --parsable --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir" \
+  sbatch --parsable --partition="$training_partition" \
+    --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir" \
     "$repo_root/slurm/federated/baseline/federated_baseline_server.sbatch"
 )"
 client_job="$(
-  sbatch --parsable --array="0-${client_array_last}" \
+  sbatch --parsable --partition="$training_partition" --array="0-${client_array_last}" \
     --export=ALL,FEDERATED_RUN_ID="$run_id",FEDERATED_RUN_DIR="$run_dir",FEDERATED_SERVER_JOB_ID="$server_job",FEDERATED_CLIENTS="$FEDERATED_CLIENTS" \
     "$repo_root/slurm/federated/baseline/federated_baseline_clients.sbatch"
 )"
