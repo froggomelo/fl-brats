@@ -4,14 +4,14 @@
 # Complete-policy example:
 # sbatch --export=ALL,MM_MODE=complete,MM_CLIENT_POLICY='{client_0: [t1,t1ce,t2,flair], client_1: [t1,t2,flair], client_2: [t2,flair]}' slurm/missing_modality/missing_modality_baseline.sbatch
 #SBATCH --job-name=brats-missing-modality
-#SBATCH --partition=stampede
+#SBATCH --partition=bigbatch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/slurm/missing_modality_%j.out
-#SBATCH --error=logs/slurm/missing_modality_%j.err
+#SBATCH --output=logs/slurm/missing_modality/baseline_%j.out
+#SBATCH --error=logs/slurm/missing_modality/baseline_%j.err
 
 set -euo pipefail
 

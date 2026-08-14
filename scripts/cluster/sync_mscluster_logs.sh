@@ -59,7 +59,16 @@ while true; do
   started_at="$(date '+%Y-%m-%d %H:%M:%S')"
   echo "[$started_at] sync started"
 
-  sync_path "logs" "$REMOTE_LOG_DIR" "$LOCAL_LOG_DIR"
+  # Ignore files from the retired flat layout. They may remain on a cluster
+  # during migration, but must not be recreated beside the canonical tree.
+  sync_path "logs" "$REMOTE_LOG_DIR" "$LOCAL_LOG_DIR" \
+    --exclude='/brats-dl-*' \
+    --exclude='/brats_pipeline_*' \
+    --exclude='/matplotlib/' \
+    --exclude='/sam_client_*' \
+    --exclude='/sam_server_*' \
+    --exclude='/slurm/*.out' \
+    --exclude='/slurm/*.err'
 
   if [[ "$SYNC_OUTPUTS" == "1" ]]; then
     sync_path "outputs" "$REMOTE_OUTPUT_DIR" "$LOCAL_OUTPUT_DIR" \

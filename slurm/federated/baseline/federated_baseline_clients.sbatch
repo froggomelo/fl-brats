@@ -8,15 +8,15 @@
 #SBATCH --cpus-per-task=6
 #SBATCH --array=0-3
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/slurm/federated_client_%A_%a.out
-#SBATCH --error=logs/slurm/federated_client_%A_%a.err
+#SBATCH --output=logs/slurm/federated/baseline/client_%A_%a.out
+#SBATCH --error=logs/slurm/federated/baseline/client_%A_%a.err
 
 set -euo pipefail
 
 trap 'echo "Received termination signal" >&2; exit 143' TERM INT
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="${FL_BRATS_REPO_ROOT:-$(cd -- "$script_dir/../../.." && pwd)}"
+repo_root="${FL_BRATS_REPO_ROOT:-${SLURM_SUBMIT_DIR:-$(cd -- "$script_dir/../../.." && pwd)}}"
 if [[ -f "$repo_root/.env" ]]; then
   set -a
   # shellcheck disable=SC1091

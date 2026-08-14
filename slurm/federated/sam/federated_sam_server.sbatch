@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=fedbrats-sam-server
 #SBATCH --partition=stampede
-#SBATCH --output=logs/sam_server_%j.out
+#SBATCH --output=logs/slurm/federated/sam/server_%j.out
+#SBATCH --error=logs/slurm/federated/sam/server_%j.err
 set -euo pipefail
 repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
 if [[ -f "$repo_root/.env" ]]; then

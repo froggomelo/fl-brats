@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=00:30:00
-#SBATCH --output=logs/slurm/setup_%j.out
-#SBATCH --error=logs/slurm/setup_%j.err
+#SBATCH --output=logs/slurm/environment/setup_%j.out
+#SBATCH --error=logs/slurm/environment/setup_%j.err
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ repo_root="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pw
 cd "$repo_root"
 cache_dir="${UV_CACHE_DIR:-$repo_root/.uv-cache}"
 marker_dir="${FL_BRATS_SETUP_MARKER_DIR:-$repo_root/.setup}"
-mkdir -p "$cache_dir" "$marker_dir" logs/slurm
+mkdir -p "$cache_dir" "$marker_dir" logs/slurm/environment
 
 echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown}"
 echo "repository=$repo_root"

@@ -14,7 +14,7 @@ output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
 training_partition="${FL_BRATS_SLURM_PARTITION:-stampede}"
 run_id="${FEDERATED_RUN_ID:-unet_baseline_$(date +%Y%m%d_%H%M%S)}"
 run_dir="${FEDERATED_RUN_DIR:-${output_root}/federated/${run_id}}"
-mkdir -p "$run_dir"
+mkdir -p "$run_dir" "$repo_root/logs/slurm/federated/baseline"
 
 # DataLoader multiprocessing is opt-in on this cluster because PyTorch tensor
 # IPC can fail with "received 0 items of ancdata" under Apptainer.
@@ -37,11 +37,11 @@ client_job="$(
     "$repo_root/slurm/federated/baseline/federated_baseline_clients.sbatch"
 )"
 cleanup_job="$(
-  sbatch --parsable --dependency=afterany:"$client_job" \
+  sbatch --parsable --partition="$training_partition" --dependency=afterany:"$client_job" \
     --export=ALL,FEDERATED_SERVER_JOB_ID="$server_job" \
     --job-name=fedbrats-fedavg-cleanup \
-    --output=logs/slurm/federated_cleanup_%j.out \
-    --error=logs/slurm/federated_cleanup_%j.err \
+    --output=logs/slurm/federated/baseline/cleanup_%j.out \
+    --error=logs/slurm/federated/baseline/cleanup_%j.err \
     --wrap='scancel "$FEDERATED_SERVER_JOB_ID" || true'
 )"
 

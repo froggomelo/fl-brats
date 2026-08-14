@@ -36,7 +36,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=72:00:00
-#SBATCH --output=brats-dl-%j.out
+#SBATCH --output=logs/slurm/data/download_%j.out
+#SBATCH --error=logs/slurm/data/download_%j.err
 #SBATCH --open-mode=append
 #SBATCH --requeue
 

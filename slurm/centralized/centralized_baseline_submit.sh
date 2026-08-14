@@ -12,4 +12,5 @@ fi
 export FL_BRATS_IMAGE_STAMPEDE=$repo_root/stampede.sif
 export FL_BRATS_IMAGE_BATCH=$repo_root/batch.sif
 
+mkdir -p "$repo_root/logs/slurm/centralized"
 sbatch --export=ALL slurm/centralized/centralized_baseline.sbatch

@@ -9,7 +9,7 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-mkdir -p "$repo_root/logs/slurm"
+mkdir -p "$repo_root/logs/slurm/centralized" "$repo_root/logs/slurm/federated/baseline"
 
 partition="${FL_BRATS_PARTITION:-stampede}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
@@ -84,8 +84,8 @@ submit_federated() {
   cleanup_job="$(sbatch --parsable --dependency=afterany:"$client_job" "${sbatch_args[@]}" \
     --export="ALL,FEDERATED_SERVER_JOB_ID=${server_job}" \
     --job-name=fedbrats-fedavg-cleanup \
-    --output=logs/slurm/federated_cleanup_%j.out \
-    --error=logs/slurm/federated_cleanup_%j.err \
+    --output=logs/slurm/federated/baseline/cleanup_%j.out \
+    --error=logs/slurm/federated/baseline/cleanup_%j.err \
     --wrap='scancel "$FEDERATED_SERVER_JOB_ID" || true')"
 
   submitted_federated_cleanup_job="$cleanup_job"

@@ -10,7 +10,7 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-mkdir -p "$repo_root/logs/slurm"
+mkdir -p "$repo_root/logs/slurm/federated/baseline"
 
 partition="${FL_BRATS_PARTITION:-bigbatch}"
 rounds="${FEDERATED_ROUNDS:-200}"
@@ -42,7 +42,7 @@ for seed in $seeds; do
   clients="${FEDERATED_CLIENTS:-4}"
   client_array_last=$((clients - 1))
   client_job="$(sbatch --parsable --dependency=after:"$server_job" --array="0-${client_array_last}" "${sbatch_args[@]}" --export="${export_vars},FEDERATED_SERVER_JOB_ID=${server_job},FEDERATED_CLIENTS=${clients}" "$repo_root/slurm/federated/baseline/federated_baseline_clients.sbatch")"
-  cleanup_job="$(sbatch --parsable --dependency=afterany:"$client_job" "${sbatch_args[@]}" --export=ALL,FEDERATED_SERVER_JOB_ID="$server_job" --job-name=fedbrats-fedavg-cleanup --output=logs/slurm/federated_cleanup_%j.out --error=logs/slurm/federated_cleanup_%j.err --wrap='scancel "$FEDERATED_SERVER_JOB_ID" || true')"
+  cleanup_job="$(sbatch --parsable --dependency=afterany:"$client_job" "${sbatch_args[@]}" --export=ALL,FEDERATED_SERVER_JOB_ID="$server_job" --job-name=fedbrats-fedavg-cleanup --output=logs/slurm/federated/baseline/cleanup_%j.out --error=logs/slurm/federated/baseline/cleanup_%j.err --wrap='scancel "$FEDERATED_SERVER_JOB_ID" || true')"
 
   echo "federated_seed_${seed}_server_job=$server_job client_array_job=$client_job cleanup_job=$cleanup_job rounds=$rounds local_epochs=$local_epochs weights=$weights_path run_dir=$run_dir"
   if [[ "${FL_BRATS_CHAIN_SEEDS:-1}" == "1" ]]; then

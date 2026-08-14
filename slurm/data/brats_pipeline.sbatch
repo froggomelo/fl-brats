@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=10
 #SBATCH --time=72:00:00
-#SBATCH --output=logs/brats_pipeline_%j.out
-#SBATCH --error=logs/brats_pipeline_%j.err
+#SBATCH --output=logs/slurm/data/pipeline_%j.out
+#SBATCH --error=logs/slurm/data/pipeline_%j.err
 
 set -euo pipefail
 
@@ -29,11 +29,11 @@ fl_brats_select_apptainer_image "$repo_root"
 raw_host="$FL_BRATS_RAW_ROOT"
 processed_host="$FL_BRATS_DATA_ROOT/processed"
 partitions_host="$FL_BRATS_DATA_ROOT/partitions"
-log_host="${FL_BRATS_LOG_ROOT:-$PWD/logs}"
+cache_host="${FL_BRATS_CACHE_ROOT:-$PWD/cache}"
 container_root="/datasets/${USER}/brats"
 
 [[ -d "$raw_host" ]] || { echo "Missing raw training dataset: $raw_host" >&2; exit 1; }
-mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "$log_host/matplotlib"
+mkdir -p "$processed_host/brats2021_v1" "$partitions_host/fixed_quantity_skew" "$cache_host/matplotlib"
 
 echo "hostname=$(hostname)"
 echo "job_id=${SLURM_JOB_ID:-unknown} node_list=${SLURM_JOB_NODELIST:-unknown}"
@@ -43,11 +43,11 @@ echo "started=$(date --iso-8601=seconds)"
 
 # Raw data are bound read-only; all generated artefacts are separately writable.
 runner=(apptainer exec --cleanenv
-  --env MPLCONFIGDIR=/logs/matplotlib
+  --env MPLCONFIGDIR=/cache/matplotlib
   --bind "$raw_host:$container_root/raw/brats2021:ro"
   --bind "$processed_host:$container_root/processed:rw"
   --bind "$partitions_host:$container_root/partitions:rw"
-  --bind "$log_host:/logs:rw"
+  --bind "$cache_host:/cache:rw"
   "$APPTAINER_IMAGE" fedbrats)
 
 run() { echo "+ fedbrats $*"; "${runner[@]}" "$@"; }

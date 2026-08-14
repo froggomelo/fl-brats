@@ -11,8 +11,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --time=00:20:00
-#SBATCH --output=logs/slurm/init_weights_%j.out
-#SBATCH --error=logs/slurm/init_weights_%j.err
+#SBATCH --output=logs/slurm/federated/baseline/init_weights_%j.out
+#SBATCH --error=logs/slurm/federated/baseline/init_weights_%j.err
 
 set -euo pipefail
 
@@ -35,7 +35,7 @@ model_config="${MODEL_CONFIG:-configs/model/unet_baseline.yaml}"
 output_dir="${INITIAL_WEIGHTS_DIR:-artifacts/initial_weights}"
 seed="${INITIAL_WEIGHTS_SEED:-42}"
 
-mkdir -p logs/slurm "$output_dir"
+mkdir -p logs/slurm/federated/baseline "$output_dir"
 
 [[ -f "$model_config" ]] || { echo "Model config missing: $model_config" >&2; exit 2; }
 

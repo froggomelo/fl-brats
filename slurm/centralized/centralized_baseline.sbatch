@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Submit with: sbatch --export=ALL slurm/centralized/centralized_baseline.sbatch
-# Overrides are supported, for example: sbatch --partition=batch --time=24:00:00 ...
+# Overrides are supported, for example: sbatch --partition=stampede --time=24:00:00 ...
 #SBATCH --job-name=fedbrats-central
-#SBATCH --partition=stampede
+#SBATCH --partition=bigbatch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --time=24:00:00
-#SBATCH --output=logs/slurm/centralized_%j.out
-#SBATCH --error=logs/slurm/centralized_%j.err
+#SBATCH --output=logs/slurm/centralized/centralized_%j.out
+#SBATCH --error=logs/slurm/centralized/centralized_%j.err
 
 set -euo pipefail
 

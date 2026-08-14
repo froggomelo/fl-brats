@@ -3,7 +3,8 @@
 #SBATCH --partition=${FL_BRATS_CPU_PARTITION:-cpu}
 #SBATCH --cpus-per-task=${FL_BRATS_CPUS:-4}
 #SBATCH --mem=${FL_BRATS_MEM:-32G}
-#SBATCH --output=logs/brats_preprocess_%j.out
+#SBATCH --output=logs/slurm/data/preprocess_%j.out
+#SBATCH --error=logs/slurm/data/preprocess_%j.err
 set -euo pipefail
 repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
 if [[ -f "$repo_root/.env" ]]; then

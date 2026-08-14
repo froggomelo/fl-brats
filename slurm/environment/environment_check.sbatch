@@ -3,7 +3,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
 #SBATCH --time=00:10:00
-#SBATCH --output=logs/slurm-env-%j.out
+#SBATCH --output=logs/slurm/environment/check_%j.out
+#SBATCH --error=logs/slurm/environment/check_%j.err
 set -euo pipefail
 repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
 if [[ -f "$repo_root/.env" ]]; then

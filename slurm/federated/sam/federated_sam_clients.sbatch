@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=fedbrats-sam-client
 #SBATCH --partition=stampede
-#SBATCH --output=logs/sam_client_%j_%t.out
+#SBATCH --output=logs/slurm/federated/sam/client_%A_%a.out
+#SBATCH --error=logs/slurm/federated/sam/client_%A_%a.err
 #SBATCH --nodes=1
 set -euo pipefail
 repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
