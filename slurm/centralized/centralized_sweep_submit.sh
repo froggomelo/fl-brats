@@ -15,7 +15,7 @@ mkdir -p "$repo_root/logs/slurm/centralized"
 # Set FL_BRATS_PARTITION to override the bigbatch default
 # when invoking this script. The worker selects the matching Apptainer image:
 # stampede -> fl-brats-stampede.sif; bigbatch/batch -> fl-brats-batch.sif.
-partition="${FL_BRATS_PARTITION:-bigbatch}"
+partition="${FL_BRATS_PARTITION:-stampede}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
 epochs="${CENTRALIZED_EPOCHS:-200}"
 initial_weights_dir="${INITIAL_WEIGHTS_DIR:-artifacts/initial_weights}"
