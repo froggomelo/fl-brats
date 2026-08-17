@@ -27,6 +27,9 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
+# Use the partition-specific image even if the submitting shell retained a
+# legacy APPTAINER_IMAGE value.
+unset APPTAINER_IMAGE
 source "$repo_root/apptainer/select_image.sh"
 fl_brats_select_apptainer_image "$repo_root"
 [[ -f "$APPTAINER_IMAGE" ]] || { echo "Apptainer image missing: $APPTAINER_IMAGE" >&2; exit 2; }

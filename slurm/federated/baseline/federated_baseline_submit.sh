@@ -10,6 +10,10 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
+# Always select the image for the requested Slurm partition. A legacy
+# APPTAINER_IMAGE exported by the login shell must not override it.
+unset APPTAINER_IMAGE
+
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
 training_partition="${FL_BRATS_SLURM_PARTITION:-stampede}"
 run_id="${FEDERATED_RUN_ID:-unet_baseline_$(date +%Y%m%d_%H%M%S)}"
