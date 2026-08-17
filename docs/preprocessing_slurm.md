@@ -1,6 +1,6 @@
 # SLURM preprocessing
 
-Submit `sbatch slurm/data/brats_validate.sbatch`, `sbatch slurm/data/brats_preprocess.sbatch`, and `sbatch slurm/data/brats_partition.sbatch`. Set `FL_BRATS_DATA_ROOT`; resource settings are environment-overridable. SLURM jobs choose `apptainer/fl-brats-stampede.sif` or `apptainer/fl-brats-batch.sif` from the listed partition unless `APPTAINER_IMAGE` is explicitly set. Validation/preprocessing use CPU by default. Do not run full-dataset validation on the login node.
+Submit `sbatch slurm/data/brats_validate.sbatch`, `sbatch slurm/data/brats_preprocess.sbatch`, and `sbatch slurm/data/brats_partition.sbatch`. Set `FL_BRATS_DATA_ROOT`; resource settings are environment-overridable. SLURM jobs choose `apptainer/fl-brats-stampede.sif` or `apptainer/fl-brats-batch.sif` from the listed partition. Override those paths with `FL_BRATS_IMAGE_STAMPEDE` or `FL_BRATS_IMAGE_BATCH`; inherited `APPTAINER_IMAGE` values are ignored. Validation/preprocessing use CPU by default. Do not run full-dataset validation on the login node.
 
 For a single ordered, resumable job, use:
 

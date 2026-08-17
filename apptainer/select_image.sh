@@ -5,11 +5,6 @@ fl_brats_select_apptainer_image() {
   local partition="${2:-${SLURM_JOB_PARTITION:-}}"
   local key env_name selected
 
-  if [[ -n "${APPTAINER_IMAGE:-}" ]]; then
-    export APPTAINER_IMAGE
-    return 0
-  fi
-
   partition="${partition%%,*}"
   partition="${partition:-default}"
   key="$(printf '%s' "$partition" | tr '[:lower:]-' '[:upper:]_')"
