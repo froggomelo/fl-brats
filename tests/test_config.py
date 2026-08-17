@@ -18,6 +18,26 @@ def test_initial_weights_override() -> None:
     assert resolved_dict(load_config([f"initial_weights={path}"]))["initial_weights"] == path
 
 
+def test_fedamm_control_overrides() -> None:
+    config = resolved_dict(
+        load_config(
+            [
+                "model=fedamm",
+                "model.prototype_loss_weight=0.0",
+                "model.prototype_distillation_enabled=false",
+                "model.global_prototype_alignment_enabled=false",
+                "model.emit_prototypes=false",
+                "model.modality_weighted_aggregation=false",
+            ]
+        )
+    )
+    assert config["model"]["prototype_loss_weight"] == 0.0
+    assert config["model"]["prototype_distillation_enabled"] is False
+    assert config["model"]["global_prototype_alignment_enabled"] is False
+    assert config["model"]["emit_prototypes"] is False
+    assert config["model"]["modality_weighted_aggregation"] is False
+
+
 @pytest.mark.parametrize(
     "override", ["precision=wrong", "num_workers=-1", "environment.server_port=80"]
 )

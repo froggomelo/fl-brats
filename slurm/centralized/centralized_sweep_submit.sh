@@ -30,7 +30,7 @@ fl_brats_select_apptainer_image "$repo_root" "$partition"
   exit 2
 }
 
-sbatch_args=(--partition="$partition")
+sbatch_args=(--partition="$partition" --exclude="${FL_BRATS_EXCLUDE_NODES:-mscluster25}")
 if [[ -n "${FL_BRATS_NODELIST:-}" ]]; then
   sbatch_args+=(--nodelist="$FL_BRATS_NODELIST")
 fi

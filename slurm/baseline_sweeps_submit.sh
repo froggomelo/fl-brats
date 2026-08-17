@@ -29,6 +29,7 @@ sbatch_args=(--partition="$partition")
 if [[ -n "${FL_BRATS_NODELIST:-}" ]]; then
   sbatch_args+=(--nodelist="$FL_BRATS_NODELIST")
 fi
+gpu_sbatch_args=("${sbatch_args[@]}" --exclude="${FL_BRATS_EXCLUDE_NODES:-mscluster25}")
 
 submit_initial_weights() {
   local seed="$1"
@@ -52,7 +53,7 @@ submit_centralized() {
   shift
   local dependency=("$@")
 
-  sbatch --parsable "${dependency[@]}" "${sbatch_args[@]}" \
+  sbatch --parsable "${dependency[@]}" "${gpu_sbatch_args[@]}" \
     --export="ALL,FL_BRATS_PARTITION=${partition},CENTRALIZED_EPOCHS=${centralized_epochs},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}" \
     "$repo_root/slurm/centralized/centralized_baseline.sbatch"
 }
@@ -77,7 +78,7 @@ submit_federated() {
     --export="$export_vars" \
     "$repo_root/slurm/federated/baseline/federated_baseline_server.sbatch")"
 
-  client_job="$(sbatch --parsable --dependency=after:"$server_job" --array="0-${client_array_last}" "${sbatch_args[@]}" \
+  client_job="$(sbatch --parsable --dependency=after:"$server_job" --array="0-${client_array_last}" "${gpu_sbatch_args[@]}" \
     --export="${export_vars},FEDERATED_SERVER_JOB_ID=${server_job}" \
     "$repo_root/slurm/federated/baseline/federated_baseline_clients.sbatch")"
 

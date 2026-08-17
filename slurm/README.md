@@ -21,6 +21,8 @@ and `.err` suffixes. Keep application-level artifacts inside each run under
 Submit concurrent centralized seed runs with
 `bash slurm/centralized/centralized_sweep_submit.sh`. Set
 `FL_BRATS_PARTITION=stampede|bigbatch` or edit the script's `partition` default;
-the worker automatically selects the matching Apptainer image.
+the worker automatically selects the matching Apptainer image. GPU training
+excludes `mscluster25` by default because CUDA is unavailable there; override
+the exclusion list with `FL_BRATS_EXCLUDE_NODES`.
 
 `missing_modality/missing_modality_baseline.sbatch` creates a deterministic split and missing-modality partition, validates and reports it, then runs the baseline training workflow. Configure it through exported variables, notably `MM_MODE=complete|arbitrary|mixed`, `MM_T1CE_PROBABILITY`, and `MM_CLIENT_POLICY`.

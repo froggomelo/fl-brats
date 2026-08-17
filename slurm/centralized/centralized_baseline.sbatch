@@ -5,6 +5,7 @@
 #SBATCH --partition=bigbatch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
+#SBATCH --exclude=mscluster25
 #SBATCH --cpus-per-task=6
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/slurm/centralized/centralized_%j.out
@@ -48,7 +49,17 @@ done
 echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown} partition=${SLURM_JOB_PARTITION:-unknown}"
 echo "image=$APPTAINER_IMAGE"
 echo "output_root=$centralized_output_root cache_root=$centralized_cache_root"
-nvidia-smi || true
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi
+else
+  echo "nvidia-smi is unavailable on the allocated node" >&2
+fi
+
+# Check the actual container environment before loading the model. This turns a
+# missing/broken GPU allocation into a short, actionable error instead of a
+# large traceback from model.to("cuda").
+apptainer exec --nv --cleanenv "$APPTAINER_IMAGE" python -c \
+  'import torch; assert torch.cuda.is_available(), "CUDA is not available inside the Apptainer container; verify the SLURM GPU allocation and --nv setup"'
 
 apptainer exec --nv --cleanenv \
   --env "FL_BRATS_RAW_ROOT=$raw_root" \
