@@ -447,7 +447,7 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
     final = summary.get("final_validation_dice")
     if final is None and evaluations:
         final = evaluations[-1].get("validation_mean_dice")
-    target_base = best if isinstance(best, (int, float)) else final
+    target_base = final
     drift = [
         float(record["client_update_l2"])
         for record in clients
@@ -485,11 +485,40 @@ def summarize_run(run_dir: Path) -> dict[str, Any]:
 
 def write_sweep_summary(sweep_root: Path, rows: list[dict[str, Any]]) -> None:
     sweep_root.mkdir(parents=True, exist_ok=True)
+    comparable = [
+        row
+        for row in rows
+        if isinstance(row.get("final_validation_dice"), (int, float))
+        and isinstance(row.get("total_communication_bytes"), (int, float))
+    ]
+    frontier = [
+        row
+        for row in comparable
+        if not any(
+            float(other["final_validation_dice"]) >= float(row["final_validation_dice"])
+            and int(other["total_communication_bytes"])
+            <= int(row["total_communication_bytes"])
+            and (
+                float(other["final_validation_dice"]) > float(row["final_validation_dice"])
+                or int(other["total_communication_bytes"])
+                < int(row["total_communication_bytes"])
+            )
+            for other in comparable
+        )
+    ]
+    frontier_ids = {str(row["run_id"]) for row in frontier}
+    for row in rows:
+        row["communication_pareto_optimal"] = str(row.get("run_id")) in frontier_ids
+    (sweep_root / "communication_pareto_frontier.json").write_text(
+        json.dumps(frontier, indent=2), encoding="utf-8"
+    )
     (sweep_root / "training_sweep_summary.json").write_text(
         json.dumps(rows, indent=2), encoding="utf-8"
     )
     columns = sorted({key for row in rows for key in row})
-    with (sweep_root / "training_sweep_summary.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (sweep_root / "training_sweep_summary.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
         writer = csv.DictWriter(handle, fieldnames=columns)
         writer.writeheader()
         writer.writerows(rows)

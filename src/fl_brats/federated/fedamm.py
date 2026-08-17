@@ -142,7 +142,14 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
             next_state.best_checkpoint = str(self.checkpoints.save_alias(checkpoint, "best.pt"))
         self.writer.write_client_records(records)
         self.writer.write_round_record(round_record)
-        self.writer.write_communication_record({"round": server_round, "uploaded_bytes": sum(r.upload_payload_bytes for r in records), "downloaded_bytes": sum(r.download_payload_bytes for r in records)})
+        self.writer.write_communication_record(
+            {
+                "round": server_round,
+                "uploaded_bytes": sum(r.upload_payload_bytes for r in records),
+                "downloaded_bytes": sum(r.download_payload_bytes for r in records),
+                "network_transmission_seconds": None,
+            }
+        )
         self.state = next_state
         self.writer.write_state(self.state)
         return parameters, prototype_metrics

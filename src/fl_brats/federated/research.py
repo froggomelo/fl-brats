@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -42,6 +42,12 @@ class ClientRoundRecord:
     normalized_client_update_l2: float | None
     status: str
     error: str | None = None
+    wt_hd95: float | None = None
+    tc_hd95: float | None = None
+    et_hd95: float | None = None
+    wt_sensitivity: float | None = None
+    tc_sensitivity: float | None = None
+    et_sensitivity: float | None = None
 
 
 @dataclass
@@ -199,6 +205,7 @@ class ResearchFedAvgStrategy(FedAvg):
                 "round": server_round,
                 "uploaded_bytes": sum(r.upload_payload_bytes for r in records),
                 "downloaded_bytes": sum(r.download_payload_bytes for r in records),
+                "network_transmission_seconds": None,
             }
         )
         self.state = next_state
@@ -238,12 +245,31 @@ class ResearchFedAvgStrategy(FedAvg):
             "validation_tc_dice": self._weighted_mean(records, "dice_tc"),
             "validation_et_dice": self._weighted_mean(records, "dice_et"),
             "validation_mean_dice": mean_dice,
+            "validation_wt_hd95": self._weighted_mean(records, "wt_hd95"),
+            "validation_tc_hd95": self._weighted_mean(records, "tc_hd95"),
+            "validation_et_hd95": self._weighted_mean(records, "et_hd95"),
+            "validation_wt_sensitivity": self._weighted_mean(records, "wt_sensitivity"),
+            "validation_tc_sensitivity": self._weighted_mean(records, "tc_sensitivity"),
+            "validation_et_sensitivity": self._weighted_mean(records, "et_sensitivity"),
             "successful_clients": sum(item.status == "completed" for item in records),
             "failed_clients": sum(item.status == "failed" for item in records),
         }
         if failures:
             record["failures"] = [str(failure) for failure in failures]
         self.writer.write_evaluation_record(record)
+        for proxy, result in results:
+            modality_metrics = {
+                key: value for key, value in result.metrics.items() if key.startswith("modality__")
+            }
+            if modality_metrics:
+                self.writer._append(
+                    self.writer.run_dir / "metrics" / "modality_combinations.jsonl",
+                    {
+                        "round": server_round,
+                        "client_id": str(result.metrics.get("client_id", proxy.cid)),
+                        "metrics": modality_metrics,
+                    },
+                )
         next_state = ExperimentState(**asdict(self.state))
         if mean_dice is not None and next_state.latest_checkpoint is not None and (
             next_state.best_metric is None or mean_dice > next_state.best_metric
@@ -287,22 +313,30 @@ class ResearchFedAvgStrategy(FedAvg):
         for proxy, result in results:
             metric = result.metrics
             records.append(
-                ClientRoundRecord(
-                    round_number,
-                    str(metric.get("client_id", proxy.cid)),
-                    result.num_examples,
-                    self._float(metric, "train_loss"),
-                    self._float(metric, "loss"),
-                    self._float(metric, "wt_dice"),
-                    self._float(metric, "tc_dice"),
-                    self._float(metric, "et_dice"),
-                    self._float(metric, "mean_dice"),
-                    self._float(metric, "local_training_seconds"),
-                    int(metric.get("upload_numpy_array_bytes", 0)),
-                    int(metric.get("download_payload_bytes", 0)),
-                    self._float(metric, "client_update_l2"),
-                    self._float(metric, "normalized_client_update_l2"),
-                    "completed",
+                replace(
+                    ClientRoundRecord(
+                        round_number,
+                        str(metric.get("client_id", proxy.cid)),
+                        result.num_examples,
+                        self._float(metric, "train_loss"),
+                        self._float(metric, "loss"),
+                        self._float(metric, "wt_dice"),
+                        self._float(metric, "tc_dice"),
+                        self._float(metric, "et_dice"),
+                        self._float(metric, "mean_dice"),
+                        self._float(metric, "local_training_seconds"),
+                        int(metric.get("upload_numpy_array_bytes", 0)),
+                        int(metric.get("download_payload_bytes", 0)),
+                        self._float(metric, "client_update_l2"),
+                        self._float(metric, "normalized_client_update_l2"),
+                        "completed",
+                    ),
+                    wt_hd95=self._float(metric, "wt_hd95"),
+                    tc_hd95=self._float(metric, "tc_hd95"),
+                    et_hd95=self._float(metric, "et_hd95"),
+                    wt_sensitivity=self._float(metric, "wt_sensitivity"),
+                    tc_sensitivity=self._float(metric, "tc_sensitivity"),
+                    et_sensitivity=self._float(metric, "et_sensitivity"),
                 )
             )
         for failure in failures:
@@ -335,22 +369,30 @@ class ResearchFedAvgStrategy(FedAvg):
         for proxy, result in results:
             metric = result.metrics
             records.append(
-                ClientRoundRecord(
-                    round_number,
-                    str(metric.get("client_id", proxy.cid)),
-                    result.num_examples,
-                    None,
-                    self._float(metric, "loss"),
-                    self._float(metric, "wt_dice"),
-                    self._float(metric, "tc_dice"),
-                    self._float(metric, "et_dice"),
-                    self._float(metric, "mean_dice"),
-                    None,
-                    0,
-                    0,
-                    None,
-                    None,
-                    "completed",
+                replace(
+                    ClientRoundRecord(
+                        round_number,
+                        str(metric.get("client_id", proxy.cid)),
+                        result.num_examples,
+                        None,
+                        self._float(metric, "loss"),
+                        self._float(metric, "wt_dice"),
+                        self._float(metric, "tc_dice"),
+                        self._float(metric, "et_dice"),
+                        self._float(metric, "mean_dice"),
+                        None,
+                        0,
+                        0,
+                        None,
+                        None,
+                        "completed",
+                    ),
+                    wt_hd95=self._float(metric, "wt_hd95"),
+                    tc_hd95=self._float(metric, "tc_hd95"),
+                    et_hd95=self._float(metric, "et_hd95"),
+                    wt_sensitivity=self._float(metric, "wt_sensitivity"),
+                    tc_sensitivity=self._float(metric, "tc_sensitivity"),
+                    et_sensitivity=self._float(metric, "et_sensitivity")
                 )
             )
         for failure in failures:

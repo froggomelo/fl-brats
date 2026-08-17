@@ -38,5 +38,3 @@ def evaluate_modality_combinations(
 
 
 __all__ = ["evaluate", "evaluate_modality_combinations"]
-
-__all__ = ["evaluate"]

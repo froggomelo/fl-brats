@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 
 from fl_brats.data.modalities import MODALITIES, modality_counts
 from fl_brats.training.engine import evaluate, train_local_epochs
+from fl_brats.training.evaluation import evaluate_modality_combinations
 
 from .client import FedAvgClient
 from .communication import payload_metrics
@@ -55,6 +56,7 @@ class ModelFedAvgClient(FedAvgClient):
         strategy: str = "fedavg",
         fedprox_mu: float = 0.0,
         quantization_config: dict[str, Any] | None = None,
+        evaluate_modality_robustness: bool = False,
     ) -> None:
         self.device = torch.device(device)
         self.model = model.to(self.device)
@@ -66,6 +68,7 @@ class ModelFedAvgClient(FedAvgClient):
         self.local_epochs, self.client_id = local_epochs, client_id
         self.strategy, self.fedprox_mu = strategy, fedprox_mu
         self.quantization_config = quantization_config or {}
+        self.evaluate_modality_robustness = evaluate_modality_robustness
         self._sparsification_residual: torch.Tensor | None = None
         self._global_arrays_before_fit: list[np.ndarray] | None = None
         self._proximal_global_parameters: list[torch.Tensor] | None = None
@@ -122,7 +125,15 @@ class ModelFedAvgClient(FedAvgClient):
 
     def _evaluate(self) -> dict[str, float]:
         assert self.validation_loader is not None and self.loss_fn is not None
-        return evaluate(self.model, self.validation_loader, self.loss_fn, self.device)
+        result = evaluate(self.model, self.validation_loader, self.loss_fn, self.device)
+        if self.evaluate_modality_robustness:
+            combinations = evaluate_modality_combinations(
+                self.model, self.validation_loader, self.loss_fn, self.device
+            )
+            for combination, metrics in combinations.items():
+                for key, value in metrics.items():
+                    result[f"modality__{combination}__{key}"] = value
+        return result
 
     @staticmethod
     def _finite(metrics: dict[str, Any]) -> dict[str, Any]:
@@ -238,4 +249,5 @@ class ModelFedAvgClient(FedAvgClient):
     ) -> tuple[float, int, dict[str, Any]]:
         self.set_model_parameters(parameters)
         metrics = self._finite(self.evaluate_fn())
+        metrics["client_id"] = self.client_id
         return metrics["loss"], self.examples, metrics

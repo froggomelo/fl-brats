@@ -680,6 +680,22 @@ def train_centralized(
         "best_validation_epoch": best_epoch,
         "best_validation_mean_dice": best,
         **{f"test_{k}": v for k, v in test.items()},
+        "metrics": {
+            "segmentation": test,
+            "convergence": {
+                "round_to_90_percent_final_dice": None,
+                "round_to_95_percent_final_dice": None,
+                "not_applicable_reason": (
+                    "centralized training has epochs, not communication rounds"
+                ),
+            },
+            "communication": {
+                "not_applicable_reason": "centralized training does not transmit federated updates"
+            },
+            "per_client": {
+                "not_applicable_reason": "centralized training has no federated clients"
+            },
+        },
         "total_training_time": time.monotonic() - started,
         "model_config": model_values,
         "loss_config": loss_values,

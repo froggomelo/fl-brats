@@ -5,7 +5,7 @@ from typing import Any
 import torch
 from torch.utils.data import DataLoader
 
-from fl_brats.metrics.dice import dice_metrics
+from fl_brats.metrics.segmentation import REGIONS, segmentation_metrics
 from fl_brats.models.fedamm import FedAMMOutput, fedamm_auxiliary_loss, semantic_prototypes
 
 
@@ -122,19 +122,16 @@ def evaluate(
     model: torch.nn.Module, loader: DataLoader[Any], loss_fn: Any, device: torch.device
 ) -> dict[str, float]:
     model.eval()
-    aggregate: dict[str, float] = {
-        "loss": 0.0,
-        "wt_dice": 0.0,
-        "tc_dice": 0.0,
-        "et_dice": 0.0,
-        "mean_dice": 0.0,
-    }
+    aggregate: dict[str, float] = {"loss": 0.0}
+    for metric in ("dice", "hd95", "sensitivity"):
+        aggregate.update({f"{region}_{metric}": 0.0 for region in REGIONS})
+        aggregate[f"mean_{metric}"] = 0.0
     samples = 0
     for batch in loader:
         batch = move_batch_to_device(batch, device)
         logits = logits_from_output(forward_batch(model, batch))
         n = len(logits)
-        metrics = dice_metrics(logits, batch["label"])
+        metrics = segmentation_metrics(logits, batch["label"])
         aggregate["loss"] += float(loss_fn(logits, batch["label"])) * n
         for key, value in metrics.items():
             aggregate[key] += value * n
