@@ -20,6 +20,14 @@ federated_local_epochs="${FEDERATED_LOCAL_EPOCHS:-1}"
 federated_clients="${FEDERATED_CLIENTS:-4}"
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
 
+unset APPTAINER_IMAGE
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root" "$partition"
+[[ -f "$APPTAINER_IMAGE" ]] || {
+  echo "Apptainer image missing for partition $partition: $APPTAINER_IMAGE" >&2
+  exit 2
+}
+
 if ! [[ "$federated_clients" =~ ^[1-9][0-9]*$ ]]; then
   echo "FEDERATED_CLIENTS must be a positive integer, got: $federated_clients" >&2
   exit 2
@@ -43,7 +51,7 @@ submit_initial_weights() {
   fi
 
   sbatch --parsable "${dependency[@]}" "${sbatch_args[@]}" \
-    --export="ALL,FL_BRATS_PARTITION=${partition},INITIAL_WEIGHTS_DIR=${initial_weights_dir},INITIAL_WEIGHTS_SEED=${seed}" \
+    --export="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},INITIAL_WEIGHTS_DIR=${initial_weights_dir},INITIAL_WEIGHTS_SEED=${seed}" \
     "$repo_root/slurm/federated/baseline/create_initial_weights.sbatch"
 }
 
@@ -54,7 +62,7 @@ submit_centralized() {
   local dependency=("$@")
 
   sbatch --parsable "${dependency[@]}" "${gpu_sbatch_args[@]}" \
-    --export="ALL,FL_BRATS_PARTITION=${partition},CENTRALIZED_EPOCHS=${centralized_epochs},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}" \
+    --export="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},CENTRALIZED_EPOCHS=${centralized_epochs},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}" \
     "$repo_root/slurm/centralized/centralized_baseline.sbatch"
 }
 
@@ -72,7 +80,7 @@ submit_federated() {
   local cleanup_job
 
   mkdir -p "$run_dir"
-  export_vars="ALL,FL_BRATS_PARTITION=${partition},FEDERATED_RUN_ID=${run_id},FEDERATED_RUN_DIR=${run_dir},FEDERATED_ROUNDS=${federated_rounds},FEDERATED_LOCAL_EPOCHS=${federated_local_epochs},FEDERATED_CLIENTS=${federated_clients},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}"
+  export_vars="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},FEDERATED_RUN_ID=${run_id},FEDERATED_RUN_DIR=${run_dir},FEDERATED_ROUNDS=${federated_rounds},FEDERATED_LOCAL_EPOCHS=${federated_local_epochs},FEDERATED_CLIENTS=${federated_clients},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}"
 
   server_job="$(sbatch --parsable "${dependency[@]}" "${sbatch_args[@]}" \
     --export="$export_vars" \
@@ -90,7 +98,7 @@ submit_federated() {
     --wrap='scancel "$FEDERATED_SERVER_JOB_ID" || true')"
 
   submitted_federated_cleanup_job="$cleanup_job"
-  echo "federated_seed_${seed}_server_job=$server_job client_array_job=$client_job cleanup_job=$cleanup_job rounds=$federated_rounds local_epochs=$federated_local_epochs run_dir=$run_dir"
+  echo "federated_seed_${seed}_server_job=$server_job client_array_job=$client_job cleanup_job=$cleanup_job partition=$partition image=$APPTAINER_IMAGE rounds=$federated_rounds local_epochs=$federated_local_epochs run_dir=$run_dir"
 }
 
 seed_dependency=()

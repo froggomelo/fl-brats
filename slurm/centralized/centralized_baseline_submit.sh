@@ -9,8 +9,17 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-export FL_BRATS_IMAGE_STAMPEDE=$repo_root/stampede.sif
-export FL_BRATS_IMAGE_BATCH=$repo_root/batch.sif
-
 mkdir -p "$repo_root/logs/slurm/centralized"
-sbatch --export=ALL slurm/centralized/centralized_baseline.sbatch
+
+partition="${FL_BRATS_PARTITION:-bigbatch}"
+unset APPTAINER_IMAGE
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root" "$partition"
+[[ -f "$APPTAINER_IMAGE" ]] || {
+  echo "Apptainer image missing for partition $partition: $APPTAINER_IMAGE" >&2
+  exit 2
+}
+
+sbatch --partition="$partition" \
+  --export=ALL,FL_BRATS_PARTITION="$partition",APPTAINER_IMAGE="$APPTAINER_IMAGE" \
+  "$repo_root/slurm/centralized/centralized_baseline.sbatch"
