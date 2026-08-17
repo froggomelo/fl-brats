@@ -55,6 +55,18 @@ sync_path() {
   fi
 }
 
+remote_dir_exists() {
+  local remote_dir="$1"
+
+  ssh -o BatchMode=yes "$REMOTE_HOST" bash -s -- "$remote_dir" <<'REMOTE_CHECK'
+remote_dir="$1"
+if [[ "$remote_dir" == "~/"* ]]; then
+  remote_dir="$HOME/${remote_dir#\~/}"
+fi
+[[ -d "$remote_dir" ]]
+REMOTE_CHECK
+}
+
 while true; do
   started_at="$(date '+%Y-%m-%d %H:%M:%S')"
   echo "[$started_at] sync started"
@@ -79,9 +91,18 @@ while true; do
   fi
 
   if [[ "$SYNC_VISUALIZATIONS" == "1" ]]; then
-    sync_path "visualizations" "$REMOTE_VISUALIZATION_DIR" "$LOCAL_VISUALIZATION_DIR" \
-      --exclude='**/*.tmp' \
-      --exclude='**/*.part'
+    if remote_dir_exists "$REMOTE_VISUALIZATION_DIR"; then
+      sync_path "visualizations" "$REMOTE_VISUALIZATION_DIR" "$LOCAL_VISUALIZATION_DIR" \
+        --exclude='**/*.tmp' \
+        --exclude='**/*.part'
+    else
+      status=$?
+      if [[ "$status" == "1" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] visualizations source is not present yet; skipping ${REMOTE_HOST}:${REMOTE_VISUALIZATION_DIR}"
+      else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] could not check visualizations source (SSH exit code ${status})" >&2
+      fi
+    fi
   fi
 
   sleep "$INTERVAL_SECONDS"
