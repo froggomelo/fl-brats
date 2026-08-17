@@ -57,6 +57,7 @@ echo "seed=${FL_BRATS_SEED:-42} weights=$weights_path run_dir=$run_dir"
 
 apptainer exec --cleanenv \
   --env "FL_BRATS_RAW_ROOT=$raw_root" \
+  --env "PYTHONPATH=/workspace/src" \
   --bind "$repo_root/src:/workspace/src:ro" \
   --bind "$repo_root/configs:/workspace/configs:ro" \
   --bind "$raw_root:$raw_root:ro" \

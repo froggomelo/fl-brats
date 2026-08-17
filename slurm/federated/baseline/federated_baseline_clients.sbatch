@@ -80,6 +80,7 @@ nvidia-smi || true
 apptainer exec --nv --cleanenv \
   --env "FL_BRATS_RAW_ROOT=$raw_root" \
   --env "FL_BRATS_PIN_MEMORY=false" \
+  --env "PYTHONPATH=/workspace/src" \
   --bind "$repo_root/src:/workspace/src:ro" \
   --bind "$repo_root/configs:/workspace/configs:ro" \
   --bind "$raw_root:$raw_root:ro" \
