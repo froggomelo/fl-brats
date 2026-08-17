@@ -13,6 +13,11 @@ def test_hydra_override() -> None:
     assert resolved_dict(load_config(["environment=debug"]))["environment"]["mode"] == "debug"
 
 
+def test_initial_weights_override() -> None:
+    path = "artifacts/initial_weights/fedamm_seed_42.pt"
+    assert resolved_dict(load_config([f"initial_weights={path}"]))["initial_weights"] == path
+
+
 @pytest.mark.parametrize(
     "override", ["precision=wrong", "num_workers=-1", "environment.server_port=80"]
 )

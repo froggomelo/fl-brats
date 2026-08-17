@@ -30,5 +30,6 @@ device: auto
 num_workers: 0
 precision: float32
 resume: null
+initial_weights: null
 tags: []
 create_missing_directories: true
