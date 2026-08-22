@@ -17,8 +17,15 @@ from fl_brats.training.engine import evaluate, train_local_epochs
 from fl_brats.training.evaluation import evaluate_modality_combinations
 
 from .client import FedAvgClient
-from .communication import payload_metrics
+from .communication import payload_metrics, quantized_payload_metrics
 from .parameters import load_arrays, state_keys, state_to_arrays
+from .quantization import (
+    BitWidthAllocator,
+    LayerQuantizationStats,
+    eligible_state,
+    quantize_update,
+    serialize_client_update,
+)
 from .sparsification import create_sparse_update, sparse_update_to_ndarrays
 
 
@@ -70,6 +77,7 @@ class ModelFedAvgClient(FedAvgClient):
         self.quantization_config = quantization_config or {}
         self.evaluate_modality_robustness = evaluate_modality_robustness
         self._sparsification_residual: torch.Tensor | None = None
+        self._quantization_residuals: dict[str, torch.Tensor] = {}
         self._global_arrays_before_fit: list[np.ndarray] | None = None
         self._proximal_global_parameters: list[torch.Tensor] | None = None
         if examples is None:
@@ -213,6 +221,69 @@ class ModelFedAvgClient(FedAvgClient):
                     ),
                 }
             )
+        elif bool(self.quantization_config.get("enabled", False)):
+            if self._global_arrays_before_fit is None:
+                raise ValueError("quantized delta requires cached global parameters")
+            local_state = {key: torch.from_numpy(value.copy()) for key, value in zip(self.keys, arrays, strict=True)}
+            global_state = {
+                key: torch.from_numpy(value.copy())
+                for key, value in zip(self.keys, self._global_arrays_before_fit, strict=True)
+            }
+            eligible = eligible_state(local_state)
+            mode = str(self.quantization_config.get("mode", "fixed"))
+            if mode == "fixed":
+                width = int(self.quantization_config.get("fixed", {}).get("bit_width", 8))
+                assignment = {key: width for key in eligible}
+            elif mode == "mixed":
+                mixed = self.quantization_config.get("mixed", {})
+                patterns = [str(item).lower() for item in mixed.get("protected_layer_patterns", [])]
+                protected = {
+                    key for key in eligible if any(pattern in key.lower() for pattern in patterns)
+                }
+                budget = float(
+                    mixed.get("client_average_bit_width_budgets", {}).get(
+                        self.client_id, mixed.get("default_average_bit_width_budget", 4.0)
+                    )
+                )
+                allocation = BitWidthAllocator().allocate(
+                    layer_statistics={
+                        key: LayerQuantizationStats(value.numel(), float(value.float().norm()) + 1e-12)
+                        for key, value in eligible.items()
+                    },
+                    candidate_bit_widths=list(mixed.get("candidate_bit_widths", [2, 4, 8])),
+                    average_budget=budget,
+                    protected_layers=protected,
+                    protected_minimum=int(mixed.get("protected_layer_minimum_bit_width", 8)),
+                )
+                assignment = allocation.assignments
+            else:
+                raise ValueError(f"unsupported enabled quantization mode: {mode}")
+            update, residuals = quantize_update(
+                client_id=self.client_id,
+                round_index=int(config.get("server_round", 0)),
+                local_state=local_state,
+                global_state=global_state,
+                sample_count=self.examples,
+                bit_width_assignment=assignment,
+                scheme=self.quantization_config.get("scheme", "symmetric"),
+                granularity=self.quantization_config.get("granularity", "per_tensor"),
+                rounding=self.quantization_config.get("rounding", "nearest"),
+                seed=int(config.get("server_round", 0)),
+                residuals=self._quantization_residuals
+                if bool(self.quantization_config.get("error_feedback", {}).get("enabled", False))
+                else None,
+            )
+            self._quantization_residuals = residuals
+            wire = serialize_client_update(update)
+            upload_arrays = [np.frombuffer(wire, dtype=np.uint8).copy()]
+            metrics.update(
+                {
+                    f"upload_{key}": float(value)
+                    for key, value in quantized_payload_metrics(update).items()
+                    if isinstance(value, (int, float))
+                }
+            )
+            metrics["upload_numpy_array_bytes"] = float(len(wire))
         else:
             metrics.update(
                 {

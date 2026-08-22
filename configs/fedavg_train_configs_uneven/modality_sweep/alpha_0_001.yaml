@@ -1,0 +1,5 @@
+extends: ../../_experiment_base/missing_uneven.yaml
+experiment: {family: fedavg_train_configs_uneven/modality_sweep, variant: alpha_0_001, runs: 1, seeds: [42]}
+missing_modalities:
+  arbitrary:
+    per_modality_missing_probability: {t1: 0.001, t1ce: 0.001, t2: 0.001, flair: 0.001}

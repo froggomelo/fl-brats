@@ -1,0 +1,3 @@
+extends: e5.yaml
+experiment: {variant: e10}
+federated: {local_epochs: 10}

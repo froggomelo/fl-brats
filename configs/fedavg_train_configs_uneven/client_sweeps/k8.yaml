@@ -1,0 +1,6 @@
+extends: k3.yaml
+experiment: {variant: k8}
+data:
+  partition_root: data/partitions/fedavg_train_configs_uneven/k8
+  client_proportions: [0.501961, 0.250980, 0.125490, 0.062745, 0.031373, 0.015686, 0.007843, 0.003922]
+federated: {num_clients: 8, min_fit_clients: 8, min_evaluate_clients: 8, min_available_clients: 8}

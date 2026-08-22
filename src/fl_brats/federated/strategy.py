@@ -50,6 +50,7 @@ def create_research_fedavg(
         evaluate_metrics_aggregation_fn=weighted_average_metrics,
         initial_parameters=ndarrays_to_parameters(state_to_arrays(model)[1]),
         early_stopping_patience=config.get("early_stopping_patience"),
+        minimum_rounds=int(config.get("minimum_rounds", 0)),
     )
     if config.get("strategy") == "fedamm":
         return FedAMMStrategy(

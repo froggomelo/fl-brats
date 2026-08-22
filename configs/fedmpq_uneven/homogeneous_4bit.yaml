@@ -1,0 +1,11 @@
+extends: ../_experiment_base/federated_uneven.yaml
+experiment: {family: fedmpq_uneven, variant: homogeneous_4bit, runs: 1, seeds: [42]}
+quantization:
+  enabled: true
+  mode: fixed
+  transmitted_object: delta
+  scheme: symmetric
+  granularity: per_tensor
+  rounding: nearest
+  fixed: {bit_width: 4}
+  sparsification: {enabled: false, method: topk, fraction: 1.0, error_feedback: true, scope: global}

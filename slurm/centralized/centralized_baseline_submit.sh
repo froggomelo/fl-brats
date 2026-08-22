@@ -9,7 +9,7 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-mkdir -p "$repo_root/logs/slurm/centralized"
+mkdir -p "$repo_root/logs/centralized"
 
 partition="${FL_BRATS_PARTITION:-bigbatch}"
 unset APPTAINER_IMAGE

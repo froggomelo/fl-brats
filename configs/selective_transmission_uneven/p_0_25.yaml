@@ -1,0 +1,4 @@
+extends: ../_experiment_base/federated_uneven.yaml
+experiment: {family: selective_transmission_uneven, variant: p_0_25, runs: 1, seeds: [42]}
+quantization:
+  sparsification: {enabled: true, method: topk, fraction: 0.25, error_feedback: true, scope: global}

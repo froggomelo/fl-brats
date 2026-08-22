@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Launch YAML-defined experiments locally or through the generic SLURM job."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from fl_brats.cli import _load_experiment_yaml  # noqa: E402
+
+
+def _slug(value: str) -> str:
+    return value.strip("/").replace("/", "__").replace(" ", "_")
+
+
+def _command(config: Path, values: dict[str, Any], run_dir: Path, seed: int) -> list[str]:
+    if values["experiment"]["family"] == "centralized":
+        data, training = values["data"], values["training"]
+        return [
+            "fedbrats", "train-centralized",
+            "--index-path", str(data["index_path"]),
+            "--split-path", str(data["split_path"]),
+            "--partition-path", str(data["partition_path"]),
+            "--initial-weights", str(values["initial_weights"]),
+            "--run-dir", str(run_dir),
+            "--epochs", str(training["epochs"]),
+            "--batch-size", str(training["batch_size"]),
+            "--workers", str(training.get("num_workers", 0)),
+            "--seed", str(seed), "--device", str(values.get("device", "auto")),
+        ]
+    return ["fedbrats", "train-federated", "--config", str(config), "--run-dir", str(run_dir)]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", type=Path)
+    parser.add_argument("--mode", choices=("local", "slurm"), default="slurm")
+    parser.add_argument("--seed", type=int)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    values = _load_experiment_yaml(args.config.resolve())
+    experiment = values["experiment"]
+    seeds = [args.seed] if args.seed is not None else list(experiment.get("seeds", [42]))
+    family, variant = str(experiment["family"]), str(experiment.get("variant", args.config.stem))
+    stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    submitted: list[dict[str, Any]] = []
+    for seed in seeds:
+        run_id = f"{_slug(variant)}_seed_{seed}_{stamp}"
+        output_root = Path(os.environ.get("FL_BRATS_OUTPUT_ROOT", values.get("output_root", "outputs")))
+        log_root = Path(os.environ.get("FL_BRATS_LOG_ROOT", values.get("log_root", "logs")))
+        if not output_root.is_absolute():
+            output_root = REPO_ROOT / output_root
+        if not log_root.is_absolute():
+            log_root = REPO_ROOT / log_root
+        run_dir = output_root / family / run_id
+        log_dir = log_root / family / run_id
+        runtime_config = log_dir / "resolved-launch-config.yaml"
+        resolved = dict(values)
+        resolved.update(seed=seed, run_name=run_id, output_root=str(run_dir.parent), log_root=str(log_dir))
+        command = _command(runtime_config, resolved, run_dir, seed)
+        if args.dry_run:
+            submitted.append({"run_id": run_id, "command": command, "config": resolved})
+            continue
+        log_dir.mkdir(parents=True, exist_ok=False)
+        runtime_config.write_text(yaml.safe_dump(resolved, sort_keys=False), encoding="utf-8")
+        if args.mode == "local":
+            with (log_dir / "launcher.out").open("w", encoding="utf-8") as stdout, (log_dir / "launcher.err").open("w", encoding="utf-8") as stderr:
+                result = subprocess.run(command, cwd=REPO_ROOT, stdout=stdout, stderr=stderr)
+            if result.returncode:
+                return result.returncode
+            submitted.append({"run_id": run_id, "run_dir": str(run_dir), "mode": "local"})
+            continue
+        slurm = resolved.get("slurm", {})
+        sbatch = ["sbatch", "--parsable", f"--job-name=flb-{_slug(variant)[:40]}", f"--partition={slurm['partition']}", f"--nodes={slurm.get('nodes', 1)}", f"--ntasks={slurm.get('tasks', 1)}", f"--cpus-per-task={slurm.get('cpus_per_task', 8)}", f"--time={slurm.get('time', '72:00:00')}", f"--mem={slurm.get('memory', '64G')}", f"--output={log_dir}/slurm-%j.out", f"--error={log_dir}/slurm-%j.err"]
+        for key, flag in (("account", "--account"), ("qos", "--qos"), ("gres", "--gres")):
+            if slurm.get(key):
+                sbatch.append(f"{flag}={slurm[key]}")
+        if slurm.get("exclusive"):
+            sbatch.append("--exclusive")
+        sbatch.extend(
+            [
+                str(REPO_ROOT / "slurm" / "_shared" / "run_experiment.sbatch"),
+                str(runtime_config),
+                *command,
+            ]
+        )
+        job_id = subprocess.check_output(sbatch, cwd=REPO_ROOT, text=True).strip()
+        (log_dir / "slurm-job-id.txt").write_text(job_id + "\n", encoding="utf-8")
+        submitted.append({"run_id": run_id, "run_dir": str(run_dir), "job_id": job_id})
+    print(json.dumps(submitted, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

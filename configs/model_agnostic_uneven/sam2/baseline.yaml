@@ -1,0 +1,8 @@
+extends: ../../_experiment_base/federated_uneven.yaml
+experiment: {family: model_agnostic_uneven/sam2, variant: baseline, runs: 3, seeds: [42, 43, 44]}
+model:
+  name: sam2
+  checkpoint: artifacts/pretrained/sam2.pt
+  trainable_scope: adapter_only
+  out_channels: 3
+  video_memory_propagation: false

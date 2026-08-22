@@ -1,0 +1,15 @@
+extends: ../fedamm_uneven/alpha_0_1.yaml
+experiment: {family: fedamm_comm_eff_uneven, variant: alpha_0_1_p_0_1_4bit, runs: 3, seeds: [42, 43, 44]}
+federated: {strategy: fedamm}
+selection:
+  status: provisional
+  note: Replace alpha, sparsification fraction, and bit-width policy after component tuning.
+quantization:
+  enabled: true
+  mode: fixed
+  transmitted_object: delta
+  scheme: symmetric
+  granularity: per_tensor
+  rounding: nearest
+  fixed: {bit_width: 4}
+  sparsification: {enabled: true, method: topk, fraction: 0.1, error_feedback: true, scope: global}

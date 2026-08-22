@@ -10,7 +10,7 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-mkdir -p "$repo_root/logs/slurm/centralized"
+mkdir -p "$repo_root/logs/centralized"
 
 # Set FL_BRATS_PARTITION to override the bigbatch default
 # when invoking this script. The worker selects the matching Apptainer image:

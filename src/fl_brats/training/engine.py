@@ -15,6 +15,17 @@ def move_batch_to_device(batch: dict[str, Any], device: torch.device) -> dict[st
 
 def forward_batch(model: torch.nn.Module, batch: dict[str, Any]) -> torch.Tensor:
     """Pass explicit masks when a model advertises mask support."""
+    if getattr(model, "model_kind", "") == "sam" and batch["image"].ndim == 5:
+        image = batch["image"]
+        batch_size, channels, height, width, depth = image.shape
+        slices = image.permute(0, 4, 1, 2, 3).reshape(
+            batch_size * depth, channels, height, width
+        )
+        slice_batch_size = int(getattr(model, "config", {}).get("slice_batch_size", 8))
+        logits = torch.cat(
+            [model(slices[start : start + slice_batch_size]) for start in range(0, len(slices), slice_batch_size)]
+        )
+        return logits.reshape(batch_size, depth, 3, height, width).permute(0, 2, 3, 4, 1)
     if getattr(model, "supports_modality_mask", False):
         return model(batch["image"], batch.get("modality_mask"))
     return model(batch["image"])

@@ -56,16 +56,27 @@ def communication_summary(rounds: Sequence[Mapping[str, Any]]) -> dict[str, Any]
                 "cumulative_bytes": cumulative,
                 "cumulative_megabytes": cumulative / 1_000_000,
                 "network_transmission_seconds": item.get("network_transmission_seconds"),
+                "communication_and_coordination_seconds": item.get(
+                    "communication_and_coordination_seconds"
+                ),
             }
         )
     return {
         "rounds": points,
         "total_bytes_transferred": cumulative,
         "cumulative_megabytes_transferred": cumulative / 1_000_000,
-        "network_transmission_time_available": False,
+        "network_transmission_time_available": any(
+            item.get("network_transmission_seconds") is not None for item in rounds
+        ),
+        "total_communication_and_coordination_seconds": sum(
+            float(item.get("communication_and_coordination_seconds", 0.0) or 0.0)
+            for item in rounds
+        ),
         "measurement_note": (
-            "Application-level model payload bytes are measured. Flower does not expose "
-            "network-only wall-clock transmission duration or transport-header bytes."
+            "Application-level model payload bytes are exact. Communication-and-coordination "
+            "time is round wall time minus slowest client training and includes serialization, "
+            "RPC, scheduling, waiting, and aggregation. Network-only time remains unavailable "
+            "unless an external scheduler/network collector supplies it."
         ),
     }
 

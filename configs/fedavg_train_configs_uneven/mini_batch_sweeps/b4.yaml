@@ -1,0 +1,3 @@
+extends: ../../_experiment_base/federated_uneven.yaml
+experiment: {family: fedavg_train_configs_uneven/mini_batch_sweeps, variant: b4, runs: 1, seeds: [42]}
+training: {batch_size: 4}

@@ -1,0 +1,79 @@
+schema_version: 1
+experiment:
+  family: fedavg_uneven
+  runs: 3
+  seeds: [42, 43, 44]
+seed: 42
+deterministic: true
+device: auto
+output_root: outputs
+log_root: logs
+cache_root: cache
+checkpoint_root: checkpoints
+num_workers: 0
+initial_weights: artifacts/initial_weights/unet_seed_42.pt
+data:
+  partition_root: data/partitions/fedavg_uneven
+  split_path: data/splits/brats2021.json
+  client_proportions: [0.50, 0.25, 0.15, 0.10]
+  cache_mode: dataset
+model:
+  name: unet
+  in_channels: 4
+  out_channels: 3
+  channels: [16, 32, 64, 128]
+  strides: [2, 2, 2]
+loss:
+  name: dice_ce
+optimizer:
+  name: adam
+  lr: 0.0001
+  weight_decay: 0.0
+training:
+  batch_size: 1
+  max_rounds: 150
+  num_workers: 0
+  pin_memory: false
+federated:
+  strategy: fedavg
+  server_address: null
+  server_port: 8080
+  num_rounds: 150
+  minimum_rounds: 100
+  early_stopping_patience: 50
+  num_clients: 4
+  fraction_fit: 1.0
+  fraction_evaluate: 1.0
+  min_fit_clients: 4
+  min_evaluate_clients: 4
+  min_available_clients: 4
+  local_epochs: 1
+  accept_failures: false
+quantization:
+  enabled: false
+  mode: none
+  transmitted_object: delta
+  sparsification: {enabled: false, method: topk, fraction: 1.0, error_feedback: true, scope: global}
+communication_measurement:
+  payload_bytes: true
+  timing: communication_and_coordination
+  slurm_interconnect:
+    enabled: false
+    sampling_seconds: 30
+slurm:
+  partition: stampede
+  account: null
+  qos: null
+  time: "72:00:00"
+  nodes: 1
+  tasks: 1
+  cpus_per_task: 8
+  memory: 64G
+  gres: gpu:1
+  exclusive: false
+  use_apptainer: true
+  image: apptainer/fl-brats.sif
+missing_modalities:
+  enabled: false
+  mode: none
+  evaluation: {evaluate_all_non_empty_combinations: true, report_per_client: true}

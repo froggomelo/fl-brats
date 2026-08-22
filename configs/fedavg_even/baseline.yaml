@@ -1,0 +1,5 @@
+extends: ../_experiment_base/federated_uneven.yaml
+experiment: {family: fedavg_even, variant: baseline, runs: 3, seeds: [42, 43, 44]}
+data:
+  partition_root: data/partitions/fedavg_even
+  client_proportions: [0.25, 0.25, 0.25, 0.25]

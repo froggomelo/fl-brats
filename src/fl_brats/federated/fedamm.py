@@ -107,7 +107,12 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
         if failures and not self.accept_failures:
             self.writer.write_client_records(self._records(server_round, results, failures))
             return None, {}
-        self._round_started[server_round] = __import__("time").perf_counter()
+        if self._uses_sparse_payloads(results) or self._uses_quantized_payloads(results):
+            # Compressed transports are decoded by the shared research strategy.
+            # Prototype state remains active; sparse layer-wise modality weighting
+            # is not representable after global top-k selection.
+            self.prototype_library.update_from_results(results)
+            return super().aggregate_fit(server_round, results, failures)
         records = self._records(server_round, results, failures)
         if not results:
             self.writer.write_client_records(records)
@@ -122,12 +127,22 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
         from .research import ExperimentState
 
         round_metric = self._mean(records, "dice_wt")
-        elapsed = time.perf_counter() - self._round_started.pop(server_round)
+        elapsed = time.perf_counter() - self._round_started.pop(
+            server_round, time.perf_counter()
+        )
+        max_client_training = self._max(records, "fit_seconds")
+        coordination = (
+            max(elapsed - max_client_training, 0.0)
+            if max_client_training is not None
+            else None
+        )
         round_record = {
             "schema_version": 1,
             "round": server_round,
             "client_wt_dice_mean": round_metric,
             "round_wall_seconds": elapsed,
+            "max_client_training_seconds": max_client_training,
+            "communication_and_coordination_seconds": coordination,
             "successful_clients": sum(record.status == "completed" for record in records),
             **prototype_metrics,
         }
@@ -148,6 +163,11 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
                 "uploaded_bytes": sum(r.upload_payload_bytes for r in records),
                 "downloaded_bytes": sum(r.download_payload_bytes for r in records),
                 "network_transmission_seconds": None,
+                "communication_and_coordination_seconds": coordination,
+                "measurement_note": (
+                    "Round wall time minus the slowest reported client training time; "
+                    "includes serialization, RPC, scheduling, waiting, and aggregation overhead."
+                ),
             }
         )
         self.state = next_state

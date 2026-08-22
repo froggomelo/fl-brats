@@ -9,7 +9,7 @@ if [[ -f "$repo_root/.env" ]]; then
   set +a
 fi
 
-mkdir -p "$repo_root/logs/slurm/centralized" "$repo_root/logs/slurm/federated/baseline"
+mkdir -p "$repo_root/logs/centralized" "$repo_root/logs/fedavg_uneven"
 
 partition="${FL_BRATS_PARTITION:-stampede}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
@@ -53,7 +53,7 @@ submit_initial_weights() {
 
   sbatch --parsable "${dependency[@]}" "${sbatch_args[@]}" \
     --export="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},INITIAL_WEIGHTS_DIR=${initial_weights_dir},INITIAL_WEIGHTS_SEED=${seed}" \
-    "$repo_root/slurm/federated/baseline/create_initial_weights.sbatch"
+    "$repo_root/slurm/fedavg_uneven/create_initial_weights.sbatch"
 }
 
 submit_centralized() {
@@ -85,17 +85,17 @@ submit_federated() {
 
   server_job="$(sbatch --parsable "${dependency[@]}" "${sbatch_args[@]}" \
     --export="$export_vars" \
-    "$repo_root/slurm/federated/baseline/federated_baseline_server.sbatch")"
+    "$repo_root/slurm/fedavg_uneven/federated_baseline_server.sbatch")"
 
   client_job="$(sbatch --parsable --dependency=after:"$server_job" --array="0-${client_array_last}" "${gpu_sbatch_args[@]}" \
     --export="${export_vars},FEDERATED_SERVER_JOB_ID=${server_job}" \
-    "$repo_root/slurm/federated/baseline/federated_baseline_clients.sbatch")"
+    "$repo_root/slurm/fedavg_uneven/federated_baseline_clients.sbatch")"
 
   cleanup_job="$(sbatch --parsable --dependency=afterany:"$client_job" "${sbatch_args[@]}" \
     --export="ALL,FEDERATED_SERVER_JOB_ID=${server_job}" \
     --job-name=fedbrats-fedavg-cleanup \
-    --output=logs/slurm/federated/baseline/cleanup_%j.out \
-    --error=logs/slurm/federated/baseline/cleanup_%j.err \
+    --output=logs/slurm/fedavg_uneven/cleanup_%j.out \
+    --error=logs/slurm/fedavg_uneven/cleanup_%j.err \
     --wrap='scancel "$FEDERATED_SERVER_JOB_ID" || true')"
 
   submitted_federated_cleanup_job="$cleanup_job"

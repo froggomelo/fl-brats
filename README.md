@@ -29,14 +29,14 @@ uv run ruff check .
 uv run mypy src
 ```
 
-Hydra configuration lives in `configs/`; use overrides such as `uv run fedbrats show-config environment=debug`. Run `scripts/setup/bootstrap.sh` for a no-global-install setup.
+Hydra configuration lives in `configs/`; use overrides such as `uv run fedbrats show-config environment=debug`. Run `scripts/environment/bootstrap.sh` for a no-global-install setup.
 
 The default dataset root is `/datasets/$USER/brats`; see `data/README.md` for
 the required BraTS 2021 raw, processed, and fixed-quantity-skew partition layout.
 
 ## Cluster
 
-Apptainer is the primary cluster runtime and requires no sudo to execute. On a cluster, run `scripts/setup/bootstrap_cluster.sh` with Python 3.11 available, then use user-owned bind paths.
+Apptainer is the primary cluster runtime and requires no sudo to execute. On a cluster, run `scripts/environment/bootstrap_cluster.sh` with Python 3.11 available, then use user-owned bind paths.
 
 ```bash
 bash apptainer/build.sh

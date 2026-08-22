@@ -493,6 +493,34 @@ def inspect_partition(manifest_path: Path = typer.Option(..., "--manifest-path")
     typer.echo(manifest_path.read_text(encoding="utf-8"))
 
 
+@app.command("prepare-experiment-partition")
+def prepare_experiment_partition(
+    config: Path = typer.Option(..., "--config"),
+    split_path: Path | None = typer.Option(None, "--split-path"),
+    overwrite: bool = typer.Option(False, "--overwrite"),
+) -> None:
+    """Create the client partition required by a standalone experiment YAML."""
+    values = _load_experiment_yaml(config)
+    data = values.get("data", {})
+    destination = Path(data["partition_root"])
+    source = split_path or Path(data.get("split_path", "data/splits/brats2021.json"))
+    if destination.exists() and any(destination.iterdir()) and not overwrite:
+        raise typer.BadParameter(
+            f"partition destination is not empty: {destination}; use --overwrite explicitly"
+        )
+    fractions = list(data.get("client_proportions", [0.5, 0.25, 0.15, 0.1]))
+    missingness = values.get("missing_modalities", {})
+    result = create_partition(
+        source,
+        destination,
+        fractions,
+        int(values.get("partition_seed", values.get("seed", 42))),
+        missingness_policy=policy_from_config(missingness),
+        missingness_config=missingness,
+    )
+    typer.echo(json.dumps(result, indent=2))
+
+
 @app.command("inspect-modalities")
 def inspect_modalities(partition_root: Path = typer.Option(..., "--partition-root")) -> None:
     """Print aggregate per-client modality and canonical-combination counts."""
@@ -558,6 +586,7 @@ def train_centralized(
     partition_path: Path = typer.Option(..., "--partition-path"),
     initial_weights: Path = typer.Option(..., "--initial-weights"),
     output_root: Path = typer.Option(Path("outputs/centralized"), "--output-root"),
+    run_dir: Path | None = typer.Option(None, "--run-dir"),
     epochs: int = typer.Option(50, "--epochs", min=1),
     batch_size: int = typer.Option(1, "--batch-size", min=1),
     workers: int = typer.Option(0, "--workers", min=0),
@@ -587,7 +616,7 @@ def train_centralized(
     model_values = yaml.safe_load(Path("configs/model/unet_baseline.yaml").read_text())
     data_values = yaml.safe_load(Path("configs/data/brats2021.yaml").read_text())
     loss_values = yaml.safe_load(Path("configs/loss/dice_ce.yaml").read_text())
-    run_dir = output_root / time.strftime("%Y%m%d_%H%M%S")
+    run_dir = run_dir or output_root / time.strftime("%Y%m%d_%H%M%S")
     (run_dir / "checkpoints").mkdir(parents=True)
     seed_everything(seed)
     selected = torch.device(
@@ -666,6 +695,23 @@ def train_centralized(
         load_checkpoint(run_dir / "checkpoints" / "best.pt")["model_state"], strict=True
     )
     test = evaluate(model, test_loader, loss_fn, selected)
+    epoch_records = [
+        json.loads(line) for line in metrics_file.read_text(encoding="utf-8").splitlines() if line
+    ]
+    final_validation_dice = float(epoch_records[-1]["validation_mean_dice"])
+    convergence = {
+        f"round_to_{percentage}_percent_final_dice": next(
+            (
+                int(record["epoch"])
+                for record in epoch_records
+                if float(record["validation_mean_dice"])
+                >= final_validation_dice * percentage / 100
+            ),
+            None,
+        )
+        for percentage in (90, 95)
+    }
+    convergence["unit"] = "epoch"
     summary = {
         "run_id": run_dir.name,
         "seed": seed,
@@ -678,17 +724,12 @@ def train_centralized(
         "validation_subject_count": validation_count,
         "test_subject_count": test_count,
         "best_validation_epoch": best_epoch,
+        "best_round": best_epoch,
         "best_validation_mean_dice": best,
         **{f"test_{k}": v for k, v in test.items()},
         "metrics": {
             "segmentation": test,
-            "convergence": {
-                "round_to_90_percent_final_dice": None,
-                "round_to_95_percent_final_dice": None,
-                "not_applicable_reason": (
-                    "centralized training has epochs, not communication rounds"
-                ),
-            },
+            "convergence": convergence,
             "communication": {
                 "not_applicable_reason": "centralized training does not transmit federated updates"
             },
@@ -940,10 +981,62 @@ def _experiment_values(config: Path | None, context: typer.Context) -> dict[str,
     """Load a standalone experiment YAML or the repository's composed config."""
     if config is None:
         return _federated_runtime_values(_override_values(context))
-    loaded = yaml.safe_load(config.read_text(encoding="utf-8"))
-    if not isinstance(loaded, dict):
-        raise typer.BadParameter("--config must contain a YAML mapping")
+    loaded = _load_experiment_yaml(config)
+    environment_overrides = {
+        "FL_BRATS_OUTPUT_ROOT": ("output_root",),
+        "FL_BRATS_LOG_ROOT": ("log_root",),
+        "FL_BRATS_CACHE_ROOT": ("cache_root",),
+        "FL_BRATS_CHECKPOINT_ROOT": ("checkpoint_root",),
+        "FL_BRATS_PARTITION_ROOT": ("data", "partition_root"),
+        "FL_BRATS_INITIAL_WEIGHTS": ("initial_weights",),
+        "FL_BRATS_DEVICE": ("device",),
+    }
+    for variable, keys in environment_overrides.items():
+        if variable not in os.environ:
+            continue
+        destination = loaded
+        for key in keys[:-1]:
+            destination = destination.setdefault(key, {})
+        destination[keys[-1]] = os.environ[variable]
+    if context.args:
+        override = OmegaConf.to_container(OmegaConf.from_dotlist(list(context.args)), resolve=True)
+        if not isinstance(override, dict):
+            raise typer.BadParameter("experiment overrides must be key=value assignments")
+        loaded = _deep_merge(loaded, override)
     return _federated_runtime_values(loaded)
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge YAML mappings while replacing scalar and list values."""
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _load_experiment_yaml(path: Path, seen: set[Path] | None = None) -> dict[str, Any]:
+    """Load a YAML-first experiment config with optional relative ``extends`` files."""
+    resolved = path.expanduser().resolve()
+    chain = set() if seen is None else set(seen)
+    if resolved in chain:
+        raise typer.BadParameter(f"cyclic experiment config inheritance at {resolved}")
+    chain.add(resolved)
+    loaded = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise typer.BadParameter(f"experiment config must contain a YAML mapping: {resolved}")
+    parents = loaded.pop("extends", [])
+    if isinstance(parents, str):
+        parents = [parents]
+    if not isinstance(parents, list) or not all(isinstance(item, str) for item in parents):
+        raise typer.BadParameter(f"extends must be a path or list of paths: {resolved}")
+    merged: dict[str, Any] = {}
+    for parent in parents:
+        parent_path = (resolved.parent / parent).resolve()
+        merged = _deep_merge(merged, _load_experiment_yaml(parent_path, chain))
+    return _deep_merge(merged, loaded)
 
 
 def _federated_runtime_values(values: dict[str, Any]) -> dict[str, Any]:
@@ -971,6 +1064,12 @@ def _federated_runtime_values(values: dict[str, Any]) -> dict[str, Any]:
         runtime.setdefault("learning_rate", optimizer.get("lr"))
         runtime.setdefault("weight_decay", optimizer.get("weight_decay"))
     return runtime
+
+
+@app.command("resolve-experiment")
+def resolve_experiment(config: Path = typer.Option(..., "--config")) -> None:
+    """Print a fully inherited standalone experiment YAML configuration."""
+    typer.echo(yaml.safe_dump(_load_experiment_yaml(config), sort_keys=False))
 
 
 @app.command("train-federated")

@@ -1,0 +1,10 @@
+extends: ../_experiment_base/missing_uneven.yaml
+experiment: {family: fedamm_uneven, variant: alpha_0_1, runs: 3, seeds: [42, 43, 44]}
+federated: {strategy: fedamm}
+model:
+  prototype_loss_weight: 1.0
+  prototype_distillation_enabled: true
+  global_prototype_alignment_enabled: true
+  emit_prototypes: true
+  modality_weighted_aggregation: true
+fedamm: {clusters_per_combination: 1}

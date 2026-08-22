@@ -1,0 +1,3 @@
+extends: ../../_experiment_base/federated_uneven.yaml
+experiment: {family: fedavg_train_configs_uneven/local_epochs_sweeps, variant: e5, runs: 1, seeds: [42]}
+federated: {local_epochs: 5}

@@ -15,6 +15,7 @@ from flwr.common import Parameters, ndarrays_to_parameters, parameters_to_ndarra
 from flwr.server.strategy import FedAvg
 
 from .parameters import load_arrays, state_to_arrays
+from .quantization import aggregate_deltas, dequantized_delta, deserialize_client_update
 from .sparsification import (
     aggregate_sparse_updates,
     is_sparse_parameter_payload,
@@ -164,6 +165,7 @@ class ResearchFedAvgStrategy(FedAvg):
         writer: RoundArtifactWriter,
         checkpoints: CheckpointManager,
         early_stopping_patience: int | None = None,
+        minimum_rounds: int = 0,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -173,6 +175,7 @@ class ResearchFedAvgStrategy(FedAvg):
         self.early_stopping_patience = (
             int(early_stopping_patience) if early_stopping_patience is not None else None
         )
+        self.minimum_rounds = max(int(minimum_rounds), 0)
         self._round_started: dict[int, float] = {}
         self._current_arrays = state_to_arrays(checkpoints.model)[1]
         self._keys = state_to_arrays(checkpoints.model)[0]
@@ -180,6 +183,7 @@ class ResearchFedAvgStrategy(FedAvg):
     def _should_stop_early(self) -> bool:
         return (
             self.early_stopping_patience is not None
+            and self.state.completed_round >= self.minimum_rounds
             and self.state.best_round is not None
             and self.state.completed_round - self.state.best_round
             >= self.early_stopping_patience
@@ -194,6 +198,7 @@ class ResearchFedAvgStrategy(FedAvg):
         if self._should_stop_early():
             self._mark_early_stopped()
             return []
+        self._round_started[server_round] = time.perf_counter()
         return super().configure_fit(server_round, parameters, client_manager)
 
     def configure_evaluate(self, server_round: int, parameters: Any, client_manager: Any) -> Any:
@@ -205,9 +210,10 @@ class ResearchFedAvgStrategy(FedAvg):
     def aggregate_fit(
         self, server_round: int, results: Any, failures: Any
     ) -> tuple[Parameters | None, dict[str, Any]]:
-        self._round_started[server_round] = time.perf_counter()
         records = self._records(server_round, results, failures)
-        if self._uses_sparse_payloads(results):
+        if self._uses_quantized_payloads(results):
+            parameters, metrics = self._aggregate_quantized_fit(server_round, results)
+        elif self._uses_sparse_payloads(results):
             parameters, metrics = self._aggregate_sparse_fit(results)
         else:
             parameters, metrics = super().aggregate_fit(server_round, results, failures)
@@ -215,11 +221,21 @@ class ResearchFedAvgStrategy(FedAvg):
             self.writer.write_client_records(records)
             return None, metrics
         self._current_arrays = parameters_to_ndarrays(parameters)
-        elapsed = time.perf_counter() - self._round_started.pop(server_round)
+        elapsed = time.perf_counter() - self._round_started.pop(
+            server_round, time.perf_counter()
+        )
+        max_client_training = self._max(records, "fit_seconds")
+        coordination = (
+            max(elapsed - max_client_training, 0.0)
+            if max_client_training is not None
+            else None
+        )
         round_record = {
             "schema_version": SCHEMA_VERSION,
             "round": server_round,
             "round_wall_seconds": elapsed,
+            "max_client_training_seconds": max_client_training,
+            "communication_and_coordination_seconds": coordination,
             "successful_clients": sum(record.status == "completed" for record in records),
             "mean_client_drift": self._mean(records, "client_update_l2"),
             "max_client_drift": self._max(records, "client_update_l2"),
@@ -241,6 +257,11 @@ class ResearchFedAvgStrategy(FedAvg):
                 "uploaded_bytes": sum(r.upload_payload_bytes for r in records),
                 "downloaded_bytes": sum(r.download_payload_bytes for r in records),
                 "network_transmission_seconds": None,
+                "communication_and_coordination_seconds": coordination,
+                "measurement_note": (
+                    "Round wall time minus the slowest reported client training time; "
+                    "includes serialization, RPC, scheduling, waiting, and aggregation overhead."
+                ),
             }
         )
         self.state = next_state
@@ -257,6 +278,39 @@ class ResearchFedAvgStrategy(FedAvg):
         if any(decoded) and not all(decoded):
             raise ValueError("cannot mix sparse and dense client update payloads in one round")
         return all(decoded)
+
+    @staticmethod
+    def _uses_quantized_payloads(results: Any) -> bool:
+        if not results:
+            return False
+        arrays = [parameters_to_ndarrays(result.parameters) for _, result in results]
+        return all(
+            len(items) == 1 and items[0].dtype == np.uint8 and items[0].ndim == 1
+            for items in arrays
+        )
+
+    def _aggregate_quantized_fit(
+        self, server_round: int, results: Any
+    ) -> tuple[Parameters, dict[str, Any]]:
+        base = {
+            key: torch.from_numpy(value.copy())
+            for key, value in zip(self._keys, self._current_arrays, strict=True)
+        }
+        updates = []
+        achieved = []
+        for _, result in results:
+            arrays = parameters_to_ndarrays(result.parameters)
+            update = deserialize_client_update(arrays[0].tobytes())
+            if update.round_index != server_round:
+                raise ValueError("quantized update round does not match server round")
+            updates.append((dequantized_delta(update), int(result.num_examples)))
+            if update.achieved_average_bit_width is not None:
+                achieved.append(update.achieved_average_bit_width)
+        aggregated = aggregate_deltas(base, updates)
+        arrays = [aggregated[key].detach().cpu().numpy() for key in self._keys]
+        return ndarrays_to_parameters(arrays), {
+            "mean_achieved_bit_width": sum(achieved) / len(achieved) if achieved else 0.0
+        }
 
     def _aggregate_sparse_fit(self, results: Any) -> tuple[Parameters | None, dict[str, Any]]:
         updates = []

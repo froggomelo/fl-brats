@@ -7,8 +7,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=00:30:00
-#SBATCH --output=logs/slurm/environment/setup_%j.out
-#SBATCH --error=logs/slurm/environment/setup_%j.err
+#SBATCH --output=logs/environment/setup_%j.out
+#SBATCH --error=logs/environment/setup_%j.err
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ repo_root="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pw
 cd "$repo_root"
 cache_dir="${UV_CACHE_DIR:-$repo_root/.uv-cache}"
 marker_dir="${FL_BRATS_SETUP_MARKER_DIR:-$repo_root/.setup}"
-mkdir -p "$cache_dir" "$marker_dir" logs/slurm/environment
+mkdir -p "$cache_dir" "$marker_dir" logs/environment
 
 echo "hostname=$(hostname) job=${SLURM_JOB_ID:-unknown}"
 echo "repository=$repo_root"
@@ -30,7 +30,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 # bootstrap_cluster installs uv if missing, validates Python 3.11, and performs
 # a locked dependency synchronization. This runs only on the allocated node.
-bash scripts/setup/bootstrap_cluster.sh
+bash scripts/environment/bootstrap_cluster.sh
 uv run --python 3.11 fedbrats validate-config
 uv run --python 3.11 fedbrats check-environment || true
 

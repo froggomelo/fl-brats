@@ -1,0 +1,9 @@
+extends: ../fedmpq_uneven/homogeneous_4bit.yaml
+experiment: {family: comm_eff_uneven, variant: selected_p_0_1_heterogeneous_2_4_8bit, runs: 3, seeds: [42, 43, 44]}
+selection:
+  status: provisional
+  note: Replace selected sparsification fraction and bit-width policy after tuning results.
+quantization:
+  mode: fixed
+  fixed: {bit_width: 4}
+  sparsification: {enabled: true, method: topk, fraction: 0.1, error_feedback: true, scope: global}

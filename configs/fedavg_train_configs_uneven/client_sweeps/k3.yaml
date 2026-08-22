@@ -1,0 +1,6 @@
+extends: ../../_experiment_base/federated_uneven.yaml
+experiment: {family: fedavg_train_configs_uneven/client_sweeps, variant: k3, runs: 1, seeds: [42]}
+data:
+  partition_root: data/partitions/fedavg_train_configs_uneven/k3
+  client_proportions: [0.571429, 0.285714, 0.142857]
+federated: {num_clients: 3, min_fit_clients: 3, min_evaluate_clients: 3, min_available_clients: 3}

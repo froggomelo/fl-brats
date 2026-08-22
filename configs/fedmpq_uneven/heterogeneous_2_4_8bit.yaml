@@ -1,0 +1,15 @@
+extends: homogeneous_4bit.yaml
+experiment: {variant: heterogeneous_2_4_8bit}
+quantization:
+  mode: mixed
+  mixed:
+    candidate_bit_widths: [2, 4, 8]
+    default_bit_width: 4
+    default_average_bit_width_budget: 4.0
+    client_average_bit_width_budgets: {client_0: 8.0, client_1: 4.0, client_2: 2.0, client_3: 2.0}
+    allocation_strategy: fedmpq_inspired
+    update_allocation_every_rounds: 1
+    minimum_layer_bit_width: 2
+    maximum_layer_bit_width: 8
+    protected_layer_minimum_bit_width: 8
+    protected_layer_patterns: [output, final, classifier, normalization]

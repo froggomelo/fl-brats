@@ -1,0 +1,29 @@
+schema_version: 1
+experiment: {family: centralized, variant: baseline, runs: 3, seeds: [42, 43, 44]}
+seed: 42
+deterministic: true
+device: auto
+output_root: outputs
+log_root: logs
+cache_root: cache
+checkpoint_root: checkpoints
+initial_weights: artifacts/initial_weights/unet_seed_42.pt
+data:
+  index_path: data/processed/brats2021/index.json
+  split_path: data/partitions/fedavg_uneven/split_manifest.json
+  partition_path: data/partitions/fedavg_uneven/manifest.json
+model: {name: unet_baseline}
+training: {epochs: 50, batch_size: 1, num_workers: 0, pin_memory: false}
+slurm:
+  partition: stampede
+  account: null
+  qos: null
+  time: "72:00:00"
+  nodes: 1
+  tasks: 1
+  cpus_per_task: 8
+  memory: 64G
+  gres: gpu:1
+  exclusive: false
+  use_apptainer: true
+  image: apptainer/fl-brats.sif
