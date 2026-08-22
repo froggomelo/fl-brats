@@ -17,7 +17,7 @@ mkdir -p "$repo_root/logs/slurm/centralized"
 # stampede -> fl-brats-stampede.sif; bigbatch/batch -> fl-brats-batch.sif.
 partition="${FL_BRATS_PARTITION:-bigbatch}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
-epochs="${CENTRALIZED_EPOCHS:-200}"
+epochs="${CENTRALIZED_EPOCHS:-50}"
 initial_weights_dir="${INITIAL_WEIGHTS_DIR:-artifacts/initial_weights}"
 
 # Do not let an APPTAINER_IMAGE inherited from the login shell override the

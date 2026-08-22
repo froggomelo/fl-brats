@@ -242,7 +242,7 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
     summary = {
         "schema_version": 1,
         "run_id": run_dir.name,
-        "status": "completed",
+        "status": strategy.state.status if strategy.state.status != "running" else "completed",
         "model_name": values.get("model", {}).get("name"),
         "model_family": values.get("model", {}).get("name"),
         "seed": values.get("seed"),

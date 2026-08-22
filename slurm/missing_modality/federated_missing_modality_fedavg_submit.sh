@@ -27,6 +27,11 @@ export FEDERATED_RUN_ID="${FEDERATED_RUN_ID:-missing_modality_fedavg_$(date +%Y%
 export FEDERATED_EXPERIMENT_NAME="federated_missing_modality_fedavg"
 export FEDERATED_MODEL="fedamm"
 export FEDERATED_STRATEGY="fedavg"
-export FEDERATED_OVERRIDES="missing_modalities.enabled=true missing_modalities.mode=arbitrary model.prototype_loss_weight=0.0 model.prototype_distillation_enabled=false model.global_prototype_alignment_enabled=false model.emit_prototypes=false model.modality_weighted_aggregation=false"
+# Exhaustive robustness evaluation runs the validation set once for each of the
+# 15 non-empty modality combinations.  Doing that on every Flower round can
+# exceed the round deadline before the server receives any client result.
+# Keep round-level validation on the partition's natural missingness; run the
+# exhaustive matrix separately from the resulting best/final checkpoint.
+export FEDERATED_OVERRIDES="missing_modalities.enabled=true missing_modalities.mode=arbitrary missing_modalities.evaluation.evaluate_all_non_empty_combinations=false model.prototype_loss_weight=0.0 model.prototype_distillation_enabled=false model.global_prototype_alignment_enabled=false model.emit_prototypes=false model.modality_weighted_aggregation=false"
 
 bash "$repo_root/slurm/federated/baseline/federated_baseline_submit.sh"

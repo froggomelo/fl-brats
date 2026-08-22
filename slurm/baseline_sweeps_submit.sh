@@ -14,8 +14,9 @@ mkdir -p "$repo_root/logs/slurm/centralized" "$repo_root/logs/slurm/federated/ba
 partition="${FL_BRATS_PARTITION:-stampede}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
 initial_weights_dir="${INITIAL_WEIGHTS_DIR:-artifacts/initial_weights}"
-centralized_epochs="${CENTRALIZED_EPOCHS:-200}"
-federated_rounds="${FEDERATED_ROUNDS:-200}"
+centralized_epochs="${CENTRALIZED_EPOCHS:-50}"
+federated_rounds="${FEDERATED_ROUNDS:-100}"
+federated_early_stopping_patience="${FEDERATED_EARLY_STOPPING_PATIENCE:-60}"
 federated_local_epochs="${FEDERATED_LOCAL_EPOCHS:-1}"
 federated_clients="${FEDERATED_CLIENTS:-4}"
 output_root="${FL_BRATS_OUTPUT_ROOT:-outputs}"
@@ -80,7 +81,7 @@ submit_federated() {
   local cleanup_job
 
   mkdir -p "$run_dir"
-  export_vars="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},FEDERATED_RUN_ID=${run_id},FEDERATED_RUN_DIR=${run_dir},FEDERATED_ROUNDS=${federated_rounds},FEDERATED_LOCAL_EPOCHS=${federated_local_epochs},FEDERATED_CLIENTS=${federated_clients},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}"
+  export_vars="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},FEDERATED_RUN_ID=${run_id},FEDERATED_RUN_DIR=${run_dir},FEDERATED_ROUNDS=${federated_rounds},FEDERATED_EARLY_STOPPING_PATIENCE=${federated_early_stopping_patience},FEDERATED_LOCAL_EPOCHS=${federated_local_epochs},FEDERATED_CLIENTS=${federated_clients},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}"
 
   server_job="$(sbatch --parsable "${dependency[@]}" "${sbatch_args[@]}" \
     --export="$export_vars" \
@@ -121,7 +122,7 @@ for seed in $seeds; do
   fi
   submit_federated "$seed" "${fed_dependency[@]}"
 
-  if [[ "${FL_BRATS_CHAIN_SEEDS:-1}" == "1" ]]; then
+  if [[ "${FL_BRATS_CHAIN_SEEDS:-0}" == "1" ]]; then
     seed_dependency=(--dependency=afterok:"$centralized_job",afterany:"$submitted_federated_cleanup_job")
   else
     seed_dependency=()

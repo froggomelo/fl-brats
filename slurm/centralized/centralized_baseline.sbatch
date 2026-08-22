@@ -7,7 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --exclude=mscluster25
 #SBATCH --cpus-per-task=6
-#SBATCH --time=24:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=logs/slurm/centralized/centralized_%j.out
 #SBATCH --error=logs/slurm/centralized/centralized_%j.err
 

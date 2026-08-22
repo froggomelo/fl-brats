@@ -159,13 +159,48 @@ class ResearchFedAvgStrategy(FedAvg):
     """FedAvg with a small successful-round persistence transaction."""
 
     def __init__(
-        self, *, writer: RoundArtifactWriter, checkpoints: CheckpointManager, **kwargs: Any
+        self,
+        *,
+        writer: RoundArtifactWriter,
+        checkpoints: CheckpointManager,
+        early_stopping_patience: int | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        if early_stopping_patience is not None and int(early_stopping_patience) < 1:
+            raise ValueError("early_stopping_patience must be a positive integer")
         self.writer, self.checkpoints, self.state = writer, checkpoints, ExperimentState()
+        self.early_stopping_patience = (
+            int(early_stopping_patience) if early_stopping_patience is not None else None
+        )
         self._round_started: dict[int, float] = {}
         self._current_arrays = state_to_arrays(checkpoints.model)[1]
         self._keys = state_to_arrays(checkpoints.model)[0]
+
+    def _should_stop_early(self) -> bool:
+        return (
+            self.early_stopping_patience is not None
+            and self.state.best_round is not None
+            and self.state.completed_round - self.state.best_round
+            >= self.early_stopping_patience
+        )
+
+    def _mark_early_stopped(self) -> None:
+        if self.state.status != "early_stopped":
+            self.state.status = "early_stopped"
+            self.writer.write_state(self.state)
+
+    def configure_fit(self, server_round: int, parameters: Any, client_manager: Any) -> Any:
+        if self._should_stop_early():
+            self._mark_early_stopped()
+            return []
+        return super().configure_fit(server_round, parameters, client_manager)
+
+    def configure_evaluate(self, server_round: int, parameters: Any, client_manager: Any) -> Any:
+        if self._should_stop_early():
+            self._mark_early_stopped()
+            return []
+        return super().configure_evaluate(server_round, parameters, client_manager)
 
     def aggregate_fit(
         self, server_round: int, results: Any, failures: Any

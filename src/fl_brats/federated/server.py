@@ -102,7 +102,7 @@ def start_server(
         curve = dice_communication_curve(evaluations, communication_records)
         summary = {
             "schema_version": 1,
-            "status": "completed",
+            "status": strategy.state.status if strategy.state.status != "running" else "completed",
             "completed_rounds": strategy.state.completed_round,
             "best_round": strategy.state.best_round,
             "best_validation_dice": strategy.state.best_metric,

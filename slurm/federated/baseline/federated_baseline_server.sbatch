@@ -6,7 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=24:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=logs/slurm/federated/baseline/server_%j.out
 #SBATCH --error=logs/slurm/federated/baseline/server_%j.err
 
@@ -77,7 +77,8 @@ apptainer exec --cleanenv \
     "model=$model_config" \
     "federated=$strategy_config" \
     "data.partition_root=$partition_root" \
-    "federated.num_rounds=${FEDERATED_ROUNDS:-50}" \
+    "federated.num_rounds=${FEDERATED_ROUNDS:-100}" \
+    "federated.early_stopping_patience=${FEDERATED_EARLY_STOPPING_PATIENCE:-60}" \
     "federated.num_clients=${FEDERATED_CLIENTS:-4}" \
     "federated.min_fit_clients=${FEDERATED_MIN_CLIENTS:-${FEDERATED_CLIENTS:-4}}" \
     "federated.min_evaluate_clients=${FEDERATED_MIN_CLIENTS:-${FEDERATED_CLIENTS:-4}}" \

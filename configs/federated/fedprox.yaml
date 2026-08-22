@@ -1,7 +1,8 @@
 strategy: fedprox
 server_address: null
 server_port: 8080
-num_rounds: 50
+num_rounds: 100
+early_stopping_patience: null
 num_clients: 4
 fraction_fit: 1.0
 fraction_evaluate: 1.0

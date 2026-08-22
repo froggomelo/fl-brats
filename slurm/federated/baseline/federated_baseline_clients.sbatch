@@ -7,7 +7,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --array=0-3
-#SBATCH --time=24:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=logs/slurm/federated/baseline/client_%A_%a.out
 #SBATCH --error=logs/slurm/federated/baseline/client_%A_%a.err
 
@@ -100,7 +100,7 @@ apptainer exec --nv --cleanenv \
     "model=$model_config" \
     "federated=$strategy_config" \
     "data.partition_root=$partition_root" \
-    "federated.num_rounds=${FEDERATED_ROUNDS:-50}" \
+    "federated.num_rounds=${FEDERATED_ROUNDS:-100}" \
     "federated.num_clients=${FEDERATED_CLIENTS:-4}" \
     "federated.local_epochs=${FEDERATED_LOCAL_EPOCHS:-1}" \
     "training.batch_size=${FEDERATED_BATCH_SIZE:-1}" \

@@ -49,6 +49,7 @@ def create_research_fedavg(
         fit_metrics_aggregation_fn=weighted_average_metrics,
         evaluate_metrics_aggregation_fn=weighted_average_metrics,
         initial_parameters=ndarrays_to_parameters(state_to_arrays(model)[1]),
+        early_stopping_patience=config.get("early_stopping_patience"),
     )
     if config.get("strategy") == "fedamm":
         return FedAMMStrategy(

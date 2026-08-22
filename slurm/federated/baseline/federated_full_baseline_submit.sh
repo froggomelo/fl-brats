@@ -13,7 +13,8 @@ fi
 mkdir -p "$repo_root/logs/slurm/federated/baseline"
 
 partition="${FL_BRATS_PARTITION:-bigbatch}"
-rounds="${FEDERATED_ROUNDS:-200}"
+rounds="${FEDERATED_ROUNDS:-100}"
+early_stopping_patience="${FEDERATED_EARLY_STOPPING_PATIENCE:-60}"
 local_epochs="${FEDERATED_LOCAL_EPOCHS:-1}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
 initial_weights_dir="${INITIAL_WEIGHTS_DIR:-artifacts/initial_weights}"
@@ -39,7 +40,7 @@ for seed in $seeds; do
   weights_path="${INITIAL_WEIGHTS_PATH:-${initial_weights_dir}/unet_seed_${seed}.pt}"
   mkdir -p "$run_dir"
 
-  export_vars="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},FEDERATED_RUN_ID=${run_id},FEDERATED_RUN_DIR=${run_dir},FEDERATED_ROUNDS=${rounds},FEDERATED_LOCAL_EPOCHS=${local_epochs},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}"
+  export_vars="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},FEDERATED_RUN_ID=${run_id},FEDERATED_RUN_DIR=${run_dir},FEDERATED_ROUNDS=${rounds},FEDERATED_EARLY_STOPPING_PATIENCE=${early_stopping_patience},FEDERATED_LOCAL_EPOCHS=${local_epochs},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}"
 
   if ((${#dependency[@]})); then
     server_job="$(sbatch --parsable "${dependency[@]}" "${sbatch_args[@]}" --export="$export_vars" "$repo_root/slurm/federated/baseline/federated_baseline_server.sbatch")"
@@ -53,7 +54,7 @@ for seed in $seeds; do
   cleanup_job="$(sbatch --parsable --dependency=afterany:"$client_job" "${sbatch_args[@]}" --export=ALL,FEDERATED_SERVER_JOB_ID="$server_job" --job-name=fedbrats-fedavg-cleanup --output=logs/slurm/federated/baseline/cleanup_%j.out --error=logs/slurm/federated/baseline/cleanup_%j.err --wrap='scancel "$FEDERATED_SERVER_JOB_ID" || true')"
 
   echo "federated_seed_${seed}_server_job=$server_job client_array_job=$client_job cleanup_job=$cleanup_job partition=$partition image=$APPTAINER_IMAGE rounds=$rounds local_epochs=$local_epochs weights=$weights_path run_dir=$run_dir"
-  if [[ "${FL_BRATS_CHAIN_SEEDS:-1}" == "1" ]]; then
+  if [[ "${FL_BRATS_CHAIN_SEEDS:-0}" == "1" ]]; then
     dependency=(--dependency=afterany:"$cleanup_job")
   fi
   sleep 1
