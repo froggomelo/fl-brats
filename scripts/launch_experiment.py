@@ -81,14 +81,22 @@ def main() -> int:
     parser.add_argument("config", type=Path)
     parser.add_argument("--mode", choices=("local", "slurm"), default="slurm")
     parser.add_argument("--seed", type=int)
+    parser.add_argument(
+        "--afterany",
+        metavar="JOBID",
+        help="Wait for this Slurm job before starting; its exit status is ignored.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     values = _load_experiment_yaml(args.config.resolve())
     experiment = values["experiment"]
     seeds = [args.seed] if args.seed is not None else list(experiment.get("seeds", [42]))
     family, variant = str(experiment["family"]), str(experiment.get("variant", args.config.stem))
-    stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Include microseconds so rapid retries cannot reuse a partially created
+    # run directory from an earlier invocation in the same second.
+    stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     submitted: list[dict[str, Any]] = []
+    previous_job = args.afterany
     for seed in seeds:
         run_id = f"{_slug(variant)}_seed_{seed}_{stamp}"
         output_root = Path(
@@ -152,6 +160,10 @@ def main() -> int:
             sbatch.append(
                 f"--acctg-freq=network={int(interconnect.get('sampling_seconds', 30))}"
             )
+        if previous_job:
+            # Apply the gate to both members of a federated run. The server
+            # and clients must start concurrently once the predecessor ends.
+            sbatch.append(f"--dependency=afterany:{previous_job}")
         if family != "centralized":
             clients = int(resolved.get("federated", {}).get("num_clients", 4))
             server_command = sbatch + [
@@ -184,6 +196,7 @@ def main() -> int:
                 json.dumps(jobs, indent=2) + "\n", encoding="utf-8"
             )
             submitted.append({"run_id": run_id, "run_dir": str(run_dir), "jobs": jobs})
+            previous_job = cleanup_job
             continue
         sbatch.extend(
             [
@@ -197,6 +210,7 @@ def main() -> int:
         job_id = subprocess.check_output(sbatch, cwd=REPO_ROOT, text=True).strip()
         (log_dir / "slurm-job-id.txt").write_text(job_id + "\n", encoding="utf-8")
         submitted.append({"run_id": run_id, "run_dir": str(run_dir), "job_id": job_id})
+        previous_job = job_id
     print(json.dumps(submitted, indent=2))
     return 0
 
