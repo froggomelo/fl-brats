@@ -98,7 +98,8 @@ def main() -> int:
     submitted: list[dict[str, Any]] = []
     previous_job = args.afterany
     for seed in seeds:
-        run_id = f"{_slug(variant)}_seed_{seed}_{stamp}"
+        base_run_id = f"{_slug(variant)}_seed_{seed}_{stamp}"
+        run_id = base_run_id
         output_root = Path(
             os.environ.get("FL_BRATS_OUTPUT_ROOT", values.get("output_root", "outputs"))
         )
@@ -109,6 +110,17 @@ def main() -> int:
             log_root = REPO_ROOT / log_root
         run_dir = output_root / family / run_id
         log_dir = log_root / family / run_id
+        if not args.dry_run:
+            suffix = 1
+            while True:
+                try:
+                    log_dir.mkdir(parents=True, exist_ok=False)
+                    break
+                except FileExistsError:
+                    run_id = f"{base_run_id}_{suffix}"
+                    suffix += 1
+                    run_dir = output_root / family / run_id
+                    log_dir = log_root / family / run_id
         runtime_config = log_dir / "resolved-launch-config.yaml"
         resolved = dict(values)
         weights_by_seed = resolved.get("initial_weights_by_seed", {})
@@ -124,7 +136,6 @@ def main() -> int:
         if args.dry_run:
             submitted.append({"run_id": run_id, "command": command, "config": resolved})
             continue
-        log_dir.mkdir(parents=True, exist_ok=False)
         runtime_config.write_text(yaml.safe_dump(resolved, sort_keys=False), encoding="utf-8")
         if args.mode == "local":
             with (log_dir / "launcher.out").open(
