@@ -7,4 +7,37 @@
 
 set -euo pipefail
 [[ $# -ge 1 ]] || { echo "usage: sbatch $0 CONFIG" >&2; exit 2; }
-exec scripts/data_preprocessing/prepare_experiment_partition.sh "$@"
+
+repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
+cd "$repo_root"
+
+if [[ -f "$repo_root/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$repo_root/.env"
+  set +a
+fi
+
+source "$repo_root/apptainer/select_image.sh"
+fl_brats_select_apptainer_image "$repo_root"
+[[ -f "$APPTAINER_IMAGE" ]] || {
+  echo "Apptainer image missing: $APPTAINER_IMAGE" >&2
+  exit 2
+}
+
+data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
+[[ -d "$data_root" ]] || {
+  echo "BraTS data root missing: $data_root" >&2
+  exit 2
+}
+
+echo "host=$(hostname) job=${SLURM_JOB_ID:-manual} partition=${SLURM_JOB_PARTITION:-unknown}"
+echo "image=$APPTAINER_IMAGE"
+echo "data_root=$data_root"
+
+exec apptainer exec --cleanenv \
+  --bind "$repo_root:$repo_root" \
+  --bind "$data_root:$data_root:ro" \
+  --pwd "$repo_root" \
+  "$APPTAINER_IMAGE" \
+  fedbrats prepare-experiment-partition --config "$@"
