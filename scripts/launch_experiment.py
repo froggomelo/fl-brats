@@ -8,16 +8,47 @@ import datetime as dt
 import json
 import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from fl_brats.cli import _load_experiment_yaml  # noqa: E402
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge mappings while replacing scalar and list values."""
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _load_experiment_yaml(path: Path, seen: set[Path] | None = None) -> dict[str, Any]:
+    """Resolve relative ``extends`` without importing the training CLI."""
+    resolved = path.expanduser().resolve()
+    chain = set() if seen is None else set(seen)
+    if resolved in chain:
+        raise ValueError(f"cyclic experiment config inheritance at {resolved}")
+    chain.add(resolved)
+    loaded = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError(f"experiment config must contain a YAML mapping: {resolved}")
+    parents = loaded.pop("extends", [])
+    if isinstance(parents, str):
+        parents = [parents]
+    if not isinstance(parents, list) or not all(isinstance(item, str) for item in parents):
+        raise ValueError(f"extends must be a path or list of paths: {resolved}")
+    merged: dict[str, Any] = {}
+    for parent in parents:
+        merged = _deep_merge(
+            merged,
+            _load_experiment_yaml((resolved.parent / parent).resolve(), chain),
+        )
+    return _deep_merge(merged, loaded)
 
 
 def _slug(value: str) -> str:

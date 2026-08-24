@@ -2,3 +2,4 @@ extends: ../_experiment_base/federated_uneven.yaml
 experiment: {family: fedavg_uneven, variant: baseline, runs: 3, seeds: [42, 43, 44]}
 slurm:
   partition: bigbatch
+  image: apptainer/fl-brats-batch.sif

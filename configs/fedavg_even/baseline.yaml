@@ -5,3 +5,4 @@ data:
   client_proportions: [0.25, 0.25, 0.25, 0.25]
 slurm:
   partition: bigbatch
+  image: apptainer/fl-brats-batch.sif
