@@ -588,6 +588,7 @@ def train_centralized(
     output_root: Path = typer.Option(Path("outputs/centralized"), "--output-root"),
     run_dir: Path | None = typer.Option(None, "--run-dir"),
     epochs: int = typer.Option(50, "--epochs", min=1),
+    minimum_epochs: int = typer.Option(1, "--minimum-epochs", min=1),
     early_stopping_patience: int | None = typer.Option(
         None, "--early-stopping-patience", min=1
     ),
@@ -609,6 +610,9 @@ def train_centralized(
 ) -> None:
     """Train on the union of frozen client subjects and evaluate fixed global sets."""
     import torch
+
+    if minimum_epochs > epochs:
+        raise typer.BadParameter("--minimum-epochs cannot exceed --epochs")
 
     split = json.loads(split_path.read_text(encoding="utf-8"))
     partition = json.loads(partition_path.read_text(encoding="utf-8"))
@@ -703,6 +707,7 @@ def train_centralized(
             epochs_without_improvement += 1
             if (
                 early_stopping_patience is not None
+                and epoch >= minimum_epochs
                 and epochs_without_improvement >= early_stopping_patience
             ):
                 typer.echo(
@@ -748,6 +753,7 @@ def train_centralized(
         "best_round": best_epoch,
         "best_validation_mean_dice": best,
         "max_epochs": epochs,
+        "minimum_epochs": minimum_epochs,
         "epochs_completed": len(epoch_records),
         "early_stopping_patience": early_stopping_patience,
         "early_stopping_min_delta": early_stopping_min_delta,

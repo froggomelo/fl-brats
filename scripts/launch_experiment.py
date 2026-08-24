@@ -35,6 +35,7 @@ def _command(config: Path, values: dict[str, Any], run_dir: Path, seed: int) -> 
             "--initial-weights", str(values["initial_weights"]),
             "--run-dir", str(run_dir),
             "--epochs", str(training["epochs"]),
+            "--minimum-epochs", str(training.get("minimum_epochs", 1)),
             "--early-stopping-patience", str(training["early_stopping_patience"]),
             "--early-stopping-min-delta", str(training["early_stopping_min_delta"]),
             "--batch-size", str(training["batch_size"]),

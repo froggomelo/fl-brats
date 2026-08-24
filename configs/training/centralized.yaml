@@ -1,4 +1,5 @@
-epochs: 150
+epochs: 100
+minimum_epochs: 50
 batch_size: 1
 num_workers: 4
 pin_memory: false
