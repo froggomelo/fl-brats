@@ -20,7 +20,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     """Recursively merge mappings while replacing scalar and list values."""
     merged = dict(base)
     for key, value in override.items():
-        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+        if isinstance(value, dict) and value and isinstance(merged.get(key), dict):
             merged[key] = _deep_merge(merged[key], value)
         else:
             merged[key] = value
