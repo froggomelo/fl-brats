@@ -2,6 +2,11 @@
 
 Submit with `sbatch slurm/environment/environment_check.sbatch` and inspect the configured log path. Use `srun` for interactive allocations and `scancel JOBID` to stop work. Client placeholders demonstrate array jobs only; they do not start processes. Set cluster-specific partition and resource flags at submission time, run Apptainer with clean environments, avoid login-node computation, and ensure future server/client processes shut down cleanly to prevent ghost processes.
 
+> **Cluster constraint:** this cluster does not support SLURM generic-resource
+> requests for these jobs. Do not pass `--gres` or configure `gres: gpu:1`.
+> Submit GPU training to `bigbatch` without a GRES specification; the partition
+> controls resource placement.
+
 Scheduler output mirrors the job layout under `logs/slurm/`: `centralized/`,
 `data/`, `environment/`, `federated/baseline/`, `federated/sam/`, and
 `missing_modality/`. Standard output and error use the same stem with `.out`
