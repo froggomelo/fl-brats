@@ -2,9 +2,12 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 set -euo pipefail
-[[ $# -eq 2 ]] || { echo "usage: $0 CONFIG RUN_DIR" >&2; exit 2; }
+[[ $# -eq 4 ]] || { echo "usage: $0 CONFIG RUN_DIR USE_APPTAINER IMAGE" >&2; exit 2; }
 config="$1"
 run_dir="$2"
+use_apptainer="$3"
+image="$4"
+repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
 address_file="$run_dir/server_address.txt"
 deadline=$((SECONDS + 600))
 while [[ ! -s "$address_file" ]]; do
@@ -13,5 +16,5 @@ while [[ ! -s "$address_file" ]]; do
 done
 address="$(<"$address_file")"
 client_id="client_${SLURM_ARRAY_TASK_ID:-0}"
-exec "$(dirname "$0")/run_with_configured_environment.sh" "$config" \
+exec "$repo_root/slurm/_shared/run_with_configured_environment.sh" "$use_apptainer" "$image" \
   fedbrats start-federated-client --config "$config" --client-id "$client_id" --server-address "$address"

@@ -6,23 +6,10 @@
 set -euo pipefail
 repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "$repo_root"
-[[ $# -gt 1 ]] || { echo "Usage: $0 CONFIG COMMAND..." >&2; exit 2; }
-config_path="$1"
-shift
-use_container="false"
-image=""
-if [[ -n "$config_path" ]]; then
-  readarray -t settings < <(python - "$config_path" <<'PY'
-import sys, yaml
-value = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
-slurm = value.get("slurm", {})
-print(str(bool(slurm.get("use_apptainer", False))).lower())
-print(slurm.get("image", ""))
-PY
-  )
-  use_container="${settings[0]:-false}"
-  image="${settings[1]:-}"
-fi
+[[ $# -ge 3 ]] || { echo "Usage: $0 USE_APPTAINER IMAGE COMMAND..." >&2; exit 2; }
+use_container="$1"
+image="$2"
+shift 2
 
 echo "job_id=${SLURM_JOB_ID:-manual} host=$(hostname) command=$*"
 if [[ "$use_container" == "true" ]]; then

@@ -130,6 +130,8 @@ def main() -> int:
             submitted.append({"run_id": run_id, "run_dir": str(run_dir), "mode": "local"})
             continue
         slurm = resolved.get("slurm", {})
+        use_apptainer = str(bool(slurm.get("use_apptainer", False))).lower()
+        image = str(slurm.get("image", ""))
         sbatch = [
             "sbatch", "--parsable", f"--job-name=flb-{_slug(variant)[:40]}",
             f"--partition={slurm['partition']}", f"--nodes={slurm.get('nodes', 1)}",
@@ -156,6 +158,8 @@ def main() -> int:
                 f"--output={log_dir}/server-%j.out", f"--error={log_dir}/server-%j.err",
                 str(REPO_ROOT / "slurm" / "_shared" / "federated_server.sbatch"),
                 str(runtime_config), str(run_dir),
+                str(resolved.get("federated", {}).get("server_port", 8080)),
+                use_apptainer, image,
             ]
             server_job = subprocess.check_output(server_command, cwd=REPO_ROOT, text=True).strip()
             client_command = sbatch + [
@@ -163,7 +167,7 @@ def main() -> int:
                 f"--output={log_dir}/client-%A-%a.out",
                 f"--error={log_dir}/client-%A-%a.err",
                 str(REPO_ROOT / "slurm" / "_shared" / "federated_client.sbatch"),
-                str(runtime_config), str(run_dir),
+                str(runtime_config), str(run_dir), use_apptainer, image,
             ]
             client_job = subprocess.check_output(client_command, cwd=REPO_ROOT, text=True).strip()
             cleanup_job = subprocess.check_output(
@@ -186,7 +190,7 @@ def main() -> int:
                 f"--output={log_dir}/slurm-%j.out",
                 f"--error={log_dir}/slurm-%j.err",
                 str(REPO_ROOT / "slurm" / "_shared" / "run_experiment.sbatch"),
-                str(runtime_config),
+                use_apptainer, image,
                 *command,
             ]
         )
