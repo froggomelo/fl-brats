@@ -20,8 +20,16 @@ export FL_BRATS_DATA_ROOT="/datasets/$USER/brats"
 export FL_BRATS_RAW_ROOT="$FL_BRATS_DATA_ROOT/raw/brats2021/PKG - RSNA-ASNR-MICCAI-BraTS-2021/RSNA-ASNR-MICCAI-BraTS-2021/BraTS2021_TrainingSet"
 ```
 
-The path `$FL_BRATS_DATA_ROOT/raw/brats2021/new-not-previously-in-TCIA` does
-not exist in the mscluster extraction. An index or partition manifest that
-contains that path is stale and must be rebuilt from the configured
-`FL_BRATS_RAW_ROOT`; setting the environment variable alone does not rewrite
-absolute paths already stored in a manifest.
+Index and client-manifest paths such as
+`new-not-previously-in-TCIA/BraTS2021_01637/...` are relative to
+`FL_BRATS_RAW_ROOT`. Do not resolve them directly below
+`$FL_BRATS_DATA_ROOT/raw/brats2021`; that omits the package and training-set
+directories shown above.
+
+Verify an experiment partition with the raw root exported in the same shell:
+
+```bash
+FL_BRATS_RAW_ROOT="/datasets/$USER/brats/raw/brats2021/PKG - RSNA-ASNR-MICCAI-BraTS-2021/RSNA-ASNR-MICCAI-BraTS-2021/BraTS2021_TrainingSet" \
+  .venv/bin/fedbrats verify-manifests \
+  --partition-root data/partitions/fedavg_uneven
+```
