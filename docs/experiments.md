@@ -24,6 +24,17 @@ fedbrats prepare-experiment-partition \
   --split-path data/splits/brats2021.json
 ```
 
+Create deterministic initial weights once for each seed and applicable model:
+
+```bash
+for seed in 42 43 44; do
+  fedbrats create-initial-weights --model-config configs/model/unet_baseline.yaml \
+    --output-dir artifacts/initial_weights --seed "$seed"
+  fedbrats create-initial-weights --model-config configs/model/fedamm.yaml \
+    --output-dir artifacts/initial_weights --seed "$seed"
+done
+```
+
 The `comm_eff_uneven/best.yaml` and `fedamm_comm_eff_uneven/best.yaml` choices are
 marked provisional. Update their selected values after the prerequisite tuning
 runs establish the actual best sparsification fraction, bit-width policy, and alpha.

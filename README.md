@@ -31,6 +31,12 @@ uv run mypy src
 
 Hydra configuration lives in `configs/`; use overrides such as `uv run fedbrats show-config environment=debug`. Run `scripts/environment/bootstrap.sh` for a no-global-install setup.
 
+The publication experiment matrix is defined by YAML in the mirrored folders
+`configs/centralized/`, `configs/fedavg_uneven/`, `configs/fedamm_uneven/`, and
+the other experiment-family directories. Matching launch scripts live under
+`scripts/`. See [docs/experiments.md](docs/experiments.md) for launching,
+partition preparation, output isolation, and metric artifacts.
+
 The default dataset root is `/datasets/$USER/brats`; see `data/README.md` for
 the required BraTS 2021 raw, processed, and fixed-quantity-skew partition layout.
 

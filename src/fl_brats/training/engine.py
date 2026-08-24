@@ -23,7 +23,10 @@ def forward_batch(model: torch.nn.Module, batch: dict[str, Any]) -> torch.Tensor
         )
         slice_batch_size = int(getattr(model, "config", {}).get("slice_batch_size", 8))
         logits = torch.cat(
-            [model(slices[start : start + slice_batch_size]) for start in range(0, len(slices), slice_batch_size)]
+            [
+                model(slices[start : start + slice_batch_size])
+                for start in range(0, len(slices), slice_batch_size)
+            ]
         )
         return logits.reshape(batch_size, depth, 3, height, width).permute(0, 2, 3, 4, 1)
     if getattr(model, "supports_modality_mask", False):

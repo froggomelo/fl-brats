@@ -1,4 +1,9 @@
 extends: federated_uneven.yaml
+initial_weights: artifacts/initial_weights/fedamm_seed_42.pt
+initial_weights_by_seed:
+  42: artifacts/initial_weights/fedamm_seed_42.pt
+  43: artifacts/initial_weights/fedamm_seed_43.pt
+  44: artifacts/initial_weights/fedamm_seed_44.pt
 data:
   partition_root: data/partitions/fedavg_missing_modalities_uneven
 model:

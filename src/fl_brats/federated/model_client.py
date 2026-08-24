@@ -224,7 +224,10 @@ class ModelFedAvgClient(FedAvgClient):
         elif bool(self.quantization_config.get("enabled", False)):
             if self._global_arrays_before_fit is None:
                 raise ValueError("quantized delta requires cached global parameters")
-            local_state = {key: torch.from_numpy(value.copy()) for key, value in zip(self.keys, arrays, strict=True)}
+            local_state = {
+                key: torch.from_numpy(value.copy())
+                for key, value in zip(self.keys, arrays, strict=True)
+            }
             global_state = {
                 key: torch.from_numpy(value.copy())
                 for key, value in zip(self.keys, self._global_arrays_before_fit, strict=True)
@@ -247,7 +250,9 @@ class ModelFedAvgClient(FedAvgClient):
                 )
                 allocation = BitWidthAllocator().allocate(
                     layer_statistics={
-                        key: LayerQuantizationStats(value.numel(), float(value.float().norm()) + 1e-12)
+                        key: LayerQuantizationStats(
+                            value.numel(), float(value.float().norm()) + 1e-12
+                        )
                         for key, value in eligible.items()
                     },
                     candidate_bit_widths=list(mixed.get("candidate_bit_widths", [2, 4, 8])),

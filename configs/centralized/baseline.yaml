@@ -8,6 +8,10 @@ log_root: logs
 cache_root: cache
 checkpoint_root: checkpoints
 initial_weights: artifacts/initial_weights/unet_seed_42.pt
+initial_weights_by_seed:
+  42: artifacts/initial_weights/unet_seed_42.pt
+  43: artifacts/initial_weights/unet_seed_43.pt
+  44: artifacts/initial_weights/unet_seed_44.pt
 data:
   index_path: data/processed/brats2021/index.json
   split_path: data/partitions/fedavg_uneven/split_manifest.json

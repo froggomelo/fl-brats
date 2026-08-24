@@ -1,5 +1,7 @@
 extends: ../../_experiment_base/federated_uneven.yaml
 experiment: {family: model_agnostic_uneven/sam1, variant: baseline, runs: 3, seeds: [42, 43, 44]}
+initial_weights: null
+initial_weights_by_seed: {}
 model:
   name: sam1
   checkpoint: artifacts/pretrained/sam1.pth
