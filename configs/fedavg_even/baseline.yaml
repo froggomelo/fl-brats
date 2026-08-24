@@ -6,3 +6,4 @@ data:
 slurm:
   partition: bigbatch
   image: apptainer/fl-brats-batch.sif
+  gres: null

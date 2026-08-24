@@ -3,3 +3,4 @@ experiment: {family: fedavg_uneven, variant: baseline, runs: 3, seeds: [42, 43, 
 slurm:
   partition: bigbatch
   image: apptainer/fl-brats-batch.sif
+  gres: null
