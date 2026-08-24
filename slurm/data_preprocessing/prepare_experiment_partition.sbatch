@@ -30,14 +30,19 @@ data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
   echo "BraTS data root missing: $data_root" >&2
   exit 2
 }
+mpl_config_dir="${FL_BRATS_CACHE_ROOT:-$repo_root/cache}/matplotlib"
+mkdir -p "$mpl_config_dir"
 
 echo "host=$(hostname) job=${SLURM_JOB_ID:-manual} partition=${SLURM_JOB_PARTITION:-unknown}"
 echo "image=$APPTAINER_IMAGE"
 echo "data_root=$data_root"
 
 exec apptainer exec --cleanenv \
+  --env "PYTHONPATH=/workspace/src" \
+  --env "MPLCONFIGDIR=$mpl_config_dir" \
   --bind "$repo_root:$repo_root" \
+  --bind "$repo_root/src:/workspace/src:ro" \
   --bind "$data_root:$data_root:ro" \
   --pwd "$repo_root" \
   "$APPTAINER_IMAGE" \
-  fedbrats prepare-experiment-partition --config "$@"
+  python -m fl_brats prepare-experiment-partition --config "$@"
