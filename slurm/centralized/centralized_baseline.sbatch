@@ -80,7 +80,9 @@ apptainer exec --nv --cleanenv \
     --partition-path "$partition_path" \
     --initial-weights "$weights_path" \
     --output-root "$centralized_output_root" \
-    --epochs "${CENTRALIZED_EPOCHS:-50}" \
+    --epochs "${CENTRALIZED_EPOCHS:-150}" \
+    --early-stopping-patience "${CENTRALIZED_EARLY_STOPPING_PATIENCE:-25}" \
+    --early-stopping-min-delta "${CENTRALIZED_EARLY_STOPPING_MIN_DELTA:-0.001}" \
     --batch-size "${CENTRALIZED_BATCH_SIZE:-1}" \
     --workers "${CENTRALIZED_WORKERS:-0}" \
     --no-pin-memory \

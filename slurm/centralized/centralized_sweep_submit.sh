@@ -17,7 +17,9 @@ mkdir -p "$repo_root/logs/centralized"
 # stampede -> fl-brats-stampede.sif; bigbatch/batch -> fl-brats-batch.sif.
 partition="${FL_BRATS_PARTITION:-bigbatch}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
-epochs="${CENTRALIZED_EPOCHS:-50}"
+epochs="${CENTRALIZED_EPOCHS:-150}"
+early_stopping_patience="${CENTRALIZED_EARLY_STOPPING_PATIENCE:-25}"
+early_stopping_min_delta="${CENTRALIZED_EARLY_STOPPING_MIN_DELTA:-0.001}"
 initial_weights_dir="${INITIAL_WEIGHTS_DIR:-artifacts/initial_weights}"
 
 # Do not let an APPTAINER_IMAGE inherited from the login shell override the
@@ -38,13 +40,13 @@ fi
 dependency=()
 for seed in $seeds; do
   weights_path="${INITIAL_WEIGHTS_PATH:-${initial_weights_dir}/unet_seed_${seed}.pt}"
-  export_vars="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},CENTRALIZED_EPOCHS=${epochs},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}"
+  export_vars="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},CENTRALIZED_EPOCHS=${epochs},CENTRALIZED_EARLY_STOPPING_PATIENCE=${early_stopping_patience},CENTRALIZED_EARLY_STOPPING_MIN_DELTA=${early_stopping_min_delta},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}"
 
   job_id="$(sbatch --parsable "${dependency[@]}" "${sbatch_args[@]}" \
     --export="$export_vars" \
     "$repo_root/slurm/centralized/centralized_baseline.sbatch")"
 
-  echo "centralized_seed_${seed}_job=$job_id partition=$partition image=$APPTAINER_IMAGE epochs=$epochs weights=$weights_path"
+  echo "centralized_seed_${seed}_job=$job_id partition=$partition image=$APPTAINER_IMAGE epochs=$epochs patience=$early_stopping_patience min_delta=$early_stopping_min_delta weights=$weights_path"
 
   if [[ "${FL_BRATS_CHAIN_SEEDS:-0}" == "1" ]]; then
     dependency=(--dependency=afterok:"$job_id")

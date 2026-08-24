@@ -588,6 +588,12 @@ def train_centralized(
     output_root: Path = typer.Option(Path("outputs/centralized"), "--output-root"),
     run_dir: Path | None = typer.Option(None, "--run-dir"),
     epochs: int = typer.Option(50, "--epochs", min=1),
+    early_stopping_patience: int | None = typer.Option(
+        None, "--early-stopping-patience", min=1
+    ),
+    early_stopping_min_delta: float = typer.Option(
+        0.0, "--early-stopping-min-delta", min=0.0
+    ),
     batch_size: int = typer.Option(1, "--batch-size", min=1),
     workers: int = typer.Option(0, "--workers", min=0),
     pin_memory: bool | None = typer.Option(
@@ -649,7 +655,8 @@ def train_centralized(
     train_loader, train_count = loader(split["train_subjects"], True, "train")
     validation_loader, validation_count = loader(split["validation_subjects"], False, "validation")
     test_loader, test_count = loader(split["test_subjects"], False, "test")
-    best, best_epoch, started = float("-inf"), 0, time.monotonic()
+    best, best_epoch, epochs_without_improvement = float("-inf"), 0, 0
+    started = time.monotonic()
     metrics_file = run_dir / "metrics.jsonl"
     for epoch in range(1, epochs + 1):
         training = train_one_epoch(model, train_loader, loss_fn, optimizer, selected)
@@ -679,8 +686,9 @@ def train_centralized(
                 "model_input_channels": 8 if model_values.get("concat_mask") else 4,
             },
         )
-        if validation["mean_dice"] > best:
+        if validation["mean_dice"] > best + early_stopping_min_delta:
             best, best_epoch = validation["mean_dice"], epoch
+            epochs_without_improvement = 0
             save_checkpoint(
                 run_dir / "checkpoints" / "best.pt",
                 {
@@ -691,6 +699,19 @@ def train_centralized(
                     "model_input_channels": 8 if model_values.get("concat_mask") else 4,
                 },
             )
+        else:
+            epochs_without_improvement += 1
+            if (
+                early_stopping_patience is not None
+                and epochs_without_improvement >= early_stopping_patience
+            ):
+                typer.echo(
+                    f"early_stopping epoch={epoch} best_epoch={best_epoch} "
+                    f"patience={early_stopping_patience} "
+                    f"min_delta={early_stopping_min_delta}",
+                    err=True,
+                )
+                break
     model.load_state_dict(
         load_checkpoint(run_dir / "checkpoints" / "best.pt")["model_state"], strict=True
     )
@@ -726,6 +747,10 @@ def train_centralized(
         "best_validation_epoch": best_epoch,
         "best_round": best_epoch,
         "best_validation_mean_dice": best,
+        "max_epochs": epochs,
+        "epochs_completed": len(epoch_records),
+        "early_stopping_patience": early_stopping_patience,
+        "early_stopping_min_delta": early_stopping_min_delta,
         **{f"test_{k}": v for k, v in test.items()},
         "metrics": {
             "segmentation": test,

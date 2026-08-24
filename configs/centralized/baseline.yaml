@@ -17,9 +17,9 @@ data:
   split_path: data/partitions/fedavg_uneven/split_manifest.json
   partition_path: data/partitions/fedavg_uneven/manifest.json
 model: {name: unet_baseline}
-training: {epochs: 50, batch_size: 1, num_workers: 0, pin_memory: false}
+training: {epochs: 150, batch_size: 1, num_workers: 0, pin_memory: false, early_stopping_patience: 25, early_stopping_min_delta: 0.001}
 slurm:
-  partition: stampede
+  partition: bigbatch
   account: null
   qos: null
   time: "72:00:00"

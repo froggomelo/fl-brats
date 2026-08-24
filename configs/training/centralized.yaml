@@ -1,8 +1,9 @@
-epochs: 50
+epochs: 150
 batch_size: 1
 num_workers: 4
 pin_memory: false
 amp: true
 gradient_clip_norm: null
-early_stopping_patience: 10
+early_stopping_patience: 25
+early_stopping_min_delta: 0.001
 validation_frequency: 1

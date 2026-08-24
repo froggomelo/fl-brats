@@ -14,7 +14,9 @@ mkdir -p "$repo_root/logs/centralized" "$repo_root/logs/fedavg_uneven"
 partition="${FL_BRATS_PARTITION:-stampede}"
 seeds="${FL_BRATS_SEEDS:-42 43 44}"
 initial_weights_dir="${INITIAL_WEIGHTS_DIR:-artifacts/initial_weights}"
-centralized_epochs="${CENTRALIZED_EPOCHS:-50}"
+centralized_epochs="${CENTRALIZED_EPOCHS:-150}"
+centralized_early_stopping_patience="${CENTRALIZED_EARLY_STOPPING_PATIENCE:-25}"
+centralized_early_stopping_min_delta="${CENTRALIZED_EARLY_STOPPING_MIN_DELTA:-0.001}"
 federated_rounds="${FEDERATED_ROUNDS:-100}"
 federated_early_stopping_patience="${FEDERATED_EARLY_STOPPING_PATIENCE:-60}"
 federated_local_epochs="${FEDERATED_LOCAL_EPOCHS:-1}"
@@ -63,7 +65,7 @@ submit_centralized() {
   local dependency=("$@")
 
   sbatch --parsable "${dependency[@]}" "${gpu_sbatch_args[@]}" \
-    --export="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},CENTRALIZED_EPOCHS=${centralized_epochs},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}" \
+    --export="ALL,FL_BRATS_PARTITION=${partition},APPTAINER_IMAGE=${APPTAINER_IMAGE},CENTRALIZED_EPOCHS=${centralized_epochs},CENTRALIZED_EARLY_STOPPING_PATIENCE=${centralized_early_stopping_patience},CENTRALIZED_EARLY_STOPPING_MIN_DELTA=${centralized_early_stopping_min_delta},FL_BRATS_SEED=${seed},INITIAL_WEIGHTS_PATH=${weights_path}" \
     "$repo_root/slurm/centralized/centralized_baseline.sbatch"
 }
 
