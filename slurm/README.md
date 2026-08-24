@@ -35,6 +35,10 @@ Prepare both full-modality baseline partitions from the fixed dataset split:
 bash slurm/data_preprocessing/prepare_fedavg_baseline_partitions_submit.sh
 ```
 
+Partition preparation runs on `stampede` by default. Override it only when
+needed with `FL_BRATS_DATA_PARTITION`. The even and uneven training YAML files
+submit their server and client jobs to `bigbatch`.
+
 Set `FL_BRATS_SPLIT_PATH` if the split is not at
 `data/splits/brats2021.json`. Set `FL_BRATS_OVERWRITE_PARTITIONS=1` only when
 the existing even and uneven partition manifests should be replaced. Wait for

@@ -5,7 +5,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/../.." && pwd)"
 cd "$repo_root"
 
-partition="${FL_BRATS_PARTITION:-${FL_BRATS_SLURM_PARTITION:-stampede}}"
+partition="${FL_BRATS_DATA_PARTITION:-stampede}"
 split_path="${FL_BRATS_SPLIT_PATH:-data/splits/brats2021.json}"
 mkdir -p logs/data_preprocessing
 
