@@ -5,13 +5,23 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/../.." && pwd)"
 cd "$repo_root"
 
+if [[ -f "$repo_root/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$repo_root/.env"
+  set +a
+fi
+
 partition="${FL_BRATS_DATA_PARTITION:-stampede}"
-split_path="${FL_BRATS_SPLIT_PATH:-data/splits/brats2021.json}"
+data_root="${FL_BRATS_DATA_ROOT:-/datasets/${USER}/brats}"
+split_path="${FL_BRATS_SPLIT_PATH:-${data_root}/partitions/fixed_quantity_skew/split_manifest.json}"
 mkdir -p logs/data_preprocessing
 
 [[ -f "$split_path" ]] || {
   echo "Dataset split missing: $split_path" >&2
-  echo "Set FL_BRATS_SPLIT_PATH to the existing BraTS split manifest." >&2
+  echo "Create the canonical split first with:" >&2
+  echo "  sbatch --partition=stampede slurm/data_preprocessing/brats_partition.sbatch" >&2
+  echo "Or set FL_BRATS_SPLIT_PATH to an existing split manifest." >&2
   exit 2
 }
 

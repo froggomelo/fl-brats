@@ -39,11 +39,12 @@ Partition preparation runs on `stampede` by default. Override it only when
 needed with `FL_BRATS_DATA_PARTITION`. The even and uneven training YAML files
 submit their server and client jobs to `bigbatch`.
 
-Set `FL_BRATS_SPLIT_PATH` if the split is not at
-`data/splits/brats2021.json`. Set `FL_BRATS_OVERWRITE_PARTITIONS=1` only when
-the existing even and uneven partition manifests should be replaced. Wait for
-both preparation jobs to complete successfully, then submit each three-seed
-experiment independently:
+The submitter loads `.env` and defaults to
+`$FL_BRATS_DATA_ROOT/partitions/fixed_quantity_skew/split_manifest.json`.
+Set `FL_BRATS_SPLIT_PATH` only when using another existing split. Set
+`FL_BRATS_OVERWRITE_PARTITIONS=1` only when the existing even and uneven
+partition manifests should be replaced. Wait for both preparation jobs to
+complete successfully, then submit each three-seed experiment independently:
 
 ```bash
 bash slurm/fedavg_uneven/federated_baseline_submit.sh
