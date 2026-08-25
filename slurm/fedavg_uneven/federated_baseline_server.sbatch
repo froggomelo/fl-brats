@@ -56,6 +56,7 @@ echo "partition=${SLURM_JOB_PARTITION:-unknown} image=$APPTAINER_IMAGE"
 echo "seed=${FL_BRATS_SEED:-42} weights=$weights_path run_dir=$run_dir"
 
 apptainer exec --cleanenv \
+  --env "FL_BRATS_DATA_ROOT=$data_root" \
   --env "FL_BRATS_RAW_ROOT=$raw_root" \
   --env "PYTHONPATH=/workspace/src" \
   --bind "$repo_root/src:/workspace/src:ro" \

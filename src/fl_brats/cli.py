@@ -485,6 +485,9 @@ def create_partition_command(
         missingness_policy=policy_from_config(missingness),
         missingness_config=missingness,
     )
+    import shutil
+
+    shutil.copy2(source, destination / "split_manifest.json")
     typer.echo(json.dumps(result, indent=2))
 
 

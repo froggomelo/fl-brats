@@ -30,9 +30,18 @@ def _env_flag(name: str) -> bool | None:
     raise ValueError(f"{name} must be a boolean value, got {value!r}")
 
 
-def _index_path_root(index_path: Path) -> Path | None:
+def _environment_raw_root() -> Path | None:
+    """Return the canonical raw-data root configured for this process."""
     if raw_root := os.environ.get("FL_BRATS_RAW_ROOT"):
         return Path(raw_root)
+    if data_root := os.environ.get("FL_BRATS_DATA_ROOT"):
+        return Path(data_root) / "raw" / "brats2021"
+    return None
+
+
+def _index_path_root(index_path: Path) -> Path | None:
+    if raw_root := _environment_raw_root():
+        return raw_root
     summary_path = index_path.with_name("dataset_summary.json")
     if not summary_path.exists():
         return None
@@ -43,14 +52,19 @@ def _index_path_root(index_path: Path) -> Path | None:
 
 def _resolve_record_path(path: str, root: Path | None) -> str:
     value = Path(path)
-    if value.is_absolute() or root is None or not path:
+    if value.is_absolute() or not path:
         return path
+    if root is None:
+        raise RuntimeError(
+            "cannot resolve relative BraTS manifest path because no dataset root is "
+            "configured; set FL_BRATS_RAW_ROOT or FL_BRATS_DATA_ROOT"
+        )
     return str(root / value)
 
 
 def _client_manifest_root(path: Path) -> Path | None:
-    if raw_root := os.environ.get("FL_BRATS_RAW_ROOT"):
-        return Path(raw_root)
+    if raw_root := _environment_raw_root():
+        return raw_root
     partition_path = path.with_name("manifest.json")
     if not partition_path.exists():
         return None

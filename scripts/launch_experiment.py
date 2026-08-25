@@ -81,6 +81,8 @@ def main() -> int:
     parser.add_argument("config", type=Path)
     parser.add_argument("--mode", choices=("local", "slurm"), default="slurm")
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--partition")
+    parser.add_argument("--image", type=Path)
     parser.add_argument(
         "--afterany",
         metavar="JOBID",
@@ -132,6 +134,12 @@ def main() -> int:
             output_root=str(run_dir.parent),
             log_root=str(log_dir),
         )
+        slurm_overrides = dict(resolved.get("slurm", {}))
+        if args.partition:
+            slurm_overrides["partition"] = args.partition
+        if args.image:
+            slurm_overrides["image"] = str(args.image)
+        resolved["slurm"] = slurm_overrides
         command = _command(runtime_config, resolved, run_dir, seed)
         if args.dry_run:
             submitted.append({"run_id": run_id, "command": command, "config": resolved})

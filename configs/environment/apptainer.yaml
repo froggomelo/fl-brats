@@ -1,7 +1,7 @@
 mode: apptainer
 use_container: true
 container_runtime: apptainer
-image_path: ${oc.env:APPTAINER_IMAGE,./apptainer/fl-brats.sif}
+image_path: ./apptainer/fl-brats-batch.sif
 container_workspace: /workspace
 container_data_root: /data
 container_output_root: /outputs

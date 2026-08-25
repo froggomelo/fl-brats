@@ -78,6 +78,7 @@ echo "seed=${FL_BRATS_SEED:-42} weights=$weights_path"
 nvidia-smi || true
 
 apptainer exec --nv --cleanenv \
+  --env "FL_BRATS_DATA_ROOT=$data_root" \
   --env "FL_BRATS_RAW_ROOT=$raw_root" \
   --env "FL_BRATS_PIN_MEMORY=false" \
   --env "PYTHONPATH=/workspace/src" \

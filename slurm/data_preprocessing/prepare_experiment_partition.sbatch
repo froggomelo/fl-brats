@@ -40,6 +40,8 @@ echo "data_root=$data_root"
 exec apptainer exec --cleanenv \
   --env "PYTHONPATH=/workspace/src" \
   --env "MPLCONFIGDIR=$mpl_config_dir" \
+  --env "FL_BRATS_DATA_ROOT=$data_root" \
+  --env "FL_BRATS_RAW_ROOT=${FL_BRATS_RAW_ROOT:?set FL_BRATS_RAW_ROOT in .env}" \
   --bind "$repo_root:$repo_root" \
   --bind "$repo_root/src:/workspace/src:ro" \
   --bind "$data_root:$data_root:ro" \

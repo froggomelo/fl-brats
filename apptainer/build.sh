@@ -23,5 +23,5 @@ build_one() {
   fi
 }
 
-build_one "${FL_BRATS_IMAGE_BATCH:-$repo_root/apptainer/fl-brats-batch.sif}" apptainer/fl-brats.def
-build_one "${FL_BRATS_IMAGE_STAMPEDE:-$repo_root/apptainer/fl-brats-stampede.sif}" apptainer/fl-brats-stampede.def
+build_one "$repo_root/apptainer/fl-brats-batch.sif" apptainer/fl-brats.def
+build_one "$repo_root/apptainer/fl-brats-stampede.sif" apptainer/fl-brats-stampede.def

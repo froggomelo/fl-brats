@@ -1,12 +1,14 @@
 # SLURM preprocessing
 
-Submit `sbatch slurm/data_preprocessing/brats_validate.sbatch`, `sbatch slurm/data_preprocessing/brats_preprocess.sbatch`, and `sbatch slurm/data_preprocessing/brats_partition.sbatch`. Set `FL_BRATS_DATA_ROOT`; resource settings are environment-overridable. SLURM jobs choose `apptainer/fl-brats-stampede.sif` or `apptainer/fl-brats-batch.sif` from the listed partition. Override those paths with `FL_BRATS_IMAGE_STAMPEDE` or `FL_BRATS_IMAGE_BATCH`; inherited `APPTAINER_IMAGE` values are ignored. Validation/preprocessing use CPU by default. Do not run full-dataset validation on the login node.
+Submit `sbatch slurm/data_preprocessing/brats_validate.sbatch`, `sbatch slurm/data_preprocessing/brats_preprocess.sbatch`, and `sbatch slurm/data_preprocessing/brats_partition.sbatch`. Set `FL_BRATS_DATA_ROOT`; resource settings are environment-overridable. SLURM jobs choose `apptainer/fl-brats-stampede.sif` or `apptainer/fl-brats-batch.sif` deterministically from the listed partition; image selection does not use environment overrides. Validation/preprocessing use CPU by default. Do not run full-dataset validation on the login node.
 
 For a single ordered, resumable job, use:
 
 ```bash
 export FL_BRATS_DATA_ROOT="/datasets/$USER/fedbrats"
-export FL_BRATS_RAW_ROOT="/datasets/$USER/brats/raw/brats2021/PKG - RSNA-ASNR-MICCAI-BraTS-2021/RSNA-ASNR-MICCAI-BraTS-2021/BraTS2021_TrainingSet"
+set -a
+source .env
+set +a
 bash apptainer/build.sh
 sbatch --export=ALL,FL_BRATS_DATA_ROOT,FL_BRATS_RAW_ROOT slurm/data_preprocessing/brats_pipeline.sbatch
 ```

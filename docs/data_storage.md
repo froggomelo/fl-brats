@@ -12,12 +12,13 @@ The extracted training set on mscluster is:
 /datasets/$USER/brats/raw/brats2021/PKG - RSNA-ASNR-MICCAI-BraTS-2021/RSNA-ASNR-MICCAI-BraTS-2021/BraTS2021_TrainingSet
 ```
 
-Configure it explicitly before indexing, preprocessing, verification, or
-training:
+The repository `.env` defines both paths. Source it before running commands
+interactively; SLURM submission and worker scripts source it automatically:
 
 ```bash
-export FL_BRATS_DATA_ROOT="/datasets/$USER/brats"
-export FL_BRATS_RAW_ROOT="$FL_BRATS_DATA_ROOT/raw/brats2021/PKG - RSNA-ASNR-MICCAI-BraTS-2021/RSNA-ASNR-MICCAI-BraTS-2021/BraTS2021_TrainingSet"
+set -a
+source .env
+set +a
 ```
 
 Index and client-manifest paths such as
@@ -29,7 +30,6 @@ directories shown above.
 Verify an experiment partition with the raw root exported in the same shell:
 
 ```bash
-FL_BRATS_RAW_ROOT="/datasets/$USER/brats/raw/brats2021/PKG - RSNA-ASNR-MICCAI-BraTS-2021/RSNA-ASNR-MICCAI-BraTS-2021/BraTS2021_TrainingSet" \
-  .venv/bin/fedbrats verify-manifests \
+.venv/bin/fedbrats verify-manifests \
   --partition-root data/partitions/fedavg_uneven
 ```
