@@ -8,4 +8,4 @@ if [[ $# -lt 1 ]]; then
 fi
 config="$1"
 shift
-exec python "$root/scripts/launch_experiment.py" "$config" "$@"
+exec python3 "$root/scripts/launch_experiment.py" "$config" "$@"

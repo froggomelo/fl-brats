@@ -58,11 +58,11 @@ for config in "${configs[@]}"; do
   fi
 
   submission="$(
-    scripts/fedavg_train_configs_uneven/launch.sh "$config" "${launcher_args[@]}"
+    python3 scripts/launch_experiment.py "$config" "${launcher_args[@]}"
   )"
   printf '%s\n' "$submission"
   previous_cleanup_job="$(
-    python -c 'import json, sys; print(json.load(sys.stdin)[-1]["jobs"]["cleanup"])' \
+    python3 -c 'import json, sys; print(json.load(sys.stdin)[-1]["jobs"]["cleanup"])' \
       <<<"$submission"
   )"
 done
