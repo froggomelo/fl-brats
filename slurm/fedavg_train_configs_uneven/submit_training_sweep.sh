@@ -5,6 +5,20 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/../.." && pwd)"
 cd "$repo_root"
 
+initial_afterany=""
+if [[ ${1:-} == "--afterany" ]]; then
+  [[ -n ${2:-} ]] || {
+    echo "usage: $0 [--afterany JOBID]" >&2
+    exit 2
+  }
+  initial_afterany="$2"
+  shift 2
+fi
+[[ $# -eq 0 ]] || {
+  echo "usage: $0 [--afterany JOBID]" >&2
+  exit 2
+}
+
 if [[ -f "$repo_root/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -32,7 +46,7 @@ configs=(
   configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml
 )
 
-previous_cleanup_job=""
+previous_cleanup_job="$initial_afterany"
 for config in "${configs[@]}"; do
   launcher_args=(
     --mode slurm
