@@ -73,7 +73,8 @@ slurm:
   tasks: 1
   cpus_per_task: 8
   memory: 64G
-  gres: gpu:1
+  # bigbatch provides GPU placement through the partition and rejects GRES requests.
+  gres: null
   exclusive: false
   use_apptainer: true
   image: apptainer/fl-brats.sif
