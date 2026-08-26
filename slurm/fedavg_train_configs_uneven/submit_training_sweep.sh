@@ -32,7 +32,23 @@ configs=(
   configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml
 )
 
+previous_cleanup_job=""
 for config in "${configs[@]}"; do
-  scripts/fedavg_train_configs_uneven/launch.sh "$config" \
-    --mode slurm --partition "$partition" --image "$APPTAINER_IMAGE"
+  launcher_args=(
+    --mode slurm
+    --partition "$partition"
+    --image "$APPTAINER_IMAGE"
+  )
+  if [[ -n "$previous_cleanup_job" ]]; then
+    launcher_args+=(--afterany "$previous_cleanup_job")
+  fi
+
+  submission="$(
+    scripts/fedavg_train_configs_uneven/launch.sh "$config" "${launcher_args[@]}"
+  )"
+  printf '%s\n' "$submission"
+  previous_cleanup_job="$(
+    python -c 'import json, sys; print(json.load(sys.stdin)[-1]["jobs"]["cleanup"])' \
+      <<<"$submission"
+  )"
 done
