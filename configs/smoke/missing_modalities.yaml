@@ -1,0 +1,5 @@
+extends: ../fedavg_missing_modalities_uneven/alpha_0_1.yaml
+experiment: {family: smoke/missing_modalities, variant: missing_modalities, runs: 1, seeds: [42]}
+training: {max_rounds: 1}
+federated: {num_rounds: 1, minimum_rounds: 1, early_stopping_patience: 1}
+

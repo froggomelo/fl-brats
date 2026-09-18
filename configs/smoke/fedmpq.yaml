@@ -1,0 +1,5 @@
+extends: ../fedmpq_uneven/heterogeneous_2_4_8bit.yaml
+experiment: {family: smoke/fedmpq, variant: fedmpq, runs: 1, seeds: [42]}
+training: {max_rounds: 1}
+federated: {num_rounds: 1, minimum_rounds: 1, early_stopping_patience: 1}
+
