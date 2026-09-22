@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import socket
 import threading
 import time
@@ -28,6 +29,7 @@ from fl_brats.models.factory import create_model, model_report
 
 from .model_client import ModelFedAvgClient
 from .parameters import state_to_arrays
+from .research import ExperimentState
 from .strategy import create_research_fedavg
 
 
@@ -63,7 +65,12 @@ def _device(requested: str) -> torch.device:
 
 
 def _load_initial_weights(model: torch.nn.Module, values: dict[str, Any]) -> str | None:
-    path_value = values.get("initial_weights") or values.get("initial_checkpoint")
+    path_value = (
+        values.get("resume")
+        or values.get("resume_checkpoint")
+        or values.get("initial_weights")
+        or values.get("initial_checkpoint")
+    )
     if not path_value:
         return None
     path = Path(path_value)
@@ -75,11 +82,93 @@ def _load_initial_weights(model: torch.nn.Module, values: dict[str, Any]) -> str
     return sha256_file(path)
 
 
+def _copy_jsonl_through_round(source: Path, destination: Path, completed_round: int) -> None:
+    if not source.exists():
+        return
+    rows = _read_jsonl(source)
+    retained = [
+        row
+        for row in rows
+        if int(row.get("round", row.get("round_number", 0))) <= completed_round
+    ]
+    if not retained:
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in retained),
+        encoding="utf-8",
+    )
+
+
+def load_resume_state(
+    model: torch.nn.Module, values: dict[str, Any], run_dir: Path
+) -> ExperimentState | None:
+    """Restore a checkpoint and seed a new continuation directory with its history."""
+    path_value = values.get("resume") or values.get("resume_checkpoint")
+    if not path_value:
+        return None
+    checkpoint = Path(path_value).expanduser().resolve()
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get("model_state"), dict):
+        raise ValueError(f"resume checkpoint is not a federated round checkpoint: {checkpoint}")
+    checkpoint_round = int(payload.get("round", 0))
+    if checkpoint_round < 1:
+        raise ValueError(f"resume checkpoint has an invalid round: {checkpoint}")
+    model.load_state_dict(payload["model_state"], strict=True)
+    state_data = payload.get("experiment_state")
+    if not isinstance(state_data, dict):
+        raise ValueError(f"resume checkpoint lacks experiment_state: {checkpoint}")
+
+    source_run = checkpoint.parent.parent
+    state_path = source_run / "state.json"
+    if state_path.exists():
+        persisted = json.loads(state_path.read_text(encoding="utf-8"))
+        if int(persisted.get("completed_round", -1)) == checkpoint_round:
+            state_data = persisted
+    state = ExperimentState(
+        **{key: value for key, value in state_data.items() if key in ExperimentState.__dataclass_fields__}
+    )
+    state.completed_round = checkpoint_round
+    state.status = "running"
+    state.latest_checkpoint = str(checkpoint)
+
+    for relative in (
+        "metrics/clients.jsonl",
+        "metrics/rounds.jsonl",
+        "metrics/evaluation_rounds.jsonl",
+        "metrics/modality_combinations.jsonl",
+        "communication/rounds.jsonl",
+    ):
+        _copy_jsonl_through_round(source_run / relative, run_dir / relative, checkpoint_round)
+
+    source_best = (
+        Path(state.best_checkpoint)
+        if state.best_checkpoint
+        else source_run / "checkpoints/best.pt"
+    )
+    if state.best_round is not None and state.best_round <= checkpoint_round and source_best.exists():
+        destination = run_dir / "checkpoints" / "best.pt"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_best, destination)
+        state.best_checkpoint = str(destination)
+    return state
+
+
 def configured_rounds(values: dict[str, Any]) -> int:
     training = values.get("training", {})
     if isinstance(training, dict) and training.get("max_rounds") is not None:
         return int(training["max_rounds"])
     return int(values.get("max_rounds", values.get("num_rounds", 50)))
+
+
+def rounds_to_run(values: dict[str, Any], state: ExperimentState | None = None) -> int:
+    completed = state.completed_round if state is not None else 0
+    remaining = configured_rounds(values) - completed
+    if remaining < 1:
+        raise ValueError(
+            f"experiment already completed {completed} of {configured_rounds(values)} rounds"
+        )
+    return remaining
 
 
 def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -> ModelFedAvgClient:
@@ -162,14 +251,21 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
     address = str(values.get("server_address") or f"127.0.0.1:{port}")
     server_model = create_model(values.get("model", {}))
     initial_weight_hash = _load_initial_weights(server_model, values)
-    strategy = create_research_fedavg(values, run_dir=run_dir, model=server_model)
+    resume_state = load_resume_state(server_model, values, run_dir)
+    strategy = create_research_fedavg(
+        values,
+        run_dir=run_dir,
+        model=server_model,
+        initial_state=resume_state,
+        round_offset=resume_state.completed_round if resume_state else 0,
+    )
     history: list[Any] = []
 
     def server() -> None:
         history.append(
             fl.server.start_server(
                 server_address=address,
-                config=fl.server.ServerConfig(num_rounds=configured_rounds(values)),
+                config=fl.server.ServerConfig(num_rounds=rounds_to_run(values, resume_state)),
                 strategy=strategy,
             )
         )

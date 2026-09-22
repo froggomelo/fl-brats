@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .orchestration import configured_rounds
+from .orchestration import load_resume_state, rounds_to_run
 from .strategy import create_fedavg
 
 
@@ -33,12 +33,21 @@ def start_server(
         )
         model = create_model(config.get("model", {}))
         _load_initial_weights(model, config)
-        strategy = create_research_fedavg(config, run_dir=run_dir, model=model)
+        resume_state = load_resume_state(model, config, run_dir)
+        strategy = create_research_fedavg(
+            config,
+            run_dir=run_dir,
+            model=model,
+            initial_state=resume_state,
+            round_offset=resume_state.completed_round if resume_state else 0,
+        )
+    else:
+        resume_state = None
 
     fl.server.start_server(
         server_address=address,
         config=fl.server.ServerConfig(
-            num_rounds=configured_rounds(config),
+            num_rounds=rounds_to_run(config, resume_state),
             round_timeout=config.get("round_timeout_seconds"),
         ),
         strategy=strategy or create_fedavg(config),

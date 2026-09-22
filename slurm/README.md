@@ -59,3 +59,25 @@ bash slurm/fedavg_even/federated_baseline_submit.sh
 Both launchers accept the generic launcher's `--dry-run`, `--mode`, and
 `--seed` options. With no options, each launcher submits the three seeds from
 its experiment YAML to SLURM.
+
+## Resume an interrupted federated run
+
+The generic launcher can continue a federated experiment from any completed
+round checkpoint. The configured `training.max_rounds` remains the global
+target, so a checkpoint from round 135 with a target of 150 submits 15 rounds:
+
+```bash
+python3 scripts/launch_experiment.py \
+  configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5.yaml \
+  --mode slurm \
+  --partition bigbatch \
+  --image apptainer/fl-brats-batch.sif \
+  --resume-checkpoint outputs/fedavg_train_configs_uneven/local_epochs_sweeps/<run>/checkpoints/round_0135.pt
+```
+
+Resume creates a new continuation run directory. It restores the model,
+completed round, best metric and round, early-stopping progress, and cumulative
+payload counters. Existing JSONL history through the selected checkpoint is
+copied into the continuation, and new artifacts retain global numbering (the
+first new checkpoint in this example is `round_0136.pt`). The source run is
+never modified.

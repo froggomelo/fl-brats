@@ -6,6 +6,7 @@ import torch
 from flwr.common import ndarrays_to_parameters
 
 from fl_brats.federated.fedamm import aggregate_fedamm_arrays
+from fl_brats.federated.orchestration import load_resume_state, rounds_to_run
 from fl_brats.federated.parameters import state_to_arrays
 from fl_brats.federated.research import (
     CheckpointManager,
@@ -87,3 +88,100 @@ def test_fedamm_architecture_uses_plain_strategy_when_configured_as_fedavg(tmp_p
         model=model,
     )
     assert strategy.__class__.__name__ == "ResearchFedAvgStrategy"
+
+
+def test_resume_restores_state_history_and_global_round_offset(tmp_path) -> None:
+    source = tmp_path / "source"
+    continuation = tmp_path / "continuation"
+    for root in (source, continuation):
+        for relative in ("checkpoints", "metrics", "communication"):
+            (root / relative).mkdir(parents=True, exist_ok=True)
+
+    model = torch.nn.Linear(2, 1)
+    state = ExperimentState(
+        completed_round=3,
+        best_round=2,
+        best_metric=0.75,
+        uploaded_bytes=30,
+        downloaded_bytes=40,
+    )
+    manager = CheckpointManager(source, model, {"name": "tiny"})
+    _, arrays = state_to_arrays(model)
+    checkpoint = manager.save_round(
+        3, ndarrays_to_parameters(arrays), state, {"round": 3}
+    )
+    best = manager.save_alias(checkpoint, "best.pt")
+    state.latest_checkpoint = str(checkpoint)
+    state.best_checkpoint = str(best)
+    RoundArtifactWriter(source).write_state(state)
+    (source / "metrics" / "rounds.jsonl").write_text(
+        '{"round": 1}\n{"round": 3}\n{"round": 4}\n', encoding="utf-8"
+    )
+
+    restored_model = torch.nn.Linear(2, 1)
+    restored = load_resume_state(
+        restored_model, {"resume": str(checkpoint)}, continuation
+    )
+
+    assert restored is not None
+    assert restored.completed_round == 3
+    assert restored.best_round == 2
+    assert restored.status == "running"
+    assert restored.best_checkpoint == str(continuation / "checkpoints" / "best.pt")
+    assert rounds_to_run({"num_rounds": 5}, restored) == 2
+    assert [
+        json.loads(line)["round"]
+        for line in (continuation / "metrics" / "rounds.jsonl").read_text().splitlines()
+    ] == [1, 3]
+
+    strategy = create_research_fedavg(
+        {"num_clients": 1},
+        run_dir=continuation,
+        model=restored_model,
+        initial_state=restored,
+        round_offset=restored.completed_round,
+    )
+    assert strategy.global_round(1) == 4
+
+
+def test_resume_rejects_checkpoint_at_configured_final_round(tmp_path) -> None:
+    state = ExperimentState(completed_round=5)
+    try:
+        rounds_to_run({"num_rounds": 5}, state)
+    except ValueError as error:
+        assert "already completed 5 of 5 rounds" in str(error)
+    else:
+        raise AssertionError("completed checkpoint should not start another Flower server")
+
+
+def test_resumed_aggregation_writes_global_round_number(tmp_path) -> None:
+    model = torch.nn.Linear(2, 1)
+    strategy = create_research_fedavg(
+        {"num_clients": 1},
+        run_dir=tmp_path,
+        model=model,
+        initial_state=ExperimentState(completed_round=3),
+        round_offset=3,
+    )
+    _, arrays = state_to_arrays(model)
+    strategy._round_started[1] = 0.0
+    result = SimpleNamespace(
+        parameters=ndarrays_to_parameters(arrays),
+        num_examples=2,
+        metrics={
+            "client_id": "client_0",
+            "train_loss": 0.2,
+            "loss": 0.1,
+            "mean_dice": 0.8,
+            "upload_numpy_array_bytes": 10,
+            "download_payload_bytes": 20,
+        },
+    )
+
+    parameters, _ = strategy.aggregate_fit(1, [(SimpleNamespace(cid="0"), result)], [])
+
+    assert parameters is not None
+    assert strategy.state.completed_round == 4
+    assert (tmp_path / "checkpoints" / "round_0004.pt").exists()
+    record = json.loads((tmp_path / "metrics" / "rounds.jsonl").read_text().splitlines()[-1])
+    assert record["round"] == 4

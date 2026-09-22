@@ -166,12 +166,17 @@ class ResearchFedAvgStrategy(FedAvg):
         checkpoints: CheckpointManager,
         early_stopping_patience: int | None = None,
         minimum_rounds: int = 0,
+        initial_state: ExperimentState | None = None,
+        round_offset: int = 0,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         if early_stopping_patience is not None and int(early_stopping_patience) < 1:
             raise ValueError("early_stopping_patience must be a positive integer")
-        self.writer, self.checkpoints, self.state = writer, checkpoints, ExperimentState()
+        self.writer = writer
+        self.checkpoints = checkpoints
+        self.state = initial_state or ExperimentState()
+        self.round_offset = max(int(round_offset), 0)
         self.early_stopping_patience = (
             int(early_stopping_patience) if early_stopping_patience is not None else None
         )
@@ -179,6 +184,10 @@ class ResearchFedAvgStrategy(FedAvg):
         self._round_started: dict[int, float] = {}
         self._current_arrays = state_to_arrays(checkpoints.model)[1]
         self._keys = state_to_arrays(checkpoints.model)[0]
+
+    def global_round(self, server_round: int) -> int:
+        """Translate Flower's per-process round into the experiment-wide round."""
+        return self.round_offset + int(server_round)
 
     def _should_stop_early(self) -> bool:
         return (
@@ -210,7 +219,8 @@ class ResearchFedAvgStrategy(FedAvg):
     def aggregate_fit(
         self, server_round: int, results: Any, failures: Any
     ) -> tuple[Parameters | None, dict[str, Any]]:
-        records = self._records(server_round, results, failures)
+        global_round = self.global_round(server_round)
+        records = self._records(global_round, results, failures)
         if self._uses_quantized_payloads(results):
             parameters, metrics = self._aggregate_quantized_fit(server_round, results)
         elif self._uses_sparse_payloads(results):
@@ -232,7 +242,7 @@ class ResearchFedAvgStrategy(FedAvg):
         )
         round_record = {
             "schema_version": SCHEMA_VERSION,
-            "round": server_round,
+            "round": global_round,
             "round_wall_seconds": elapsed,
             "max_client_training_seconds": max_client_training,
             "communication_and_coordination_seconds": coordination,
@@ -244,16 +254,16 @@ class ResearchFedAvgStrategy(FedAvg):
             ),
         }
         next_state = ExperimentState(**asdict(self.state))
-        next_state.completed_round = server_round
+        next_state.completed_round = global_round
         next_state.uploaded_bytes += sum(record.upload_payload_bytes for record in records)
         next_state.downloaded_bytes += sum(record.download_payload_bytes for record in records)
-        checkpoint = self.checkpoints.save_round(server_round, parameters, next_state, round_record)
+        checkpoint = self.checkpoints.save_round(global_round, parameters, next_state, round_record)
         next_state.latest_checkpoint = str(checkpoint)
         self.writer.write_client_records(records)
         self.writer.write_round_record(round_record)
         self.writer.write_communication_record(
             {
-                "round": server_round,
+                "round": global_round,
                 "uploaded_bytes": sum(r.upload_payload_bytes for r in records),
                 "downloaded_bytes": sum(r.download_payload_bytes for r in records),
                 "network_transmission_seconds": None,
@@ -324,11 +334,12 @@ class ResearchFedAvgStrategy(FedAvg):
         self, server_round: int, results: Any, failures: Any
     ) -> tuple[float | None, dict[str, Any]]:
         loss, metrics = super().aggregate_evaluate(server_round, results, failures)
-        records = self._evaluation_records(server_round, results, failures)
+        global_round = self.global_round(server_round)
+        records = self._evaluation_records(global_round, results, failures)
         mean_dice = self._weighted_mean(records, "mean_dice")
         record = {
             "schema_version": SCHEMA_VERSION,
-            "round": server_round,
+            "round": global_round,
             "validation_loss": loss,
             "validation_wt_dice": self._weighted_mean(records, "dice_wt"),
             "validation_tc_dice": self._weighted_mean(records, "dice_tc"),
@@ -354,7 +365,7 @@ class ResearchFedAvgStrategy(FedAvg):
                 self.writer._append(
                     self.writer.run_dir / "metrics" / "modality_combinations.jsonl",
                     {
-                        "round": server_round,
+                        "round": global_round,
                         "client_id": str(result.metrics.get("client_id", proxy.cid)),
                         "metrics": modality_metrics,
                     },
@@ -363,7 +374,7 @@ class ResearchFedAvgStrategy(FedAvg):
         if mean_dice is not None and next_state.latest_checkpoint is not None and (
             next_state.best_metric is None or mean_dice > next_state.best_metric
         ):
-            next_state.best_metric, next_state.best_round = mean_dice, server_round
+            next_state.best_metric, next_state.best_round = mean_dice, global_round
             next_state.best_checkpoint = str(
                 self.checkpoints.save_alias(Path(next_state.latest_checkpoint), "best.pt")
             )

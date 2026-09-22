@@ -84,12 +84,19 @@ def main() -> int:
     parser.add_argument("--partition")
     parser.add_argument("--image", type=Path)
     parser.add_argument(
+        "--resume-checkpoint",
+        type=Path,
+        help="Continue from a federated round checkpoint up to the configured total rounds.",
+    )
+    parser.add_argument(
         "--afterany",
         metavar="JOBID",
         help="Wait for this Slurm job before starting; its exit status is ignored.",
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if args.resume_checkpoint and not args.resume_checkpoint.expanduser().is_file():
+        parser.error(f"resume checkpoint does not exist: {args.resume_checkpoint}")
     values = _load_experiment_yaml(args.config.resolve())
     experiment = values["experiment"]
     seeds = [args.seed] if args.seed is not None else list(experiment.get("seeds", [42]))
@@ -134,6 +141,8 @@ def main() -> int:
             output_root=str(run_dir.parent),
             log_root=str(log_dir),
         )
+        if args.resume_checkpoint:
+            resolved["resume"] = str(args.resume_checkpoint.expanduser().resolve())
         slurm_overrides = dict(resolved.get("slurm", {}))
         if args.partition:
             slurm_overrides["partition"] = args.partition

@@ -20,7 +20,13 @@ def create_fedavg(config: dict[str, Any], evaluate_fn: Any = None) -> Any:
 
 
 def create_research_fedavg(
-    config: dict[str, Any], *, run_dir: Any, model: Any, evaluate_fn: Any = None
+    config: dict[str, Any],
+    *,
+    run_dir: Any,
+    model: Any,
+    evaluate_fn: Any = None,
+    initial_state: Any = None,
+    round_offset: int = 0,
 ) -> Any:
     """Build the classic Flower strategy with server-owned experiment artifacts."""
     from flwr.common import ndarrays_to_parameters
@@ -51,6 +57,8 @@ def create_research_fedavg(
         initial_parameters=ndarrays_to_parameters(state_to_arrays(model)[1]),
         early_stopping_patience=config.get("early_stopping_patience"),
         minimum_rounds=int(config.get("minimum_rounds", 0)),
+        initial_state=initial_state,
+        round_offset=round_offset,
     )
     if config.get("strategy") == "fedamm":
         return FedAMMStrategy(
