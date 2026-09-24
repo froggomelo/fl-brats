@@ -41,6 +41,10 @@ if [[ "$use_apptainer" == "true" ]]; then
     --env "FL_BRATS_LOG_ROOT=${FL_BRATS_LOG_ROOT:-$repo_root/logs}"
     --env "FL_BRATS_CACHE_ROOT=${FL_BRATS_CACHE_ROOT:-$repo_root/cache}"
     --env "FL_BRATS_CHECKPOINT_ROOT=${FL_BRATS_CHECKPOINT_ROOT:-$repo_root/checkpoints}"
+    # torch 2.13 routes some ops (e.g. a batched outer product in SAM's encoder
+    # backward) to Triton kernels, whose runtime needs a C compiler the image
+    # lacks. Every such call would fail, so no run has used them; keep ATen.
+    --env "TORCH_DISABLE_NATIVE_JIT=1"
   )
   # Images bake src/ in at build time. FL_BRATS_BIND_SOURCE=1 runs the checked-out
   # source instead (the image installs fl_brats editable from /workspace/src).
