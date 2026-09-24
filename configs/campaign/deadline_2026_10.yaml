@@ -24,6 +24,9 @@ partitions:
   bigbatch:
     max_active: 1
     set: ["slurm.exclusive=true", "slurm.cpus_per_task=14", "slurm.memory=120000M", 'slurm.time="72:00:00"']
+# After a run finishes, one single-GPU job computes HD95/sensitivity and the
+# modality-robustness pass for every 10th round checkpoint.
+posthoc: {partition: batch, max_active: 2, every: 10}
 runs:
   # Missing modalities, alpha = 0.1
   - {config: configs/fedamm_uneven/alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch, bigbatch]}

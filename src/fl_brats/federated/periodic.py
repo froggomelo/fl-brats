@@ -44,7 +44,7 @@ def lineage_checkpoints(run_dirs: list[Path]) -> dict[int, Path]:
 
 def evaluate_periodic(
     run_dirs: list[Path],
-    split_path: Path,
+    split_path: Path | None = None,
     *,
     every: int = 10,
     index_path: Path | None = None,

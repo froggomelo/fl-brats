@@ -284,6 +284,92 @@ class Campaign:
                 f"server={submitted['jobs']['server']}"
             )
 
+    # ---------------------------------------------------------------- post-hoc
+    def posthoc_dirs(self, unit: dict[str, Any]) -> list[str]:
+        """Run directories of the resume chain that hold round checkpoints, oldest first."""
+        return [
+            attempt["run_dir"]
+            for attempt in unit["attempts"]
+            if any(Path(attempt["run_dir"]).glob("checkpoints/round_*.pt"))
+        ]
+
+    def reconcile_posthoc(self, queue: dict[str, list[tuple[str, str]]]) -> None:
+        """Track the periodic-evaluation job that follows each finished run."""
+        for key, unit in self.state["units"].items():
+            job = unit.get("posthoc")
+            if not job or job["status"] != "active" or job["job"] in queue:
+                continue
+            state_path = Path(job["output"]) / "state.json"
+            try:
+                finished = json.loads(state_path.read_text()).get("status") == "completed"
+            except (OSError, ValueError):
+                finished = False
+            if finished:
+                job["status"] = "done"
+                self.log(f"DONE periodic evaluation {key}")
+                continue
+            self.record_gpu_failures({"log_dir": job["log_dir"]})
+            job["attempts"] = job.get("attempts", 1)
+            if job["attempts"] >= int(self.spec.get("max_attempts_without_progress", 3)) + 2:
+                job["status"] = "stuck"
+                self.log(f"STUCK periodic evaluation {key}")
+            else:
+                job["status"] = "pending"
+                self.log(f"retry periodic evaluation {key}")
+
+    def submit_posthoc(self) -> None:
+        settings = self.spec.get("posthoc") or {}
+        if not settings:
+            return
+        limit = int(settings.get("max_active", 1))
+        active = sum(
+            1 for unit in self.state["units"].values()
+            if unit.get("posthoc", {}).get("status") == "active"
+        )
+        for unit_spec in self.units():
+            if active >= limit:
+                return
+            unit = self.state["units"][unit_spec["key"]]
+            job = unit.get("posthoc")
+            if unit["status"] != "done" or (job and job["status"] in ("active", "done", "stuck")):
+                continue
+            dirs = self.posthoc_dirs(unit)
+            if not dirs:
+                continue
+            log_dir = Path(unit["attempts"][-1]["log_dir"] or self.root) / "periodic"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            partition = settings.get("partition", "batch")
+            command = [
+                "sbatch", "--parsable", f"--partition={partition}",
+                f"--job-name=flb-periodic",
+                f"--cpus-per-task={settings.get('cpus_per_task', 6)}",
+                f"--mem={settings.get('memory', '29000M')}",
+                f"--time={settings.get('time', '24:00:00')}",
+                "--export=ALL,FL_BRATS_REQUIRE_GPU=1,FL_BRATS_BIND_SOURCE=1",
+                f"--output={log_dir}/periodic-%j.out", f"--error={log_dir}/periodic-%j.err",
+            ]
+            if self.state["bad_nodes"]:
+                command.append("--exclude=" + ",".join(sorted(self.state["bad_nodes"])))
+            command += [
+                str(REPO_ROOT / "slurm" / "_shared" / "run_with_configured_environment.sh"),
+                "true", str(settings.get("image", "apptainer/fl-brats-batch.sif")),
+                "fedbrats", "evaluate-periodic-checkpoints",
+                "--every", str(settings.get("every", 10)), "--device", "cuda",
+            ]
+            for run_dir in dirs:
+                command += ["--run-dir", run_dir]
+            result = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True)
+            if result.returncode:
+                self.log(f"periodic submit failed for {unit_spec['key']}: {result.stderr.strip()[-300:]}")
+                return
+            attempts = (job or {}).get("attempts", 0) + 1
+            unit["posthoc"] = {
+                "status": "active", "job": result.stdout.strip(), "log_dir": str(log_dir),
+                "output": str(Path(dirs[-1]) / "periodic_evaluation"), "attempts": attempts,
+            }
+            active += 1
+            self.log(f"submitted periodic evaluation {unit_spec['key']} job={result.stdout.strip()}")
+
     # ------------------------------------------------------------------ status
     def status(self) -> str:
         rows = [f"{'run':70s} {'status':8s} {'round':>5s} {'tries':>5s}  partition"]
@@ -291,9 +377,10 @@ class Campaign:
             unit = self.state["units"][unit_spec["key"]]
             round_number, _ = self.latest_checkpoint(unit["attempts"])
             partition = unit["attempts"][-1]["partition"] if unit["attempts"] else "-"
+            posthoc = unit.get("posthoc", {}).get("status", "-")
             rows.append(
                 f"{unit_spec['key']:70s} {unit['status']:8s} {round_number:5d} "
-                f"{len(unit['attempts']):5d}  {partition}"
+                f"{len(unit['attempts']):5d}  {partition:9s} periodic={posthoc}"
             )
         rows.append("excluded nodes: " + ", ".join(sorted(self.state["bad_nodes"])))
         return "\n".join(rows)
@@ -313,8 +400,11 @@ def main() -> int:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return 0  # a previous tick is still running
-        campaign.reconcile(campaign.queue())
+        queue = campaign.queue()
+        campaign.reconcile(queue)
+        campaign.reconcile_posthoc(queue)
         campaign.submit()
+        campaign.submit_posthoc()
         campaign.save()
     return 0
 

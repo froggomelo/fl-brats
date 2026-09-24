@@ -19,6 +19,9 @@ partitions:
   bigbatch:
     max_active: 1
     set: ["slurm.exclusive=true", "slurm.cpus_per_task=14", "slurm.memory=120000M", 'slurm.time="72:00:00"']
+# After a run finishes, one single-GPU job computes HD95/sensitivity and the
+# modality-robustness pass for every 2th round checkpoint.
+posthoc: {partition: batch, max_active: 2, every: 2}
 runs:
   - {config: configs/smoke/missing_uneven_4_rounds/fedamm_alpha_0_1.yaml, seeds: [42], partitions: [bigbatch]}
   - {config: configs/smoke/missing_uneven_4_rounds/fedavg_alpha_0_1.yaml, seeds: [42], partitions: [batch]}

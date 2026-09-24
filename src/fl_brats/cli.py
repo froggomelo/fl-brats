@@ -1412,7 +1412,9 @@ def evaluate_periodic_checkpoints_command(
     run_dirs: list[Path] = typer.Option(
         ..., "--run-dir", help="Run directories oldest first; a resumed run lists its whole chain."
     ),
-    split: Path = typer.Option(..., "--split"),
+    split: Path | None = typer.Option(
+        None, "--split", help="Defaults to the split recorded in the run's resolved config."
+    ),
     every: int = typer.Option(10, "--every"),
     index_path: Path | None = typer.Option(None, "--index-path"),
     device: str | None = typer.Option(None, "--device"),
