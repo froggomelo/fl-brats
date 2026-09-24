@@ -198,11 +198,12 @@ def client_state_locations(
 ) -> tuple[Path | None, Path | None]:
     """Where this client persists per-round state, and which file a resume restores.
 
-    The launcher sets output_root to the run's parent and run_name to its ID, so
-    both the server and every client resolve the same run directory.
+    ``run_dir`` is the server's run directory, passed explicitly by the Slurm
+    client job and the local orchestrator. It is not re-derived from
+    output_root, which FL_BRATS_OUTPUT_ROOT overrides to the global outputs root.
     """
-    output_root, run_name = values.get("output_root"), values.get("run_name")
-    state_dir = Path(output_root) / str(run_name) / "client_state" if output_root and run_name else None
+    run_dir = values.get("run_dir")
+    state_dir = Path(run_dir) / "client_state" if run_dir else None
     resume = values.get("resume") or values.get("resume_checkpoint")
     if not resume:
         return state_dir, None
@@ -289,6 +290,7 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
     client_ids = [f"client_{i}" for i in range(int(values.get("num_clients", 0)))]
     if not client_ids:
         client_ids = [path.stem for path in sorted(partition_root.glob("client_*.json"))]
+    values = {**values, "run_dir": str(run_dir)}
     clients = [build_client(values, client_id, partition_root) for client_id in client_ids]
     if len(clients) < int(values.get("min_available_clients", len(clients))):
         raise ValueError("fewer usable client partitions than min_available_clients")

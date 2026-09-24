@@ -27,4 +27,5 @@ until (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null; do
 done
 client_id="client_${SLURM_ARRAY_TASK_ID:-0}"
 exec "$repo_root/slurm/_shared/run_with_configured_environment.sh" "$use_apptainer" "$image" \
-  fedbrats start-federated-client --config "$config" --client-id "$client_id" --server-address "$address"
+  fedbrats start-federated-client --config "$config" --client-id "$client_id" --server-address "$address" \
+  --run-dir "$run_dir"

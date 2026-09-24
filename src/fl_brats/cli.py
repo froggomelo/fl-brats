@@ -1297,11 +1297,16 @@ def start_federated_client(
     client_id: str = typer.Option(..., "--client-id"),
     config: Path | None = typer.Option(None, "--config"),
     server_address: str | None = typer.Option(None, "--server-address"),
+    run_dir: Path | None = typer.Option(
+        None, "--run-dir", help="Server run directory; client state is saved under it."
+    ),
 ) -> None:
     """Connect one data-isolated model-aware client to a Flower server."""
     import flwr as fl
 
     values = _experiment_values(config, context)
+    if run_dir is not None:
+        values["run_dir"] = str(run_dir)
     address = server_address or values.get("server_address")
     if not address:
         raise typer.BadParameter("--server-address or server_address in config is required")

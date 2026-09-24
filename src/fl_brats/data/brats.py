@@ -16,6 +16,7 @@ from monai.data import (  # type: ignore[attr-defined]
     PersistentDataset,
     list_data_collate,
 )
+from monai.data.utils import worker_init_fn as monai_worker_init_fn
 from monai.utils import convert_to_tensor
 from torch.utils.data import DataLoader
 
@@ -267,6 +268,10 @@ def build_dataloader(
         pin_memory = _env_flag("FL_BRATS_PIN_MEMORY")
     if pin_memory is None:
         pin_memory = torch.cuda.is_available()
+    # Each worker process starts with a copy of the transforms' random state.
+    # MONAI's worker_init_fn reseeds them per worker from the loader generator;
+    # without it every worker would produce the same crops and flips.
+    # Persistent workers keep those streams advancing across epochs and rounds.
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -275,4 +280,6 @@ def build_dataloader(
         generator=generator,
         pin_memory=pin_memory,
         collate_fn=list_data_collate,
+        worker_init_fn=monai_worker_init_fn if workers > 0 else None,
+        persistent_workers=workers > 0,
     )

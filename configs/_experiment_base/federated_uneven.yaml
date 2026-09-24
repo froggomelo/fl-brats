@@ -10,7 +10,7 @@ output_root: outputs
 log_root: logs
 cache_root: cache
 checkpoint_root: checkpoints
-num_workers: 0
+num_workers: 3
 initial_weights: artifacts/initial_weights/unet_seed_42.pt
 initial_weights_by_seed:
   42: artifacts/initial_weights/unet_seed_42.pt
@@ -38,7 +38,8 @@ optimizer:
 training:
   batch_size: 1
   max_rounds: 150
-  num_workers: 0
+  # Three loader workers overlap data fetch with the GPU step on 6-CPU nodes.
+  num_workers: 3
   pin_memory: false
 federated:
   strategy: fedavg
