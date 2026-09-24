@@ -188,10 +188,15 @@ class Campaign:
                 reason = "a client ended while the others were still waiting"
             elif server and server[0][0] == "RUNNING" and not clients:
                 # Clients exit after the last round while the server finalizes
-                # (final and robustness evaluation). Only give up after a grace period.
+                # (best/final evaluation). Finalization writes final.pt first, so
+                # clients gone without final.pt means they crashed mid-training.
                 attempt.setdefault("clients_gone_since", _now())
+                gone = _now() - attempt["clients_gone_since"]
+                finalizing = (Path(attempt["run_dir"]) / "checkpoints" / "final.pt").is_file()
                 grace = float(self.spec.get("finalize_minutes", 180)) * 60
-                if _now() - attempt["clients_gone_since"] > grace:
+                if not finalizing and gone > 600:
+                    reason = "all clients ended before training finished"
+                elif gone > grace:
                     reason = "server still running long after all clients ended"
             elif not server and clients:
                 reason = "server ended while clients remained"
