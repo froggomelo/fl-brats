@@ -159,7 +159,9 @@ def evaluate(
         aggregate.update({f"{region}_{metric}": 0.0 for region in REGIONS})
         aggregate[f"mean_{metric}"] = 0.0
     samples = 0
-    parallel_hd95 = "hd95" in metric_names and hd95_workers > 0
+    # On CUDA, HD95 runs on the GPU inline (fl_brats.metrics.segmentation); the
+    # process pool is for CPU evaluation only.
+    parallel_hd95 = "hd95" in metric_names and hd95_workers > 0 and device.type != "cuda"
     inline = tuple(name for name in metric_names if name != "dice" and not (parallel_hd95 and name == "hd95"))
     pending: deque[tuple[Any, int]] = deque()
     batch_rows: list[dict[str, float]] = []

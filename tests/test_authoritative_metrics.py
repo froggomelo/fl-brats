@@ -99,3 +99,25 @@ def test_parallel_hd95_matches_serial_evaluation() -> None:
     serial = evaluate(model, loader, loss, torch.device("cpu"))
     parallel = evaluate(model, loader, loss, torch.device("cpu"), hd95_workers=2)
     assert serial == parallel
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="GPU HD95 needs CUDA")
+def test_gpu_hd95_matches_monai_exactly() -> None:
+    from monai.metrics import compute_hausdorff_distance
+
+    from fl_brats.metrics.segmentation import _hd95_gpu
+
+    generator = torch.Generator().manual_seed(0)
+    for case in range(40):
+        shape = (40, 36, 30)
+        truth = torch.zeros(shape, dtype=torch.bool)
+        truth[8:25, 10:24, 5:20] = True
+        noise = torch.rand(shape, generator=generator) < (0.002 * (case % 5))
+        prediction = torch.roll(truth, shifts=case % 4, dims=case % 3) | noise
+        expected = float(
+            compute_hausdorff_distance(
+                prediction[None, None].float(), truth[None, None].float(),
+                include_background=True, percentile=95,
+            ).item()
+        )
+        assert _hd95_gpu(prediction.cuda(), truth.cuda()) == expected

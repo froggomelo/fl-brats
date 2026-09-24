@@ -4,9 +4,40 @@ from __future__ import annotations
 
 import torch
 from monai.metrics import compute_hausdorff_distance  # type: ignore[attr-defined]
+from monai.metrics.utils import get_mask_edges
 
 
 REGIONS = ("wt", "tc", "et")
+
+
+def _nearest_edge_distances(source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """Euclidean distance from each ``source`` voxel to the nearest ``target`` voxel.
+
+    Equals MONAI's exact EDT lookup: squared distances between integer
+    coordinates are computed exactly (at most ~1.4e5, well inside float32's
+    exact-integer range), the square root is taken in float64 and stored as
+    float32, as monai_distance_transform_edt does. Chunked to bound memory.
+    """
+    source_points = source.nonzero().to(torch.float32)
+    target_points = target.nonzero().to(torch.float32)
+    best = torch.empty(len(source_points), dtype=torch.float32, device=source.device)
+    chunk = max(1, (1 << 25) // max(len(target_points), 1))  # ~400 MB per block
+    for start in range(0, len(source_points), chunk):
+        block = source_points[start : start + chunk]
+        squared = ((block[:, None, :] - target_points[None, :, :]) ** 2).sum(-1)
+        best[start : start + chunk] = squared.min(dim=1).values
+    return best.double().sqrt().float()
+
+
+def _hd95_gpu(predicted: torch.Tensor, truth: torch.Tensor) -> float:
+    """HD95 of two non-empty [H, W, D] masks with MONAI's edges and percentile."""
+    edges_pred, edges_gt = get_mask_edges(predicted, truth, crop=True, always_return_as_numpy=False)[:2]
+    edges_pred, edges_gt = edges_pred.to(predicted.device), edges_gt.to(predicted.device)
+    directed = (
+        _nearest_edge_distances(edges_pred, edges_gt).cpu(),
+        _nearest_edge_distances(edges_gt, edges_pred).cpu(),
+    )
+    return float(torch.max(torch.stack([torch.quantile(d, 0.95) for d in directed])))
 
 
 def _hd95(prediction: torch.Tensor, target: torch.Tensor) -> list[float]:
@@ -22,6 +53,10 @@ def _hd95(prediction: torch.Tensor, target: torch.Tensor) -> list[float]:
                 value = 0.0
             elif not predicted_nonempty or not truth_nonempty:
                 value = spatial_diagonal
+            elif predicted.is_cuda:
+                # MONAI's CPU distance transform takes seconds per region for
+                # scattered predictions; the GPU edge search gives the same values.
+                value = _hd95_gpu(predicted[0, 0], truth[0, 0])
             else:
                 distance = compute_hausdorff_distance(
                     predicted.float(), truth.float(), include_background=True, percentile=95
