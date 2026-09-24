@@ -147,7 +147,23 @@ class Campaign:
         return found
 
     # --------------------------------------------------------------- reconcile
+    def sweep_orphans(self, queue: dict[str, list[tuple[str, str]]]) -> None:
+        """Cancel jobs of ended attempts that are still queued.
+
+        A cancel can fail silently; left alone, such orphans hold job slots
+        (the per-user QOS limit) and starve the attempts that replaced them.
+        """
+        for key, unit in self.state["units"].items():
+            for attempt in unit["attempts"]:
+                if "ended" not in attempt:
+                    continue
+                alive = [job for job in attempt["jobs"].values() if job in queue]
+                if alive:
+                    subprocess.run(["scancel", *alive], check=False)
+                    self.log(f"cancelled orphaned jobs {alive} of {key} ({attempt['run_id']})")
+
     def reconcile(self, queue: dict[str, list[tuple[str, str]]]) -> None:
+        self.sweep_orphans(queue)
         stall_seconds = float(self.spec.get("stall_minutes", 75)) * 60
         for key, unit in self.state["units"].items():
             if unit["status"] != "active":
