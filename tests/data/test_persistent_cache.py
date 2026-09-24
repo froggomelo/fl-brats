@@ -67,3 +67,10 @@ def test_truncated_cache_entry_is_rebuilt(raw_root: Path, tmp_path: Path) -> Non
     assert torch.equal(torch.as_tensor(rebuilt["image"]), torch.as_tensor(expected["image"]))
     assert len(entry.read_bytes()) > 100
     assert not list(cache_dir.glob(".*.tmp"))
+
+
+def test_node_cache_location_uses_local_root(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("FL_BRATS_NODE_CACHE_ROOT", str(tmp_path / "node"))
+    monkeypatch.setenv("FL_BRATS_CACHE_ROOT", str(tmp_path / "shared"))
+    assert persistent_cache_dir({"cache_location": "node"}).parent == tmp_path / "node"
+    assert persistent_cache_dir({}).parent == tmp_path / "shared" / "persistent"

@@ -21,6 +21,8 @@ data:
   split_path: data/splits/brats2021.json
   client_proportions: [0.50, 0.25, 0.15, 0.10]
   cache_mode: persistent
+  # Cache preprocessed volumes on each node's local SSD (/var/tmp), not on NFS.
+  cache_location: node
 model:
   name: unet
   in_channels: 4

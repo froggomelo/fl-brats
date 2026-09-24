@@ -197,7 +197,16 @@ def persistent_cache_dir(data: dict[str, Any]) -> Path:
         "divisible_by": data.get("divisible_by", 16),
     }
     digest = hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()[:16]
-    root = Path(data.get("cache_dir") or Path(os.environ.get("FL_BRATS_CACHE_ROOT", "cache")) / "persistent")
+    if data.get("cache_dir"):
+        root = Path(data["cache_dir"])
+    elif data.get("cache_location", "shared") == "node":
+        # An uncompressed cached sample is ~7x its .nii.gz source, so a cache on
+        # NFS trades CPU for network I/O that slow nodes cannot sustain. Cluster
+        # nodes have local SSDs; /var/tmp lives there and Apptainer binds it.
+        user = os.environ.get("USER") or "user"
+        root = Path(os.environ.get("FL_BRATS_NODE_CACHE_ROOT", f"/var/tmp/{user}/fl-brats-cache"))
+    else:
+        root = Path(os.environ.get("FL_BRATS_CACHE_ROOT", "cache")) / "persistent"
     return root / digest
 
 

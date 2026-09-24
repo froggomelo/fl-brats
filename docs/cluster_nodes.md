@@ -29,6 +29,15 @@ mscluster124 (batch) held a client in uninterruptible I/O wait for more than
 It is not excluded. The campaign's stall detection resubmits runs that stop
 making progress.
 
+## Preprocessing cache
+
+Batch nodes have a local 500 GB SSD; `/var/tmp` lives on it and Apptainer
+binds it. Experiments cache preprocessed volumes there
+(`data.cache_location: node`, `/var/tmp/$USER/fl-brats-cache`). An entry is
+about 75 MB against 10 MB for the `.nii.gz` source, so a cache on NFS
+(`cache/persistent`) moves the bottleneck to network I/O. Remove old node
+caches with `rm -rf /var/tmp/$USER/fl-brats-cache` in a job on that node.
+
 ## Partition facts
 
 | Partition | Node | Per-user limits | Wall time |
