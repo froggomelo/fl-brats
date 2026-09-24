@@ -125,18 +125,29 @@ class Campaign:
                 count += 1
         return count
 
-    def fits(self, partition: str, needed: int, budget: int | None = None) -> bool:
-        """Whether a run's jobs can all hold slots at once under a job budget.
+    def training_jobs(self, partition: str) -> int:
+        """Jobs held by the campaign's active training runs on a partition."""
+        return sum(
+            self.jobs_needed(unit_spec["config"])
+            for unit_spec in self.units()
+            if (unit := self.state["units"][unit_spec["key"]])["status"] == "active"
+            and unit["attempts"][-1]["partition"] == partition
+        )
+
+    def fits(self, partition: str, needed: int, *, training: bool = True) -> bool:
+        """Whether a run's jobs can all hold slots at once.
 
         A run whose jobs cannot all start deadlocks: the server waits for a
-        client that waits for a slot. The default budget is the partition's
-        training budget (max_jobs); periodic evaluation passes its own.
+        client that waits for a slot. Every job of ours counts against the
+        per-user limit (job_limit); training runs also stay within their own
+        budget (max_jobs), so evaluation jobs never shrink the training lanes.
         """
-        if budget is None:
-            budget = self.spec["partitions"].get(partition, {}).get("max_jobs")
-        if budget is None:
-            return True
-        return self.jobs_holding_slots(partition) + needed <= int(budget)
+        settings = self.spec["partitions"].get(partition, {})
+        limit = settings.get("job_limit")
+        if limit is not None and self.jobs_holding_slots(partition) + needed > int(limit):
+            return False
+        budget = settings.get("max_jobs") if training else None
+        return budget is None or self.training_jobs(partition) + needed <= int(budget)
 
     @staticmethod
     def jobs_needed(config: str) -> int:
@@ -469,7 +480,7 @@ class Campaign:
         )
         partition = settings.get("partition", "batch")
         for unit_spec in self.units():
-            if active >= limit or not self.fits(partition, 1, settings.get("max_jobs")):
+            if active >= limit or not self.fits(partition, 1, training=False):
                 return
             unit = self.state["units"][unit_spec["key"]]
             job = unit.get("posthoc")

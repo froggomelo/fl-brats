@@ -19,18 +19,17 @@ known_bad_nodes:
   mscluster83: bigbatch GPU unusable (2026-09-24 probe)
   mscluster129: batch GPU unusable (2026-09-24 probe)
 partitions:
-  # batch allows 13 running jobs per user. A run is only submitted when all
-  # its jobs (server + clients, or one centralized job) can hold a slot at
-  # once. Training may use 11 slots (two five-job runs plus a centralized
-  # run); periodic evaluation may use all 13, so two slots are always free
-  # for evaluating finished runs.
-  batch: {max_active: 3, max_jobs: 11}
+  # batch allows 13 running jobs per user (job_limit). A run is only submitted
+  # when all its jobs (server + clients, or one centralized job) can hold a
+  # slot at once. Training runs hold at most 11 slots (two five-job runs plus
+  # a centralized run), so two always remain for periodic evaluation.
+  batch: {max_active: 3, max_jobs: 11, job_limit: 13}
   # Not used for final training (2026-09-24): no working node was free and the
   # queue head waited ~3 days. Kept so status shows the old attempts.
-  bigbatch: {max_active: 0, max_jobs: 6}
+  bigbatch: {max_active: 0, max_jobs: 6, job_limit: 6}
 # After a run finishes, one single-GPU job computes HD95/sensitivity and the
 # modality-robustness pass for every 10th round checkpoint, then the test report.
-posthoc: {partition: batch, max_active: 2, max_jobs: 13, every: 10}
+posthoc: {partition: batch, max_active: 2, every: 10}
 runs:
   # Missing modalities, alpha = 0.1
   - {config: configs/fedamm_uneven/alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
