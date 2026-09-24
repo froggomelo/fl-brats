@@ -2,7 +2,7 @@
 
 ## Centralized
 K = 1
-Rounds = 50
+Rounds = 100
 B = 1
 
 3 runs

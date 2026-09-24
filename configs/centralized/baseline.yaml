@@ -19,10 +19,10 @@ data:
   cache_mode: persistent
   cache_location: node
 model: {name: unet_baseline}
-# Experiments.md: centralized trains 50 epochs (K = 1, B = 1). The minimum equals
+# Experiments.md: centralized trains 100 epochs (K = 1, B = 1). The minimum equals
 # the maximum, so early stopping never ends a run early; best.pt is still the
 # epoch with the highest validation Dice, the federated selection rule.
-training: {epochs: 50, minimum_epochs: 50, batch_size: 1, num_workers: 3, pin_memory: false, early_stopping_patience: 25, early_stopping_min_delta: 0.001}
+training: {epochs: 100, minimum_epochs: 100, batch_size: 1, num_workers: 3, pin_memory: false, early_stopping_patience: 25, early_stopping_min_delta: 0.001}
 # Same job shape as a federated client on batch (one RTX 3060).
 slurm:
   partition: batch
