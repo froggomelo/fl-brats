@@ -1419,10 +1419,13 @@ def evaluate_periodic_checkpoints_command(
     index_path: Path | None = typer.Option(None, "--index-path"),
     device: str | None = typer.Option(None, "--device"),
     hd95_workers: int | None = typer.Option(None, "--hd95-workers"),
+    test_best: bool = typer.Option(
+        False, "--test-best", help="Afterwards, report test metrics for the selected checkpoint."
+    ),
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     """Resumable full metrics and modality robustness for every Nth round checkpoint."""
-    from fl_brats.federated.periodic import evaluate_periodic
+    from fl_brats.federated.periodic import evaluate_best_on_test, evaluate_periodic
 
     typer.echo(
         json.dumps(
@@ -1433,6 +1436,8 @@ def evaluate_periodic_checkpoints_command(
             indent=2,
         )
     )
+    if test_best and not dry_run:
+        typer.echo(f"test report: {evaluate_best_on_test(run_dirs, device=device)}")
 
 
 @app.command("revalidate-federated-runs")

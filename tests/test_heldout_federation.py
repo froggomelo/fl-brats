@@ -491,3 +491,28 @@ def test_periodic_evaluation_spans_resume_chain_and_resumes(tmp_path, monkeypatc
     assert rounds == [10, 20, 30]
     assert combos == [10, 10, 20, 20, 30, 30]
     assert len(calls) == 4  # 10, interrupted 20, then 20 and 30
+
+
+def test_test_report_uses_state_best_checkpoint_across_resume(tmp_path, monkeypatch):
+    from fl_brats.federated import periodic
+
+    first, split = fixture_run(tmp_path)
+    second = tmp_path / "continuation"
+    (second / "checkpoints").mkdir(parents=True)
+    best = first / "checkpoints/round_0010.pt"
+    best.write_bytes(b"best")
+    (second / "state.json").write_text(json.dumps({"status": "completed", "best_checkpoint": str(best)}))
+    seen = {}
+
+    def fake_final(run_dir, split_path, *, checkpoint, device):
+        seen.update(run_dir=run_dir, checkpoint=checkpoint)
+        (run_dir / "final_evaluation").mkdir()
+        (run_dir / "final_evaluation/metrics.json").write_text("{}")
+        return run_dir / "final_evaluation"
+
+    monkeypatch.setattr(periodic, "evaluate_final_run", fake_final)
+    periodic.evaluate_best_on_test([first, second])
+    assert seen == {"run_dir": second.resolve(), "checkpoint": best}
+    seen.clear()
+    periodic.evaluate_best_on_test([first, second])  # idempotent: existing report is kept
+    assert seen == {}

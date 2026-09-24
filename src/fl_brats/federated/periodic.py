@@ -25,7 +25,13 @@ from fl_brats.models.factory import create_model
 
 from .evaluation import HeldOutEvaluator
 from .research import atomic_write_json
-from .revalidation import atomic_jsonl, discover_checkpoints, evaluation_lock, run_values
+from .revalidation import (
+    atomic_jsonl,
+    discover_checkpoints,
+    evaluate_final_run,
+    evaluation_lock,
+    run_values,
+)
 
 
 def lineage_checkpoints(run_dirs: list[Path]) -> dict[int, Path]:
@@ -142,3 +148,23 @@ def evaluate_periodic(
         atomic_write_json(output / "summary.json", summary)
         atomic_write_json(output / "state.json", {"status": "completed", "completed": len(rows)})
         return summary
+
+
+def evaluate_best_on_test(run_dirs: list[Path], *, device: str | None = None) -> Path:
+    """Report test-cohort metrics for the checkpoint selected on validation.
+
+    After a resume the newest run directory has no best.pt when the best round
+    came earlier, so the checkpoint comes from state.json's absolute path.
+    Skipped when a report already exists, so reruns are idempotent.
+    """
+    last = run_dirs[-1].resolve()
+    destination = last / "final_evaluation"
+    if (destination / "metrics.json").is_file():
+        return destination
+    state = json.loads((last / "state.json").read_text(encoding="utf-8"))
+    if state.get("status") not in ("completed", "early_stopped"):
+        raise ValueError(f"run is not finished ({state.get('status')}): {last}")
+    best = Path(state["best_checkpoint"])
+    if not best.is_file():
+        raise ValueError(f"selected checkpoint is missing: {best}")
+    return evaluate_final_run(last, None, checkpoint=best, device=device)

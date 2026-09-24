@@ -300,8 +300,12 @@ class Campaign:
             if not job or job["status"] != "active" or job["job"] in queue:
                 continue
             state_path = Path(job["output"]) / "state.json"
+            test_report = Path(job["output"]).parent / "final_evaluation" / "metrics.json"
             try:
-                finished = json.loads(state_path.read_text()).get("status") == "completed"
+                finished = (
+                    json.loads(state_path.read_text()).get("status") == "completed"
+                    and test_report.is_file()
+                )
             except (OSError, ValueError):
                 finished = False
             if finished:
@@ -354,7 +358,7 @@ class Campaign:
                 str(REPO_ROOT / "slurm" / "_shared" / "run_with_configured_environment.sh"),
                 "true", str(settings.get("image", "apptainer/fl-brats-batch.sif")),
                 "fedbrats", "evaluate-periodic-checkpoints",
-                "--every", str(settings.get("every", 10)), "--device", "cuda",
+                "--every", str(settings.get("every", 10)), "--device", "cuda", "--test-best",
             ]
             for run_dir in dirs:
                 command += ["--run-dir", run_dir]
