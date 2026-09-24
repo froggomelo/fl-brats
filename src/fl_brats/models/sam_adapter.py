@@ -273,6 +273,9 @@ class SAMAdapter(SegmentationModel):
             raise ValueError("SAM adapter expects 2D slices [N, 4, H, W]")
         if prompts:
             raise ValueError("SAM adapters use learned prompts only; external prompts are not accepted")
+        # MONAI MetaTensors route every operation through metadata tracking,
+        # which is pure overhead inside the encoder.
+        image = image.as_subclass(torch.Tensor)
         return torch.cat([self._forward_chunk(chunk) for chunk in self._chunks(image)])
 
     def _chunks(self, image: torch.Tensor) -> Iterator[torch.Tensor]:
