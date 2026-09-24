@@ -48,6 +48,8 @@ def run_values(run_dir: Path, device: str | None = None) -> dict[str, Any]:
     data = values.setdefault("data", {})
     data.setdefault("cache_mode", "persistent")
     data.setdefault("cache_location", "node")
+    # Evaluation is deterministic, so loader workers change speed only.
+    values["num_workers"] = max(int(values.get("num_workers") or 0), 3)
     return values
 
 
