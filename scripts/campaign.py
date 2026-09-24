@@ -376,14 +376,16 @@ class Campaign:
 
     # ------------------------------------------------------------------ status
     def status(self) -> str:
-        rows = [f"{'run':70s} {'status':8s} {'round':>5s} {'tries':>5s}  partition"]
+        rows = [f"{'run':70s} {'status':8s} {'round':>5s} {'idle':>6s} {'tries':>5s}  partition"]
         for unit_spec in self.units():
             unit = self.state["units"][unit_spec["key"]]
-            round_number, _ = self.latest_checkpoint(unit["attempts"])
+            round_number, path = self.latest_checkpoint(unit["attempts"])
             partition = unit["attempts"][-1]["partition"] if unit["attempts"] else "-"
             posthoc = unit.get("posthoc", {}).get("status", "-")
+            # Minutes since the last round checkpoint: the stall signal for active runs.
+            idle = f"{(_now() - path.stat().st_mtime) / 60:5.0f}m" if path and unit["status"] == "active" else "     -"
             rows.append(
-                f"{unit_spec['key']:70s} {unit['status']:8s} {round_number:5d} "
+                f"{unit_spec['key']:70s} {unit['status']:8s} {round_number:5d} {idle} "
                 f"{len(unit['attempts']):5d}  {partition:9s} periodic={posthoc}"
             )
         rows.append("excluded nodes: " + ", ".join(sorted(self.state["bad_nodes"])))
