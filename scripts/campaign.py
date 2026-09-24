@@ -146,6 +146,19 @@ class Campaign:
             return 1
         return 1 + int(values.get("federated", {}).get("num_clients", 4))
 
+    def resume_point(self, config: str, attempts: list[dict[str, Any]]) -> tuple[int, Path | None]:
+        """Where a retry continues: the latest round checkpoint, or for a
+        centralized run the last.pt of the attempt with the most epochs."""
+        if self.jobs_needed(config) > 1:
+            return self.latest_checkpoint(attempts)
+        best: tuple[int, Path | None] = (0, None)
+        for attempt in attempts:
+            epochs, _ = self.epochs_done(attempt)
+            last = Path(attempt["run_dir"]) / "checkpoints" / "last.pt"
+            if epochs > best[0] and last.is_file():
+                best = (epochs, last)
+        return best
+
     @staticmethod
     def epochs_done(attempt: dict[str, Any]) -> tuple[int, float]:
         """Completed epochs of a centralized attempt and when the last one finished."""
@@ -289,7 +302,7 @@ class Campaign:
         self, key: str, unit: dict[str, Any], attempt: dict[str, Any],
         job: list[tuple[str, str]], stall_seconds: float,
     ) -> None:
-        """A centralized run is one job; it has no resume, so a retry starts fresh."""
+        """A centralized run is one job; a retry resumes from its last completed epoch."""
         if self.record_gpu_failures(attempt):
             attempt["hit_bad_node"] = True
         if job and job[0][0] == "RUNNING" and "running_since" not in attempt:
@@ -320,7 +333,7 @@ class Campaign:
             self.log(f"STUCK {key}: {limit} attempts without progress; last: {reason}")
         else:
             unit["status"] = "pending"
-            self.log(f"retry {key}: {reason} after {epochs} epochs; restart from scratch")
+            self.log(f"retry {key}: {reason} after {epochs} epochs")
 
     def archive_off_partition(self) -> None:
         """Set aside finished attempts made on a partition the unit may no longer use.
@@ -372,7 +385,7 @@ class Campaign:
                 # Strict priority: a later, smaller run must not take the slots
                 # the next run in order is waiting for.
                 return
-            round_number, checkpoint = self.latest_checkpoint(unit["attempts"])
+            round_number, checkpoint = self.resume_point(unit_spec["config"], unit["attempts"])
             command = [
                 sys.executable, str(REPO_ROOT / "scripts" / "launch_experiment.py"),
                 unit_spec["config"], "--mode", "slurm", "--seed", str(unit_spec["seed"]),
@@ -404,7 +417,7 @@ class Campaign:
             active[partition] = active.get(partition, 0) + 1
             self.log(
                 f"submitted {unit_spec['key']} on {partition} "
-                f"({'resume from round ' + str(round_number) if checkpoint else 'fresh'}) "
+                f"({'resume from ' + str(round_number) if checkpoint else 'fresh'}) "
                 f"job={submitted['jobs'].get('server', submitted['jobs'].get('job'))}"
             )
 

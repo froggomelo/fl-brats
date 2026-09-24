@@ -81,6 +81,7 @@ def _command(config: Path, values: dict[str, Any], run_dir: Path, seed: int) -> 
             "--cache-location", str(data.get("cache_location", "shared")),
             "--pin-memory" if training.get("pin_memory") else "--no-pin-memory",
             "--seed", str(seed), "--device", str(values.get("device", "auto")),
+            *(["--resume-checkpoint", str(values["resume"])] if values.get("resume") else []),
         ]
     return ["fedbrats", "train-federated", "--config", str(config), "--run-dir", str(run_dir)]
 

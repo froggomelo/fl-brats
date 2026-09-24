@@ -627,6 +627,11 @@ def train_centralized(
     ),
     seed: int = typer.Option(42, "--seed"),
     device: str = typer.Option("auto", "--device"),
+    resume_checkpoint: Path | None = typer.Option(
+        None,
+        "--resume-checkpoint",
+        help="last.pt of an interrupted run; training continues after its epoch.",
+    ),
 ) -> None:
     """Train on the union of frozen client subjects and evaluate fixed global sets."""
     import torch
@@ -695,7 +700,51 @@ def train_centralized(
     best, best_epoch, epochs_without_improvement = float("-inf"), 0, 0
     started = time.monotonic()
     metrics_file = run_dir / "metrics.jsonl"
-    for epoch in range(1, epochs + 1):
+    start_epoch = 1
+    if resume_checkpoint is not None:
+        # Continue an interrupted run: model and optimizer from its last epoch,
+        # its epoch log, and the stopping state replayed from that log with the
+        # same rule, so selection and patience are exactly as if uninterrupted.
+        # Data-loader randomness restarts from the seed, as for federated resumes.
+        resumed = load_checkpoint(resume_checkpoint)
+        model.load_state_dict(resumed["model_state"], strict=True)
+        optimizer.load_state_dict(resumed["optimizer_state"])
+        last_epoch = int(resumed["epoch"])
+        previous = resume_checkpoint.resolve().parent.parent
+        history = [
+            json.loads(line)
+            for line in (previous / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
+            if line
+        ]
+        history = [record for record in history if int(record["epoch"]) <= last_epoch]
+        if [int(record["epoch"]) for record in history] != list(range(1, last_epoch + 1)):
+            raise typer.BadParameter(f"epoch log of {previous} does not cover epochs 1-{last_epoch}")
+        metrics_file.write_text(
+            "".join(json.dumps(record, sort_keys=True) + "\n" for record in history), encoding="utf-8"
+        )
+        for record in history:
+            if float(record["validation_mean_dice"]) > best + early_stopping_min_delta:
+                best, best_epoch = float(record["validation_mean_dice"]), int(record["epoch"])
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
+        previous_best = previous / "checkpoints" / "best.pt"
+        if best_epoch == last_epoch or not previous_best.is_file():
+            # The interruption can fall between saving last.pt and best.pt.
+            best_payload = {key: resumed[key] for key in ("model_state", "model_config", "model_input_channels")}
+            best_payload |= {"epoch": last_epoch, "best_validation_metric": best}
+        else:
+            best_payload = load_checkpoint(previous_best)
+            if int(best_payload["epoch"]) != best_epoch:
+                raise typer.BadParameter(f"{previous_best} is not the best epoch {best_epoch}")
+        save_checkpoint(run_dir / "checkpoints" / "best.pt", best_payload)
+        start_epoch = last_epoch + 1
+        typer.echo(
+            f"resumed from {resume_checkpoint} after epoch {last_epoch}; best_epoch={best_epoch} "
+            f"epochs_without_improvement={epochs_without_improvement}",
+            err=True,
+        )
+    for epoch in range(start_epoch, epochs + 1):
         training = train_one_epoch(model, train_loader, loss_fn, optimizer, selected)
         # Selection uses natural validation Dice, as in federated rounds, so the
         # per-epoch pass skips HD95/sensitivity; the test report computes them.
@@ -806,6 +855,7 @@ def train_centralized(
             },
         },
         "total_training_time": time.monotonic() - started,
+        "resumed_from": str(resume_checkpoint) if resume_checkpoint is not None else None,
         "model_config": model_values,
         "loss_config": loss_values,
         "preprocessing_config": data_values,
