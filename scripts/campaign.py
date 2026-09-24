@@ -53,9 +53,18 @@ class Campaign:
         for node, reason in (self.spec.get("known_bad_nodes") or {}).items():
             self.state["bad_nodes"].setdefault(node, reason)
         for unit in self.units():
-            self.state["units"].setdefault(
+            record = self.state["units"].setdefault(
                 unit["key"], {"status": "pending", "attempts": [], "no_progress": 0}
             )
+            if unit["existing"] and not record["attempts"]:
+                # Adopt a run from before the campaign so it resumes rather than restarts.
+                record["attempts"].append(
+                    {
+                        "run_id": Path(unit["existing"]).name, "run_dir": unit["existing"],
+                        "log_dir": "", "jobs": {}, "partition": "-", "start_round": 0,
+                        "ended": _now(), "end_reason": "adopted pre-campaign run",
+                    }
+                )
 
     # ----------------------------------------------------------------- helpers
     def units(self) -> list[dict[str, Any]]:
@@ -69,6 +78,7 @@ class Campaign:
                         "seed": int(seed),
                         "partitions": list(entry.get("partitions", ["batch"])),
                         "set": list(entry.get("set", [])),
+                        "existing": (entry.get("existing") or {}).get(seed),
                     }
                 )
         return units

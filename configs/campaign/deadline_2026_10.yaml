@@ -1,0 +1,52 @@
+# Every remaining training run for the mid-October 2026 deadline, in priority
+# order. Missing-modality runs come first. The communication-efficiency tuning
+# runs come early because the comm_eff "best" configs depend on their results;
+# add those configs here once the best p and bit widths are chosen. SAM is
+# last and is the first thing to drop if time runs out.
+name: deadline_2026_10
+stall_minutes: 75
+finalize_minutes: 180
+max_attempts_without_progress: 3
+known_bad_nodes:
+  mscluster44: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster45: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster57: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster59: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster62: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster65: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster75: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster83: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster129: batch GPU unusable (2026-09-24 probe)
+partitions:
+  # 13 running jobs per user: two five-job runs, leaving room for revalidation.
+  batch: {max_active: 2}
+  # 6 running jobs per user: one run. Whole nodes so each client owns its GPU.
+  bigbatch:
+    max_active: 1
+    set: ["slurm.exclusive=true", "slurm.cpus_per_task=14", "slurm.memory=120000M", 'slurm.time="72:00:00"']
+runs:
+  # Missing modalities, alpha = 0.1
+  - {config: configs/fedamm_uneven/alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch, bigbatch]}
+  - {config: configs/fedavg_missing_modalities_uneven/alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch, bigbatch]}
+  # Communication-efficiency tuning (prerequisite for the comm_eff best runs)
+  - {config: configs/selective_transmission_uneven/p_0_25.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  - {config: configs/selective_transmission_uneven/p_0_1.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  - {config: configs/selective_transmission_uneven/p_0_01.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  - {config: configs/fedmpq_uneven/homogeneous_4bit.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  - {config: configs/fedmpq_uneven/heterogeneous_2_4_8bit.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  # Missing modalities, alpha = 0.001
+  - {config: configs/fedamm_uneven/alpha_0_001.yaml, seeds: [42, 43, 44], partitions: [batch, bigbatch]}
+  - {config: configs/fedavg_train_configs_uneven/modality_sweep/alpha_0_001.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  # Training-configuration sweeps. e10 is the longest run; bigbatch's 72 h
+  # limit and faster GPU suit it. b8 needs the 3090's 24 GB.
+  - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e10.yaml, seeds: [42], partitions: [bigbatch, batch]}
+  - config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5.yaml
+    seeds: [42]
+    partitions: [batch, bigbatch]
+    existing: {42: /home-mscluster/ldemelo/fl-brats/outputs/fedavg_train_configs_uneven/local_epochs_sweeps/e5_seed_42_20260918_112321_995829}
+  - {config: configs/fedavg_train_configs_uneven/client_sweeps/k8.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b4.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [bigbatch]}
+  # Model-agnostic (dropped first if time runs out)
+  - {config: configs/model_agnostic_uneven/sam1/baseline.yaml, seeds: [42, 43, 44], partitions: [bigbatch]}
+  - {config: configs/model_agnostic_uneven/sam2/baseline.yaml, seeds: [42, 43, 44], partitions: [bigbatch]}

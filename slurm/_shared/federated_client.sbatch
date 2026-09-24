@@ -15,6 +15,16 @@ while [[ ! -s "$address_file" ]]; do
   sleep 2
 done
 address="$(<"$address_file")"
+# The address is published before the server's Python process is listening; it
+# first loads weights and prepares held-out validation. Flower clients give up
+# after a short run of refused connections, so wait for the port to accept.
+host="${address%:*}"
+port="${address##*:}"
+deadline=$((SECONDS + 1800))
+until (exec 3<>"/dev/tcp/$host/$port") 2>/dev/null; do
+  (( SECONDS < deadline )) || { echo "timed out waiting for server at $address" >&2; exit 3; }
+  sleep 5
+done
 client_id="client_${SLURM_ARRAY_TASK_ID:-0}"
 exec "$repo_root/slurm/_shared/run_with_configured_environment.sh" "$use_apptainer" "$image" \
   fedbrats start-federated-client --config "$config" --client-id "$client_id" --server-address "$address"
