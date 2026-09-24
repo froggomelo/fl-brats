@@ -6,6 +6,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Sized
+from pathlib import Path
 from typing import Any, Callable, cast
 
 import numpy as np
@@ -64,8 +65,15 @@ class ModelFedAvgClient(FedAvgClient):
         fedprox_mu: float = 0.0,
         quantization_config: dict[str, Any] | None = None,
         evaluate_modality_robustness: bool = False,
+        state_dir: Path | None = None,
+        resume_state_path: Path | None = None,
     ) -> None:
         self.device = torch.device(device)
+        # Optimizer moments and compression residuals live in this process between
+        # rounds. Persisting them per round lets a resumed run continue exactly
+        # where the interrupted one stopped instead of silently resetting them.
+        self.state_dir = state_dir
+        self._resume_state_path = resume_state_path
         self.model = model.to(self.device)
         self.keys = keys or state_keys(model)
         self.train_loader, self.validation_loader = train_loader, validation_loader
@@ -92,6 +100,40 @@ class ModelFedAvgClient(FedAvgClient):
         if evaluate_fn is None:
             evaluate_fn = self._evaluate if validation_loader is not None else self._evaluation_disabled
         super().__init__(self.model, self.keys, train_fn, evaluate_fn, examples)
+
+    def client_state_path(self, directory: Path, server_round: int) -> Path:
+        return directory / f"{self.client_id}_round_{server_round:04d}.pt"
+
+    def _save_client_state(self, server_round: int) -> None:
+        if self.state_dir is None or server_round < 1:
+            return
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        path = self.client_state_path(self.state_dir, server_round)
+        temporary = path.with_suffix(".tmp")
+        torch.save(
+            {
+                "round": server_round,
+                "optimizer": self.optimizer.state_dict() if self.optimizer is not None else None,
+                "sparsification_residual": self._sparsification_residual,
+                "quantization_residuals": self._quantization_residuals,
+            },
+            temporary,
+        )
+        temporary.replace(path)
+        for stale in self.state_dir.glob(f"{self.client_id}_round_*.pt"):
+            if int(stale.stem.rsplit("_", 1)[1]) <= server_round - 3:
+                stale.unlink(missing_ok=True)
+
+    def _restore_client_state(self) -> None:
+        path, self._resume_state_path = self._resume_state_path, None
+        if path is None:
+            return
+        payload = torch.load(path, map_location="cpu", weights_only=False)
+        if self.optimizer is not None and payload.get("optimizer") is not None:
+            self.optimizer.load_state_dict(payload["optimizer"])
+        self._sparsification_residual = payload.get("sparsification_residual")
+        self._quantization_residuals = dict(payload.get("quantization_residuals") or {})
+        print(f"{self.client_id}: restored client state from {path}", flush=True)
 
     def _evaluation_disabled(self) -> dict[str, float]:
         raise RuntimeError("client evaluation disabled; use server held-out validation")
@@ -173,6 +215,7 @@ class ModelFedAvgClient(FedAvgClient):
     def fit(
         self, parameters: list[np.ndarray], config: dict[str, Any]
     ) -> tuple[list[np.ndarray], int, dict[str, Any]]:
+        self._restore_client_state()
         self.set_model_parameters(parameters)
         self._global_arrays_before_fit = [item.copy() for item in parameters]
         self._proximal_global_parameters = (
@@ -335,6 +378,7 @@ class ModelFedAvgClient(FedAvgClient):
         if self.strategy == "fedprox":
             metrics["fedprox_mu"] = float(self.fedprox_mu)
         self._proximal_global_parameters = None
+        self._save_client_state(int(config.get("server_round", 0)))
         return upload_arrays, self.examples, metrics
 
     def evaluate(

@@ -1,0 +1,53 @@
+from pathlib import Path
+
+import torch
+
+from tests.data.conftest import make_subject
+
+from fl_brats.data.brats import (
+    BraTSDataset,
+    BraTSPersistentDataset,
+    persistent_cache_dir,
+)
+from fl_brats.data.modalities import combination_to_mask
+from fl_brats.data.transforms import build_transforms
+
+
+def _record(directory: Path, subject: str, available: tuple[str, ...]) -> dict:
+    return {
+        "image": [str(directory / f"{subject}_{m}.nii.gz") for m in available],
+        "label": str(directory / f"{subject}_seg.nii.gz"),
+        "subject_id": subject,
+        "client_id": "0",
+        "available_modalities": available,
+        "modality_mask": combination_to_mask(available),
+    }
+
+
+def test_persistent_cache_matches_uncached_and_restores_missing_channels(
+    raw_root: Path, tmp_path: Path
+) -> None:
+    directory = make_subject(raw_root, shape=(20, 20, 20))
+    records = [
+        _record(directory, "BraTS2021_00000", ("t1", "t1ce", "t2", "flair")),
+        _record(directory, "BraTS2021_00000", ("t1", "flair")),
+    ]
+    data = {"patch_size": [16, 16, 16], "divisible_by": 4, "cache_dir": str(tmp_path / "c")}
+    transform = build_transforms(data, False)
+    cached = BraTSPersistentDataset(records, transform, persistent_cache_dir(data))
+    plain = BraTSDataset(records, transform)
+    for index in range(len(records)):
+        first, second, expected = cached[index], cached[index], plain[index]
+        for sample in (first, second):
+            assert torch.equal(torch.as_tensor(sample["image"]), torch.as_tensor(expected["image"]))
+            assert torch.equal(torch.as_tensor(sample["label"]), torch.as_tensor(expected["label"]))
+            assert torch.equal(sample["modality_mask"], expected["modality_mask"])
+    assert cached[1]["image"].shape[0] == 4
+    assert not cached[1]["image"][1].any() and not cached[1]["image"][2].any()
+    assert len(list(persistent_cache_dir(data).glob("*.pt"))) == 2
+
+
+def test_cache_dir_changes_with_preprocessing_settings(tmp_path: Path) -> None:
+    base = {"cache_dir": str(tmp_path)}
+    assert persistent_cache_dir(base) == persistent_cache_dir(dict(base))
+    assert persistent_cache_dir(base) != persistent_cache_dir({**base, "patch_size": [64, 64, 64]})

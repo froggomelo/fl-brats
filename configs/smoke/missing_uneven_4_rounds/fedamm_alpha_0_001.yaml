@@ -2,4 +2,4 @@ extends: ../../fedamm_uneven/alpha_0_001.yaml
 experiment: {family: smoke/missing_uneven_4_rounds, variant: fedamm_alpha_0_001, runs: 1, seeds: [42]}
 training: {max_rounds: 4}
 federated: {num_rounds: 4, minimum_rounds: 4, early_stopping_patience: 4}
-slurm: {partition: batch, time: "24:00:00", cpus_per_task: 6, memory: 29000M, use_apptainer: true, image: apptainer/fl-brats-batch.sif}
+slurm: {partition: batch}

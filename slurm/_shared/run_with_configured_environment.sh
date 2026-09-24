@@ -21,6 +21,12 @@ raw_root="${FL_BRATS_RAW_ROOT:-$data_root/raw/brats2021}"
 [[ -d "$raw_root" ]] || { echo "Configured raw dataset root does not exist: $raw_root" >&2; exit 2; }
 export FL_BRATS_DATA_ROOT="$data_root"
 export FL_BRATS_RAW_ROOT="$raw_root"
+# Some nodes expose a GPU whose driver is broken; device=auto would then fall back
+# to CPU silently. Exit 75 so the run can be resubmitted away from this node.
+if [[ "${FL_BRATS_REQUIRE_GPU:-0}" == "1" ]] && ! nvidia-smi -L >/dev/null 2>&1; then
+  echo "FL_BRATS_GPU_UNAVAILABLE host=$(hostname -s)" >&2
+  exit 75
+fi
 if [[ "$use_apptainer" == "true" ]]; then
   [[ -f "$image" ]] || { echo "Configured Apptainer image does not exist: $image" >&2; exit 2; }
   apptainer_env=(

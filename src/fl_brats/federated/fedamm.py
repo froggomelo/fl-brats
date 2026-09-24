@@ -80,6 +80,9 @@ class GlobalPrototypeLibrary:
     def dumps(self) -> str:
         return json.dumps({str(key): value for key, value in self.centres.items()}, sort_keys=True)
 
+    def loads(self, payload: str) -> None:
+        self.centres = {int(key): value for key, value in json.loads(payload).items()}
+
 
 def kmeans(values: np.ndarray, k: int, iterations: int = 8) -> np.ndarray:
     flat = values.reshape(values.shape[0], -1)
@@ -128,6 +131,13 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
         return self._persist_aggregate(
             server_round, parameters, prototype_metrics, records, aggregation_started
         )
+
+    def checkpoint_strategy_state(self) -> dict[str, Any]:
+        return {"fedamm_prototypes_json": self.prototype_library.dumps()}
+
+    def restore_strategy_state(self, state: Any) -> None:
+        if "fedamm_prototypes_json" in state:
+            self.prototype_library.loads(state["fedamm_prototypes_json"])
 
     def configure_fit(self, server_round: int, parameters: Parameters, client_manager: Any) -> Any:
         instructions = super().configure_fit(server_round, parameters, client_manager)

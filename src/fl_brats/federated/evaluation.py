@@ -13,7 +13,12 @@ from typing import Any
 
 import torch
 
-from fl_brats.data.brats import build_dataloader, build_dataset, records_from_index
+from fl_brats.data.brats import (
+    build_dataloader,
+    build_dataset,
+    persistent_cache_dir,
+    records_from_index,
+)
 from fl_brats.data.cohorts import read_split, split_path_for
 from fl_brats.data.hashing import sha256_file, sha256_payload
 from fl_brats.data.modalities import combination_to_mask, policy_from_config
@@ -142,8 +147,14 @@ class HeldOutEvaluator:
             raise ValueError("evaluation index differs from frozen split")
         records = records_from_index(self.index_path, self.subjects)
         data = self.values.get("data", {})
+        cache_mode = str(data.get("cache_mode", "dataset"))
         self.loader = build_dataloader(
-            build_dataset(records, build_transforms(data, False)),
+            build_dataset(
+                records,
+                build_transforms(data, False),
+                cache_mode,
+                persistent_cache_dir(data) if cache_mode == "persistent" else None,
+            ),
             int(self.policy.get("batch_size", 1)),
             False,
             int(self.values.get("num_workers") or 0),

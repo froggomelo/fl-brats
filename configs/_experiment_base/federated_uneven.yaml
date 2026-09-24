@@ -20,7 +20,7 @@ data:
   partition_root: data/partitions/fedavg_uneven
   split_path: data/splits/brats2021.json
   client_proportions: [0.50, 0.25, 0.15, 0.10]
-  cache_mode: dataset
+  cache_mode: persistent
 model:
   name: unet
   in_channels: 4
@@ -65,19 +65,25 @@ communication_measurement:
     enabled: false
     sampling_seconds: 30
 slurm:
-  partition: stampede
+  # batch nodes carry one RTX 3060 each (6 CPUs, 30 GB). bigbatch GPUs are not
+  # reachable without GRES, which this cluster rejects, so bigbatch runs on CPU.
+  partition: batch
   account: null
   qos: null
-  time: "72:00:00"
+  time: "24:00:00"
   nodes: 1
   tasks: 1
-  cpus_per_task: 8
-  memory: 64G
-  # bigbatch provides GPU placement through the partition and rejects GRES requests.
+  cpus_per_task: 6
+  memory: 29000M
   gres: null
   exclusive: false
+  # Fail fast on nodes whose GPU driver is broken instead of training on CPU.
+  require_gpu: true
+  exclude: []
   use_apptainer: true
-  image: apptainer/fl-brats.sif
+  image: apptainer/fl-brats-batch.sif
+  # Run the checked-out src/ rather than the copy baked into the image.
+  bind_source: true
 missing_modalities:
   enabled: false
   mode: none

@@ -14,7 +14,12 @@ from typing import Any
 import flwr as fl
 import torch
 
-from fl_brats.data.brats import build_dataloader, build_dataset, records_from_client_manifest
+from fl_brats.data.brats import (
+    build_dataloader,
+    build_dataset,
+    persistent_cache_dir,
+    records_from_client_manifest,
+)
 from fl_brats.data.cohorts import (
     read_split,
     split_path_for,
@@ -188,6 +193,28 @@ def rounds_to_run(values: dict[str, Any], state: ExperimentState | None = None) 
     return remaining
 
 
+def client_state_locations(
+    values: dict[str, Any], client_id: str
+) -> tuple[Path | None, Path | None]:
+    """Where this client persists per-round state, and which file a resume restores.
+
+    The launcher sets output_root to the run's parent and run_name to its ID, so
+    both the server and every client resolve the same run directory.
+    """
+    output_root, run_name = values.get("output_root"), values.get("run_name")
+    state_dir = Path(output_root) / str(run_name) / "client_state" if output_root and run_name else None
+    resume = values.get("resume") or values.get("resume_checkpoint")
+    if not resume:
+        return state_dir, None
+    checkpoint = Path(resume).expanduser().resolve()
+    source_round = int(torch.load(checkpoint, map_location="cpu", weights_only=True)["round"])
+    path = checkpoint.parent.parent / "client_state" / f"{client_id}_round_{source_round:04d}.pt"
+    if not path.is_file():
+        print(f"{client_id}: no saved client state at {path}; optimizer starts fresh", flush=True)
+        return state_dir, None
+    return state_dir, path
+
+
 def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -> ModelFedAvgClient:
     """Create a client using only its own manifest file."""
     path = partition_root / f"{client_id}.json"
@@ -203,8 +230,10 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
     data = values.get("data", {})
     model_config = values.get("model", {})
     pin_memory = values.get("pin_memory")
+    cache_mode = str(data.get("cache_mode", "dataset"))
+    cache_dir = persistent_cache_dir(data) if cache_mode == "persistent" else None
     train = build_dataloader(
-        build_dataset(records, build_transforms(data, True)),
+        build_dataset(records, build_transforms(data, True), cache_mode, cache_dir),
         int(values.get("local_batch_size", values.get("batch_size", 1))),
         True,
         int(values.get("num_workers", 0)),
@@ -214,7 +243,7 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
     valid = None
     if evaluation_policy(values)["client_diagnostics"]:
         valid = build_dataloader(
-            build_dataset(records, build_transforms(data, False)),
+            build_dataset(records, build_transforms(data, False), cache_mode, cache_dir),
             int(values.get("local_batch_size", values.get("batch_size", 1))),
             False,
             int(values.get("num_workers", 0)),
@@ -230,6 +259,7 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
     )
     missing = values.get("missing_modalities", {})
     missing_evaluation = missing.get("evaluation", {}) if isinstance(missing, dict) else {}
+    state_dir, resume_state_path = client_state_locations(values, client_id)
     return ModelFedAvgClient(
         model,
         train_loader=train,
@@ -244,6 +274,8 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
         quantization_config=values.get("quantization", {}),
         evaluate_modality_robustness=bool(missing.get("enabled", False))
         and bool(missing_evaluation.get("evaluate_all_non_empty_combinations", True)),
+        state_dir=state_dir,
+        resume_state_path=resume_state_path,
     )
 
 

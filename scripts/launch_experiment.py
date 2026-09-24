@@ -181,6 +181,15 @@ def main() -> int:
                 sbatch.append(f"{flag}={slurm[key]}")
         if slurm.get("exclusive"):
             sbatch.append("--exclusive")
+        if slurm.get("exclude"):
+            exclude = slurm["exclude"]
+            sbatch.append(f"--exclude={exclude if isinstance(exclude, str) else ','.join(exclude)}")
+        # Exported into every job of the run; the shared wrappers act on them.
+        exports = {
+            "FL_BRATS_REQUIRE_GPU": "1" if slurm.get("require_gpu") else "0",
+            "FL_BRATS_BIND_SOURCE": "1" if slurm.get("bind_source") else "0",
+        }
+        sbatch.append("--export=ALL," + ",".join(f"{k}={v}" for k, v in exports.items()))
         interconnect = resolved.get("communication_measurement", {}).get(
             "slurm_interconnect", {}
         )

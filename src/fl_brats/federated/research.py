@@ -122,6 +122,7 @@ class CheckpointManager:
         parameters: Parameters,
         state: ExperimentState,
         metrics: Mapping[str, Any],
+        strategy_state: Mapping[str, Any] | None = None,
     ) -> Path:
         arrays = parameters_to_ndarrays(parameters)
         keys, _ = state_to_arrays(self.model)
@@ -135,6 +136,7 @@ class CheckpointManager:
             "model_state": self.model.state_dict(),
             "experiment_state": asdict(state),
             "metrics": dict(metrics),
+            "strategy_state": dict(strategy_state or {}),
         }
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
@@ -192,6 +194,13 @@ class ResearchFedAvgStrategy(FedAvg):
         self._round_started: dict[int, float] = {}
         self._current_arrays = state_to_arrays(checkpoints.model)[1]
         self._keys = state_to_arrays(checkpoints.model)[0]
+
+    def checkpoint_strategy_state(self) -> dict[str, Any]:
+        """Server-side state beyond the model that a resumed run must restore."""
+        return {}
+
+    def restore_strategy_state(self, state: Mapping[str, Any]) -> None:
+        del state
 
     def global_round(self, server_round: int) -> int:
         """Translate Flower's per-process round into the experiment-wide round."""
@@ -264,7 +273,9 @@ class ResearchFedAvgStrategy(FedAvg):
         next_state.uploaded_bytes += sum(r.upload_payload_bytes for r in records)
         next_state.downloaded_bytes += sum(r.download_payload_bytes for r in records)
         started = time.perf_counter()
-        checkpoint = self.checkpoints.save_round(global_round, parameters, next_state, record)
+        checkpoint = self.checkpoints.save_round(
+            global_round, parameters, next_state, record, self.checkpoint_strategy_state()
+        )
         record["checkpoint_writing_seconds"] = time.perf_counter() - started
         next_state.latest_checkpoint = str(checkpoint)
         self._round_timing[server_round] = record

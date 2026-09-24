@@ -62,3 +62,14 @@ def test_fedamm_architecture_can_run_plain_missing_modality_fedavg_control() -> 
         torch.device("cpu"),
     )
     assert "fedamm_prototypes_json" not in result
+
+
+def test_prototype_library_survives_checkpoint_round_trip() -> None:
+    from fl_brats.federated.fedamm import GlobalPrototypeLibrary
+
+    library = GlobalPrototypeLibrary()
+    library.centres = {3: [[[0.5, 1.0]]], 15: [[[2.0, -1.0]]]}
+    restored = GlobalPrototypeLibrary()
+    restored.loads(library.dumps())
+    assert restored.centres == library.centres
+    assert restored.dumps() == library.dumps()

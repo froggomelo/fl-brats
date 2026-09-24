@@ -1,6 +1,7 @@
 """Manifest-backed datasets shared by centralized and client execution."""
 
 import csv
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -95,36 +96,79 @@ def records_from_index(index_path: Path, subject_ids: list[str]) -> list[dict[st
     ]
 
 
+def _attach_metadata(result: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    mask = (
+        record["modality_mask"].clone()
+        if isinstance(record["modality_mask"], torch.Tensor)
+        else torch.tensor(record["modality_mask"], dtype=torch.bool)
+    )
+    image = result["image"]
+    # LoadImaged stacks only available images. Restore the invariant four-channel layout.
+    if image.shape[0] != 4:
+        restored = torch.zeros((4, *image.shape[1:]), dtype=image.dtype, device=image.device)
+        restored[mask] = image
+        result["image"] = restored
+    result["modality_mask"] = mask
+    result["modality_combination_id"] = mask_to_combination_id(mask)
+    result["available_modalities"] = tuple(record["available_modalities"])
+    result["subject_id"] = record["subject_id"]
+    result["client_id"] = record["client_id"]
+    return result
+
+
+def _with_metadata(
+    result: dict[str, Any] | list[dict[str, Any]], record: dict[str, Any]
+) -> dict[str, Any] | list[dict[str, Any]]:
+    if isinstance(result, list):
+        return [_attach_metadata(sample, record) for sample in result]
+    return _attach_metadata(result, record)
+
+
 class BraTSDataset(Dataset):
     """MONAI Dataset retaining explicit availability metadata."""
     def __init__(self, data: list[dict[str, Any]], transform: Any = None) -> None:
         super().__init__(data=data, transform=transform)
 
-    def _attach_metadata(self, result: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
-        mask = (
-            record["modality_mask"].clone()
-            if isinstance(record["modality_mask"], torch.Tensor)
-            else torch.tensor(record["modality_mask"], dtype=torch.bool)
-        )
-        image = result["image"]
-        # LoadImaged stacks only available images. Restore the invariant four-channel layout.
-        if image.shape[0] != 4:
-            restored = torch.zeros((4, *image.shape[1:]), dtype=image.dtype, device=image.device)
-            restored[mask] = image
-            result["image"] = restored
-        result["modality_mask"] = mask
-        result["modality_combination_id"] = mask_to_combination_id(mask)
-        result["available_modalities"] = tuple(record["available_modalities"])
-        result["subject_id"] = record["subject_id"]
-        result["client_id"] = record["client_id"]
-        return result
-
     def __getitem__(self, index: int) -> dict[str, Any] | list[dict[str, Any]]:
-        record = self.data[index]
-        result = super().__getitem__(index)
-        if isinstance(result, list):
-            return [self._attach_metadata(sample, record) for sample in result]
-        return self._attach_metadata(result, record)
+        return _with_metadata(super().__getitem__(index), self.data[index])
+
+
+def _source_file_hash(record: dict[str, Any]) -> bytes:
+    """Key cached preprocessing on the files it reads, not on client or mask metadata.
+
+    The deterministic transforms only see the loaded image and label files, so a
+    subject with the same available modalities shares one cache entry across
+    clients, missingness levels, and experiments.
+    """
+    payload = json.dumps({"image": list(record["image"]), "label": record["label"]})
+    return hashlib.sha256(payload.encode()).hexdigest().encode()
+
+
+class BraTSPersistentDataset(PersistentDataset):
+    """Disk-cache the deterministic transform prefix; random crops and flips stay live."""
+    def __init__(
+        self, data: list[dict[str, Any]], transform: Any, cache_dir: Path
+    ) -> None:
+        super().__init__(
+            data=data, transform=transform, cache_dir=cache_dir, hash_func=_source_file_hash
+        )
+
+    def __getitem__(self, index: int) -> dict[str, Any] | list[dict[str, Any]]:  # type: ignore[override]
+        return _with_metadata(super().__getitem__(index), self.data[index])
+
+
+def persistent_cache_dir(data: dict[str, Any]) -> Path:
+    """Cache directory keyed on every setting that shapes the cached tensors."""
+    settings = {
+        "version": "brats-deterministic-v1",
+        "orientation": data.get("orientation", "RAS"),
+        "spacing": data.get("spacing", [1.0, 1.0, 1.0]),
+        "patch_size": data.get("patch_size", [96, 96, 96]),
+        "divisible_by": data.get("divisible_by", 16),
+    }
+    digest = hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()[:16]
+    root = Path(data.get("cache_dir") or Path(os.environ.get("FL_BRATS_CACHE_ROOT", "cache")) / "persistent")
+    return root / digest
 
 
 def records_from_client_manifest(path: Path) -> list[dict[str, Any]]:
@@ -167,7 +211,7 @@ def build_dataset(
     if mode == "persistent":
         if cache_dir is None:
             raise ValueError("persistent dataset requires a user-owned cache directory")
-        return PersistentDataset(records, transform=transform, cache_dir=cache_dir)
+        return BraTSPersistentDataset(records, transform=transform, cache_dir=cache_dir)
     return BraTSDataset(records, transform=transform)
 
 

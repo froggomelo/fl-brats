@@ -102,14 +102,19 @@ def create_research_fedavg(
         round_offset=round_offset,
     )
     if config.get("strategy") == "fedamm":
-        return FedAMMStrategy(
+        strategy = FedAMMStrategy(
             model=model,
             clusters_per_combination=int(
                 config.get("fedamm", {}).get("clusters_per_combination", 1)
             ),
             **common,
         )
+    else:
+        strategy = ResearchFedAvgStrategy(**common)
+    resume = config.get("resume") or config.get("resume_checkpoint")
+    if resume and initial_state is not None:
+        import torch
 
-    return ResearchFedAvgStrategy(
-        **common,
-    )
+        payload = torch.load(resume, map_location="cpu", weights_only=True)
+        strategy.restore_strategy_state(payload.get("strategy_state", {}))
+    return strategy
