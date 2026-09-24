@@ -30,6 +30,7 @@ from fl_brats.data.hashing import sha256_file
 from fl_brats.data.transforms import build_transforms
 from fl_brats.losses.segmentation import create_loss
 from fl_brats.models.factory import create_model
+from fl_brats.models.state import load_checkpoint_state
 
 from .evaluation import HeldOutEvaluator, evaluation_policy
 from .finalization import finalize_federation
@@ -83,7 +84,7 @@ def _load_initial_weights(model: torch.nn.Module, values: dict[str, Any]) -> str
     state = payload.get("model_state", payload) if isinstance(payload, dict) else payload
     if not isinstance(state, dict):
         raise ValueError(f"initial weights do not contain a state dict: {path}")
-    model.load_state_dict(state, strict=True)
+    load_checkpoint_state(model, state)
     return sha256_file(path)
 
 
@@ -119,7 +120,7 @@ def load_resume_state(
     checkpoint_round = int(payload.get("round", 0))
     if checkpoint_round < 1:
         raise ValueError(f"resume checkpoint has an invalid round: {checkpoint}")
-    model.load_state_dict(payload["model_state"], strict=True)
+    load_checkpoint_state(model, payload["model_state"])
     state_data = payload.get("experiment_state")
     if not isinstance(state_data, dict):
         raise ValueError(f"resume checkpoint lacks experiment_state: {checkpoint}")

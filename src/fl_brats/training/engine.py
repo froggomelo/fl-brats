@@ -17,21 +17,41 @@ def move_batch_to_device(batch: dict[str, Any], device: torch.device) -> dict[st
     return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
 
+def is_slice_model(model: torch.nn.Module) -> bool:
+    return getattr(model, "model_kind", "") == "sam"
+
+
+def sample_training_slices(batch: dict[str, Any], count: int, tumour_fraction: float) -> dict[str, Any]:
+    """Turn [B, C, H, W, D] volumes into [B * count, C, H, W] axial slices.
+
+    Per subject, ``tumour_fraction`` of the slices come from those containing
+    tumour (when it has any) and the rest from all slices with brain; draws use
+    the seeded global generator, so they are reproducible per seed.
+    """
+    image, label = batch["image"], batch["label"]
+    images, labels = [], []
+    for volume, target in zip(image, label, strict=True):
+        brain = torch.nonzero(volume.abs().amax(dim=(0, 1, 2)) > 0).flatten()
+        tumour = torch.nonzero(target[0].amax(dim=(0, 1)) > 0).flatten()
+        if len(brain) == 0:
+            brain = torch.arange(volume.shape[-1], device=volume.device)
+        wanted = int(round(count * tumour_fraction)) if len(tumour) else 0
+        picks = [tumour[torch.randint(len(tumour), (wanted,), device=tumour.device)]] if wanted else []
+        picks.append(brain[torch.randint(len(brain), (count - wanted,), device=brain.device)])
+        index = torch.cat(picks)
+        images.append(volume[..., index].permute(3, 0, 1, 2))
+        labels.append(target[..., index].permute(3, 0, 1, 2))
+    return {**batch, "image": torch.cat(images), "label": torch.cat(labels)}
+
+
 def forward_batch(model: torch.nn.Module, batch: dict[str, Any]) -> torch.Tensor:
     """Pass explicit masks when a model advertises mask support."""
-    if getattr(model, "model_kind", "") == "sam" and batch["image"].ndim == 5:
+    if is_slice_model(model) and batch["image"].ndim == 5:
+        # Whole-volume inference: every axial slice, reassembled to [B, 3, H, W, D].
         image = batch["image"]
         batch_size, channels, height, width, depth = image.shape
-        slices = image.permute(0, 4, 1, 2, 3).reshape(
-            batch_size * depth, channels, height, width
-        )
-        slice_batch_size = int(getattr(model, "config", {}).get("slice_batch_size", 8))
-        logits = torch.cat(
-            [
-                model(slices[start : start + slice_batch_size])
-                for start in range(0, len(slices), slice_batch_size)
-            ]
-        )
+        slices = image.permute(0, 4, 1, 2, 3).reshape(batch_size * depth, channels, height, width)
+        logits = model(slices)
         return logits.reshape(batch_size, depth, 3, height, width).permute(0, 2, 3, 4, 1)
     if getattr(model, "supports_modality_mask", False):
         return model(batch["image"], batch.get("modality_mask"))
@@ -91,8 +111,16 @@ def train_one_epoch(
     samples = 0
     prototype_sums: dict[int, torch.Tensor] = {}
     prototype_counts: dict[int, int] = {}
+    slice_model = is_slice_model(model)
+    config = getattr(model, "config", {}) if slice_model else {}
     for batch in loader:
         batch = move_batch_to_device(batch, device)
+        if slice_model:
+            batch = sample_training_slices(
+                batch,
+                int(config.get("train_slices_per_subject", 8)),
+                float(config.get("train_tumour_slice_fraction", 0.5)),
+            )
         optimizer.zero_grad(set_to_none=True)
         output = forward_batch(model, batch)
         loss = batch_loss(output, batch["label"], loss_fn, model)

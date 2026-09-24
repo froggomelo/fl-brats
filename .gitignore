@@ -74,3 +74,7 @@ notebooks/.ipynb_checkpoints/
 .apptainer-cache/
 .apptainer-tmp/
 slurm-*.out
+# Pretrained SAM checkpoints (hundreds of MB); verified by SHA-256 in the model configs.
+artifacts/pretrained/
+# Per-seed initial weights are generated artifacts kept beside the data, not in git.
+artifacts/initial_weights/

@@ -22,6 +22,7 @@ import torch
 
 from fl_brats.data.hashing import sha256_file, sha256_payload
 from fl_brats.models.factory import create_model
+from fl_brats.models.state import load_checkpoint_state
 
 from .evaluation import HeldOutEvaluator
 from .research import atomic_write_json
@@ -123,7 +124,7 @@ def evaluate_periodic(
             if int(payload["round"]) != number:
                 raise ValueError(f"checkpoint round disagrees with filename: {checkpoint}")
             model = create_model(payload["model_config"])
-            model.load_state_dict(payload["model_state"], strict=True)
+            load_checkpoint_state(model, payload["model_state"])
             metrics, combinations = evaluator.run(model, expensive=True, robustness=robustness)
             if not math.isfinite(metrics["mean_dice"]):
                 raise ValueError(f"non-finite validation score for {checkpoint}")

@@ -10,7 +10,11 @@ readme = "README.md"
 requires-python = ">=3.11,<3.12"
 authors = [{name = "FL-BraTS Contributors", email = "research@example.invalid"}]
 classifiers = ["Development Status :: 3 - Alpha", "Intended Audience :: Science/Research", "License :: OSI Approved :: MIT License", "Programming Language :: Python :: 3.11"]
-dependencies = ["torch", "torchvision", "monai", "flwr", "hydra-core", "omegaconf", "mlflow", "optuna", "nibabel", "pandas", "numpy", "matplotlib", "pydantic", "pydantic-settings", "python-dotenv", "psutil", "rich", "typer", "pyyaml", "platformdirs"]
+dependencies = ["torch", "torchvision", "monai", "flwr", "hydra-core", "omegaconf", "mlflow", "optuna", "nibabel", "pandas", "numpy", "matplotlib", "pydantic", "pydantic-settings", "python-dotenv", "psutil", "rich", "typer", "pyyaml", "platformdirs",
+    # Official Meta repositories pinned by commit (the PyPI "sam2" name belongs to a fork).
+    "segment-anything @ https://github.com/facebookresearch/segment-anything/archive/dca509fe793f601edb92606367a655c15ac00fdf.tar.gz",
+    "sam-2 @ https://github.com/facebookresearch/sam2/archive/2b90b9f5ceec907a1c18123530e92e794ad901a4.tar.gz",
+]
 
 [project.optional-dependencies]
 notebooks = ["jupyterlab", "ipykernel"]
@@ -22,6 +26,10 @@ dev = ["pytest", "pytest-cov", "pytest-mock", "ruff", "mypy", "pre-commit", "typ
 
 [project.scripts]
 fedbrats = "fl_brats.cli:app"
+
+[tool.hatch.metadata]
+# The SAM packages are pinned to official GitHub commit archives.
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fl_brats"]

@@ -51,14 +51,17 @@ def build_transforms(config: dict[str, Any], training: bool) -> Compose:
         DivisiblePadd(keys, k=config.get("divisible_by", 16)),
     ]
     if training:
-        transforms += [
-            RandSpatialCropSamplesd(
-                keys,
-                roi_size=config.get("patch_size", [96, 96, 96]),
-                num_samples=config.get("num_samples", 1),
-                random_size=False,
-            ),
-            RandFlipd(keys, prob=config.get("flip_probability", 0.5), spatial_axis=0),
-        ]
+        # Slice models (SAM) train on whole axial slices sampled from the full
+        # volume, so they skip the 3D patch crop (data.train_crop: false).
+        if config.get("train_crop", True):
+            transforms.append(
+                RandSpatialCropSamplesd(
+                    keys,
+                    roi_size=config.get("patch_size", [96, 96, 96]),
+                    num_samples=config.get("num_samples", 1),
+                    random_size=False,
+                )
+            )
+        transforms.append(RandFlipd(keys, prob=config.get("flip_probability", 0.5), spatial_axis=0))
     transforms += [EnsureTyped(keys)]
     return Compose(transforms)

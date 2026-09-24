@@ -52,6 +52,7 @@ from fl_brats.federated.sweep import (
 )
 from fl_brats.losses.segmentation import create_loss
 from fl_brats.models.factory import create_model, model_report
+from fl_brats.models.state import checkpoint_state, load_checkpoint_state
 from fl_brats.sam.validation import verify_pretrained
 from fl_brats.tracking.local import LocalTracker
 from fl_brats.tracking.mlflow import MLflowTracker
@@ -582,7 +583,7 @@ def create_initial_weights(
     output_dir.mkdir(parents=True, exist_ok=True)
     name = str(values.get("name", "model")).replace("/", "_")
     path = output_dir / f"{name}_seed_{seed}.pt"
-    torch.save(model.state_dict(), path)
+    torch.save(checkpoint_state(model), path)
     digest = sha256_file(path)
     metadata = {"seed": seed, "initial_weight_hash": digest, "model": model_report(model, values)}
     path.with_suffix(".json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -894,7 +895,7 @@ def evaluate_checkpoint(
         )
     model = create_model(model_values)
     try:
-        model.load_state_dict(payload["model_state"], strict=True)
+        load_checkpoint_state(model, payload["model_state"])
     except RuntimeError as error:
         raise typer.BadParameter(
             f"checkpoint is incompatible with configured model: {error}"
@@ -949,7 +950,7 @@ def evaluate_federated_checkpoint(
         values.get("pin_memory"),
     )
     model = create_model(model_values)
-    model.load_state_dict(payload["model_state"], strict=True)
+    load_checkpoint_state(model, payload["model_state"])
     device_name = str(values.get("device", "auto"))
     import torch
 
@@ -1137,7 +1138,7 @@ def visualize_segmentation(
         else device
     )
     model = create_model(model_values).to(selected)
-    model.load_state_dict(payload["model_state"], strict=True)
+    load_checkpoint_state(model, payload["model_state"])
     model.eval()
     if index_path is None:
         if value := os.environ.get("DATASET_INDEX_PATH"):

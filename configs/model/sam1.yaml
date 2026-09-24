@@ -8,7 +8,7 @@ license: Apache-2.0
 automatic_download: false
 spatial_mode: 2d_slices
 plane: axial
-input_size: 1024
+input_size: 512
 multimodal_adapter: learned_4_to_3
 rgb_mapping: [flair, t1ce, t2]
 prompt_mode: learned_embeddings

@@ -663,6 +663,7 @@ source = { editable = "." }
 dependencies = [
     { name = "flwr" },
     { name = "hydra-core" },
+    { name = "matplotlib" },
     { name = "mlflow" },
     { name = "monai" },
     { name = "nibabel" },
@@ -677,6 +678,8 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "rich" },
+    { name = "sam-2" },
+    { name = "segment-anything" },
     { name = "torch" },
     { name = "torchvision" },
     { name = "typer" },
@@ -686,7 +689,6 @@ dependencies = [
 notebooks = [
     { name = "ipykernel" },
     { name = "jupyterlab" },
-    { name = "matplotlib" },
 ]
 
 [package.dev-dependencies]
@@ -707,7 +709,7 @@ requires-dist = [
     { name = "hydra-core" },
     { name = "ipykernel", marker = "extra == 'notebooks'" },
     { name = "jupyterlab", marker = "extra == 'notebooks'" },
-    { name = "matplotlib", marker = "extra == 'notebooks'" },
+    { name = "matplotlib" },
     { name = "mlflow" },
     { name = "monai" },
     { name = "nibabel" },
@@ -722,6 +724,8 @@ requires-dist = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "rich" },
+    { name = "sam-2", url = "https://github.com/facebookresearch/sam2/archive/2b90b9f5ceec907a1c18123530e92e794ad901a4.tar.gz" },
+    { name = "segment-anything", url = "https://github.com/facebookresearch/segment-anything/archive/dca509fe793f601edb92606367a655c15ac00fdf.tar.gz" },
     { name = "torch" },
     { name = "torchvision" },
     { name = "typer" },
@@ -1102,6 +1106,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
 ]
+
+[[package]]
+name = "iopath"
+version = "0.1.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "portalocker" },
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/72/73/b3d451dfc523756cf177d3ebb0af76dc7751b341c60e2a21871be400ae29/iopath-0.1.10.tar.gz", hash = "sha256:3311c16a4d9137223e20f141655759933e1eda24f8bff166af834af3c645ef01", size = 42226, upload-time = "2022-07-09T19:00:50.866Z" }
 
 [[package]]
 name = "ipykernel"
@@ -2269,6 +2284,15 @@ wheels = [
 ]
 
 [[package]]
+name = "portalocker"
+version = "4.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/cd/d2a23fc80c26f539ac77e7d61bd5e4af5d0b3a09a78ac4c716eead345129/portalocker-4.4.0.tar.gz", hash = "sha256:90c0df939d4ffba121f8e925bbf98ecea8b9381718666ab871a226938d2b63b2", size = 304906, upload-time = "2026-09-19T16:11:09.114Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/52/6c/07fa2775e87b6e241c2aca5cef79f65e450bc115de55f03cda6251f81690/portalocker-4.4.0-py3-none-any.whl", hash = "sha256:a8e99ea29bfb61766ee0b4008cbaf0651e8e050f7a2485ebf54316480e99226e", size = 129647, upload-time = "2026-09-19T16:11:07.377Z" },
+]
+
+[[package]]
 name = "pre-commit"
 version = "4.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2844,6 +2868,57 @@ wheels = [
 ]
 
 [[package]]
+name = "sam-2"
+version = "1.0"
+source = { url = "https://github.com/facebookresearch/sam2/archive/2b90b9f5ceec907a1c18123530e92e794ad901a4.tar.gz" }
+dependencies = [
+    { name = "hydra-core" },
+    { name = "iopath" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "torch" },
+    { name = "torchvision" },
+    { name = "tqdm" },
+]
+sdist = { hash = "sha256:1f2fbfad3ffa38110368abac76c6ef9df9c282a66d5c2807bc94abf4d2fb30f8" }
+
+[package.metadata]
+requires-dist = [
+    { name = "av", marker = "extra == 'interactive-demo'", specifier = ">=13.0.0" },
+    { name = "black", marker = "extra == 'dev'", specifier = "==24.2.0" },
+    { name = "dataclasses-json", marker = "extra == 'interactive-demo'", specifier = ">=0.6.7" },
+    { name = "eva-decord", marker = "extra == 'interactive-demo'", specifier = ">=0.6.1" },
+    { name = "eva-decord", marker = "extra == 'notebooks'", specifier = ">=0.6.1" },
+    { name = "flask", marker = "extra == 'interactive-demo'", specifier = ">=3.0.3" },
+    { name = "flask-cors", marker = "extra == 'interactive-demo'", specifier = ">=5.0.0" },
+    { name = "fvcore", marker = "extra == 'dev'", specifier = ">=0.1.5.post20221221" },
+    { name = "gunicorn", marker = "extra == 'interactive-demo'", specifier = ">=23.0.0" },
+    { name = "hydra-core", specifier = ">=1.3.2" },
+    { name = "imagesize", marker = "extra == 'interactive-demo'", specifier = ">=1.4.1" },
+    { name = "iopath", specifier = ">=0.1.10" },
+    { name = "jupyter", marker = "extra == 'notebooks'", specifier = ">=1.0.0" },
+    { name = "matplotlib", marker = "extra == 'notebooks'", specifier = ">=3.9.1" },
+    { name = "numpy", specifier = ">=1.24.4" },
+    { name = "opencv-python", marker = "extra == 'dev'", specifier = ">=4.7.0" },
+    { name = "opencv-python", marker = "extra == 'notebooks'", specifier = ">=4.7.0" },
+    { name = "pandas", marker = "extra == 'dev'", specifier = ">=2.2.2" },
+    { name = "pillow", specifier = ">=9.4.0" },
+    { name = "pycocotools", marker = "extra == 'dev'", specifier = ">=2.0.8" },
+    { name = "pycocotools", marker = "extra == 'interactive-demo'", specifier = ">=2.0.8" },
+    { name = "scikit-image", marker = "extra == 'dev'", specifier = ">=0.24.0" },
+    { name = "strawberry-graphql", marker = "extra == 'interactive-demo'", specifier = ">=0.243.0" },
+    { name = "submitit", marker = "extra == 'dev'", specifier = ">=1.5.1" },
+    { name = "tensorboard", marker = "extra == 'dev'", specifier = ">=2.17.0" },
+    { name = "tensordict", marker = "extra == 'dev'", specifier = ">=0.6.0" },
+    { name = "torch", specifier = ">=2.5.1" },
+    { name = "torchvision", specifier = ">=0.20.1" },
+    { name = "tqdm", specifier = ">=4.66.1" },
+    { name = "ufmt", marker = "extra == 'dev'", specifier = "==2.0.0b2" },
+    { name = "usort", marker = "extra == 'dev'", specifier = "==1.0.2" },
+]
+provides-extras = ["notebooks", "interactive-demo", "dev"]
+
+[[package]]
 name = "scikit-learn"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2884,6 +2959,26 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/95/da/0d1df507cf574b3f224ccc3d45244c9a1d732c81dcb26b1e8a766ae271a8/scipy-1.17.1-cp311-cp311-win_amd64.whl", hash = "sha256:d30e57c72013c2a4fe441c2fcb8e77b14e152ad48b5464858e07e2ad9fbfceff", size = 36607512, upload-time = "2026-02-23T00:17:23.424Z" },
     { url = "https://files.pythonhosted.org/packages/68/7f/bdd79ceaad24b671543ffe0ef61ed8e659440eb683b66f033454dcee90eb/scipy-1.17.1-cp311-cp311-win_arm64.whl", hash = "sha256:9ecb4efb1cd6e8c4afea0daa91a87fbddbce1b99d2895d151596716c0b2e859d", size = 24599248, upload-time = "2026-02-23T00:17:34.561Z" },
 ]
+
+[[package]]
+name = "segment-anything"
+version = "1.0"
+source = { url = "https://github.com/facebookresearch/segment-anything/archive/dca509fe793f601edb92606367a655c15ac00fdf.tar.gz" }
+sdist = { hash = "sha256:b693c2358e9e1c63589a322b1baa6a6dc384df0013ff455d933d9a8e23549dab" }
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'" },
+    { name = "flake8", marker = "extra == 'dev'" },
+    { name = "isort", marker = "extra == 'dev'" },
+    { name = "matplotlib", marker = "extra == 'all'" },
+    { name = "mypy", marker = "extra == 'dev'" },
+    { name = "onnx", marker = "extra == 'all'" },
+    { name = "onnxruntime", marker = "extra == 'all'" },
+    { name = "opencv-python", marker = "extra == 'all'" },
+    { name = "pycocotools", marker = "extra == 'all'" },
+]
+provides-extras = ["all", "dev"]
 
 [[package]]
 name = "send2trash"

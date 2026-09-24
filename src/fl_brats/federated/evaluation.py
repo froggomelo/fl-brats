@@ -24,6 +24,7 @@ from fl_brats.data.hashing import sha256_file, sha256_payload
 from fl_brats.data.modalities import combination_to_mask, policy_from_config
 from fl_brats.data.transforms import build_transforms
 from fl_brats.losses.segmentation import create_loss
+from fl_brats.models.state import load_checkpoint_state
 from fl_brats.training.engine import evaluate
 from fl_brats.training.evaluation import evaluate_modality_combinations
 
@@ -266,7 +267,7 @@ class HeldOutEvaluator:
         if explicit_round is not None and int(payload["round"]) != explicit_round:
             raise ValueError("checkpoint does not match the requested predetermined final round")
         model = create_model(payload["model_config"])
-        model.load_state_dict(payload["model_state"], strict=True)
+        load_checkpoint_state(model, payload["model_state"])
         metrics, combinations = self.run(model, expensive=True, robustness=self.robustness_enabled)
         destination.mkdir(parents=True, exist_ok=False)
         atomic_write_json(destination / "metrics.json", metrics)

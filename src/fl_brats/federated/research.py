@@ -23,6 +23,7 @@ from .sparsification import (
     is_sparse_parameter_payload,
     sparse_update_from_ndarrays,
 )
+from fl_brats.models.state import checkpoint_state
 
 SCHEMA_VERSION = 1
 
@@ -133,7 +134,7 @@ class CheckpointManager:
             "schema_version": SCHEMA_VERSION,
             "round": round_number,
             "model_config": self.model_config,
-            "model_state": self.model.state_dict(),
+            "model_state": checkpoint_state(self.model),
             "experiment_state": asdict(state),
             "metrics": dict(metrics),
             "strategy_state": dict(strategy_state or {}),

@@ -1,10 +1,36 @@
 extends: ../../_experiment_base/federated_uneven.yaml
 experiment: {family: model_agnostic_uneven/sam2, variant: baseline, runs: 3, seeds: [42, 43, 44]}
-initial_weights: null
-initial_weights_by_seed: {}
+# Trainable weights (projection, region prompts, mask decoder) start from a
+# per-seed file, as the U-Net weights do; the frozen encoder comes from the
+# pretrained checkpoint below. Create with: fedbrats create-initial-weights.
+initial_weights: artifacts/initial_weights/sam2_seed_42.pt
+initial_weights_by_seed:
+  42: artifacts/initial_weights/sam2_seed_42.pt
+  43: artifacts/initial_weights/sam2_seed_43.pt
+  44: artifacts/initial_weights/sam2_seed_44.pt
+data:
+  # Whole axial slices are sampled from full volumes; no 3D patch crop.
+  train_crop: false
 model:
   name: sam2
-  checkpoint: artifacts/pretrained/sam2.pt
-  trainable_scope: adapter_only
+  variant: sam2_hiera_tiny
+  checkpoint: artifacts/pretrained/sam2_hiera_tiny.pt
+  checkpoint_sha256: 65b50056e05bcb13694174f51bb6da89c894b57b75ccdf0ba6352c597c5d1125
+  # 512 input: pretrained positional embeddings interpolated from 1024.
+  input_size: 512
+  multimodal_adapter: learned_4_to_3
+  rgb_mapping: [flair, t1ce, t2]
+  fine_tuning_mode: adapter_decoder
+  federated_scope: trainable_only
+  clip: [-5.0, 5.0]
   out_channels: 3
   video_memory_propagation: false
+  # B = 1 subject per step (Experiments.md); each step trains on 8 of its
+  # axial slices, half containing tumour when it has any.
+  train_slices_per_subject: 8
+  train_tumour_slice_fraction: 0.5
+  # Slices per forward pass during whole-volume inference.
+  slice_batch_size: 16
+slurm:
+  # The batch image plus the official SAM packages (same torch/MONAI/Flower).
+  image: apptainer/fl-brats-batch.sam.sif
