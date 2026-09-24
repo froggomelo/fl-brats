@@ -38,6 +38,8 @@ runs:
   - {config: configs/fedavg_train_configs_uneven/modality_sweep/alpha_0_001.yaml, seeds: [42], partitions: [batch]}
   # Full-modality reference every method is compared against
   - {config: configs/fedavg_uneven/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  # Centralized reference: one job per seed, no resume (a retry restarts).
+  - {config: configs/centralized/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
   # Communication-efficiency tuning (prerequisite for the comm_eff best runs;
   # add those configs here once the best p and bit widths are chosen)
   - {config: configs/selective_transmission_uneven/p_0_25.yaml, seeds: [42], partitions: [batch]}

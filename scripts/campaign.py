@@ -138,9 +138,20 @@ class Campaign:
 
     @staticmethod
     def jobs_needed(config: str) -> int:
-        """Jobs a run holds at once: the server and one per client."""
+        """Jobs a run holds at once: the server and one per client, or one centralized job."""
         values = _load_experiment_yaml(REPO_ROOT / config)
+        if values["experiment"]["family"] == "centralized":
+            return 1
         return 1 + int(values.get("federated", {}).get("num_clients", 4))
+
+    @staticmethod
+    def epochs_done(attempt: dict[str, Any]) -> tuple[int, float]:
+        """Completed epochs of a centralized attempt and when the last one finished."""
+        path = Path(attempt["run_dir"]) / "metrics.jsonl"
+        try:
+            return len(path.read_text(encoding="utf-8").splitlines()), path.stat().st_mtime
+        except OSError:
+            return 0, 0.0
 
     @staticmethod
     def latest_checkpoint(attempts: list[dict[str, Any]]) -> tuple[int, Path | None]:
@@ -161,7 +172,7 @@ class Campaign:
             return None
 
     def cancel(self, attempt: dict[str, Any], reason: str) -> None:
-        ids = [attempt["jobs"][k] for k in ("server", "clients", "cleanup") if k in attempt["jobs"]]
+        ids = [attempt["jobs"][k] for k in ("server", "clients", "cleanup", "job") if k in attempt["jobs"]]
         subprocess.run(["scancel", *ids], check=False)
         attempt["ended"] = _now()
         attempt["end_reason"] = reason
@@ -205,6 +216,9 @@ class Campaign:
                 continue
             attempt = unit["attempts"][-1]
             jobs = attempt["jobs"]
+            if "job" in jobs:
+                self.reconcile_single(key, unit, attempt, queue.get(jobs["job"], []), stall_seconds)
+                continue
             server = queue.get(jobs["server"], [])
             clients = queue.get(jobs["clients"], [])
             expected = int(attempt.get("clients", 4))
@@ -268,6 +282,43 @@ class Campaign:
             else:
                 unit["status"] = "pending"
                 self.log(f"retry {key}: {reason}; resume from round {after}")
+
+    def reconcile_single(
+        self, key: str, unit: dict[str, Any], attempt: dict[str, Any],
+        job: list[tuple[str, str]], stall_seconds: float,
+    ) -> None:
+        """A centralized run is one job; it has no resume, so a retry starts fresh."""
+        if self.record_gpu_failures(attempt):
+            attempt["hit_bad_node"] = True
+        if job and job[0][0] == "RUNNING" and "running_since" not in attempt:
+            attempt["running_since"], attempt["nodes"] = _now(), [job[0][1]]
+        epochs, last = self.epochs_done(attempt)
+        reason = None
+        if not job:
+            reason = "jobs ended"
+        elif "running_since" in attempt and _now() - max(attempt["running_since"], last) > stall_seconds:
+            reason = f"no epoch finished for {int((_now() - max(attempt['running_since'], last)) / 60)} min (stall)"
+        if reason is None:
+            return
+        if job:
+            self.cancel(attempt, reason)
+        else:
+            attempt["ended"], attempt["end_reason"] = _now(), reason
+        if (Path(attempt["run_dir"]) / "summary.json").is_file():
+            unit["status"], unit["final_run_dir"] = "done", attempt["run_dir"]
+            self.log(f"DONE {key} after {epochs} epochs -> {attempt['run_dir']}")
+            return
+        if epochs > 0:
+            unit["no_progress"] = 0
+        elif not attempt.get("hit_bad_node"):
+            unit["no_progress"] = unit.get("no_progress", 0) + 1
+        limit = int(self.spec.get("max_attempts_without_progress", 3))
+        if unit["no_progress"] >= limit:
+            unit["status"] = "stuck"
+            self.log(f"STUCK {key}: {limit} attempts without progress; last: {reason}")
+        else:
+            unit["status"] = "pending"
+            self.log(f"retry {key}: {reason} after {epochs} epochs; restart from scratch")
 
     def archive_off_partition(self) -> None:
         """Set aside finished attempts made on a partition the unit may no longer use.
@@ -350,7 +401,7 @@ class Campaign:
             self.log(
                 f"submitted {unit_spec['key']} on {partition} "
                 f"({'resume from round ' + str(round_number) if checkpoint else 'fresh'}) "
-                f"server={submitted['jobs']['server']}"
+                f"job={submitted['jobs'].get('server', submitted['jobs'].get('job'))}"
             )
 
     # ---------------------------------------------------------------- post-hoc
@@ -449,6 +500,9 @@ class Campaign:
         for unit_spec in self.units():
             unit = self.state["units"][unit_spec["key"]]
             round_number, path = self.latest_checkpoint(unit["attempts"])
+            if unit["attempts"] and "job" in unit["attempts"][-1]["jobs"]:
+                round_number, mtime = self.epochs_done(unit["attempts"][-1])
+                path = Path(unit["attempts"][-1]["run_dir"]) / "metrics.jsonl" if mtime else None
             partition = unit["attempts"][-1]["partition"] if unit["attempts"] else "-"
             posthoc = unit.get("posthoc", {}).get("status", "-")
             # Minutes since the last round checkpoint: the stall signal for active runs.

@@ -24,6 +24,7 @@ from fl_brats.config.validation import format_validation_error, validate_config
 from fl_brats.data.brats import (
     build_dataloader,
     build_dataset,
+    persistent_cache_dir,
     records_from_client_manifest,
     records_from_index,
 )
@@ -590,8 +591,12 @@ def create_initial_weights(
 
 @app.command("train-centralized")
 def train_centralized(
-    index_path: Path = typer.Option(..., "--index-path"),
-    split_path: Path = typer.Option(..., "--split-path"),
+    index_path: Path | None = typer.Option(
+        None, "--index-path", help="Defaults to DATASET_INDEX_PATH, as for federated runs."
+    ),
+    split_path: Path | None = typer.Option(
+        None, "--split-path", help="Defaults to FL_BRATS_SPLIT_PATH, as for federated runs."
+    ),
     partition_path: Path = typer.Option(..., "--partition-path"),
     initial_weights: Path = typer.Option(..., "--initial-weights"),
     output_root: Path = typer.Option(Path("outputs/centralized"), "--output-root"),
@@ -606,6 +611,12 @@ def train_centralized(
     ),
     batch_size: int = typer.Option(1, "--batch-size", min=1),
     workers: int = typer.Option(0, "--workers", min=0),
+    cache_mode: str = typer.Option(
+        "dataset", "--cache-mode", help="dataset (no cache) or persistent, as data.cache_mode."
+    ),
+    cache_location: str = typer.Option(
+        "shared", "--cache-location", help="shared or node, as data.cache_location."
+    ),
     pin_memory: bool | None = typer.Option(
         None,
         "--pin-memory/--no-pin-memory",
@@ -622,6 +633,16 @@ def train_centralized(
 
     if minimum_epochs > epochs:
         raise typer.BadParameter("--minimum-epochs cannot exceed --epochs")
+    if index_path is None:
+        if not os.environ.get("DATASET_INDEX_PATH"):
+            raise typer.BadParameter("--index-path or DATASET_INDEX_PATH is required")
+        index_path = Path(os.environ["DATASET_INDEX_PATH"])
+    if split_path is None:
+        if not os.environ.get("FL_BRATS_SPLIT_PATH"):
+            raise typer.BadParameter("--split-path or FL_BRATS_SPLIT_PATH is required")
+        split_path = Path(os.environ["FL_BRATS_SPLIT_PATH"])
+    if cache_mode not in ("dataset", "persistent"):
+        raise typer.BadParameter("--cache-mode must be dataset or persistent")
 
     split = json.loads(split_path.read_text(encoding="utf-8"))
     partition = json.loads(partition_path.read_text(encoding="utf-8"))
@@ -651,15 +672,18 @@ def train_centralized(
     )
     loss_fn = create_loss(loss_values)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-    cache_base = Path(os.environ.get("FL_BRATS_CACHE_ROOT", "cache")) / "brats2021" / run_dir.name
+    # The same deterministic-prefix cache the federated clients use: entries are
+    # keyed on source files and transform settings, so they are shared safely.
+    cache_dir = (
+        persistent_cache_dir(data_values | {"cache_location": cache_location})
+        if cache_mode == "persistent"
+        else None
+    )
 
     def loader(subjects: list[str], training: bool, name: str) -> tuple[Any, int]:
         records = records_from_index(index_path, subjects)
         dataset = build_dataset(
-            records,
-            build_transforms(data_values, training),
-            data_values.get("cache_mode", "dataset"),
-            cache_base / name,
+            records, build_transforms(data_values, training), cache_mode, cache_dir
         )
         return build_dataloader(
             dataset, batch_size, training, workers, seed, pin_memory
@@ -673,7 +697,11 @@ def train_centralized(
     metrics_file = run_dir / "metrics.jsonl"
     for epoch in range(1, epochs + 1):
         training = train_one_epoch(model, train_loader, loss_fn, optimizer, selected)
-        validation = evaluate(model, validation_loader, loss_fn, selected)
+        # Selection uses natural validation Dice, as in federated rounds, so the
+        # per-epoch pass skips HD95/sensitivity; the test report computes them.
+        validation = evaluate(
+            model, validation_loader, loss_fn, selected, metric_names=("dice",)
+        )
         record = {
             "epoch": epoch,
             **training,

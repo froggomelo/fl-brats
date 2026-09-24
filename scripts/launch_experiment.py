@@ -58,10 +58,16 @@ def _slug(value: str) -> str:
 def _command(config: Path, values: dict[str, Any], run_dir: Path, seed: int) -> list[str]:
     if values["experiment"]["family"] == "centralized":
         data, training = values["data"], values["training"]
+        # Unset index/split paths come from .env inside the job (DATASET_INDEX_PATH,
+        # FL_BRATS_SPLIT_PATH), exactly as for federated runs.
+        paths = [
+            item
+            for key, flag in (("index_path", "--index-path"), ("split_path", "--split-path"))
+            if data.get(key)
+            for item in (flag, str(data[key]))
+        ]
         return [
-            "fedbrats", "train-centralized",
-            "--index-path", str(data["index_path"]),
-            "--split-path", str(data["split_path"]),
+            "fedbrats", "train-centralized", *paths,
             "--partition-path", str(data["partition_path"]),
             "--initial-weights", str(values["initial_weights"]),
             "--run-dir", str(run_dir),
@@ -71,6 +77,9 @@ def _command(config: Path, values: dict[str, Any], run_dir: Path, seed: int) -> 
             "--early-stopping-min-delta", str(training["early_stopping_min_delta"]),
             "--batch-size", str(training["batch_size"]),
             "--workers", str(training.get("num_workers", 0)),
+            "--cache-mode", str(data.get("cache_mode", "dataset")),
+            "--cache-location", str(data.get("cache_location", "shared")),
+            "--pin-memory" if training.get("pin_memory") else "--no-pin-memory",
             "--seed", str(seed), "--device", str(values.get("device", "auto")),
         ]
     return ["fedbrats", "train-federated", "--config", str(config), "--run-dir", str(run_dir)]
@@ -343,14 +352,20 @@ def main() -> int:
             [
                 f"--output={log_dir}/slurm-%j.out",
                 f"--error={log_dir}/slurm-%j.err",
-                str(REPO_ROOT / "slurm" / "_shared" / "run_experiment.sbatch"),
+                # The federated jobs' wrapper: .env, dataset binds, GPU check, source bind.
+                str(REPO_ROOT / "slurm" / "_shared" / "run_with_configured_environment.sh"),
                 use_apptainer, image,
                 *command,
             ]
         )
         job_id = subprocess.check_output(sbatch, cwd=REPO_ROOT, text=True).strip()
         (log_dir / "slurm-job-id.txt").write_text(job_id + "\n", encoding="utf-8")
-        submitted.append({"run_id": run_id, "run_dir": str(run_dir), "job_id": job_id})
+        submitted.append(
+            {
+                "run_id": run_id, "run_dir": str(run_dir), "log_dir": str(log_dir),
+                "job_id": job_id, "jobs": {"job": job_id},
+            }
+        )
         previous_job = job_id
     print(json.dumps(submitted, indent=2))
     return 0

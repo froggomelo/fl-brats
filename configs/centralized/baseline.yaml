@@ -13,21 +13,27 @@ initial_weights_by_seed:
   43: artifacts/initial_weights/unet_seed_43.pt
   44: artifacts/initial_weights/unet_seed_44.pt
 data:
-  index_path: data/processed/brats2021/index.json
-  split_path: data/partitions/fedavg_uneven/split_manifest.json
+  # index_path and split_path come from .env (DATASET_INDEX_PATH,
+  # FL_BRATS_SPLIT_PATH) inside the job, the same files the federated runs use.
   partition_path: data/partitions/fedavg_uneven/manifest.json
+  cache_mode: persistent
+  cache_location: node
 model: {name: unet_baseline}
-training: {epochs: 100, minimum_epochs: 50, batch_size: 1, num_workers: 0, pin_memory: false, early_stopping_patience: 25, early_stopping_min_delta: 0.001}
+training: {epochs: 100, minimum_epochs: 50, batch_size: 1, num_workers: 3, pin_memory: false, early_stopping_patience: 25, early_stopping_min_delta: 0.001}
+# Same job shape as a federated client on batch (one RTX 3060).
 slurm:
-  partition: bigbatch
+  partition: batch
   account: null
   qos: null
-  time: "72:00:00"
+  time: "24:00:00"
   nodes: 1
   tasks: 1
-  cpus_per_task: 8
-  memory: 64G
-  gres: gpu:1
+  cpus_per_task: 6
+  memory: 29000M
+  gres: null
   exclusive: false
+  exclude: []
+  require_gpu: true
   use_apptainer: true
-  image: apptainer/fl-brats.sif
+  image: apptainer/fl-brats-batch.sif
+  bind_source: true
