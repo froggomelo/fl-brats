@@ -51,3 +51,19 @@ def test_cache_dir_changes_with_preprocessing_settings(tmp_path: Path) -> None:
     base = {"cache_dir": str(tmp_path)}
     assert persistent_cache_dir(base) == persistent_cache_dir(dict(base))
     assert persistent_cache_dir(base) != persistent_cache_dir({**base, "patch_size": [64, 64, 64]})
+
+
+def test_truncated_cache_entry_is_rebuilt(raw_root: Path, tmp_path: Path) -> None:
+    directory = make_subject(raw_root, shape=(20, 20, 20))
+    records = [_record(directory, "BraTS2021_00000", ("t1", "t1ce", "t2", "flair"))]
+    data = {"patch_size": [16, 16, 16], "divisible_by": 4, "cache_dir": str(tmp_path / "c")}
+    transform = build_transforms(data, False)
+    expected = BraTSDataset(records, transform)[0]
+    cache_dir = persistent_cache_dir(data)
+    BraTSPersistentDataset(records, transform, cache_dir)[0]
+    (entry,) = cache_dir.glob("*.pt")
+    entry.write_bytes(entry.read_bytes()[:100])
+    rebuilt = BraTSPersistentDataset(records, transform, cache_dir)[0]
+    assert torch.equal(torch.as_tensor(rebuilt["image"]), torch.as_tensor(expected["image"]))
+    assert len(entry.read_bytes()) > 100
+    assert not list(cache_dir.glob(".*.tmp"))

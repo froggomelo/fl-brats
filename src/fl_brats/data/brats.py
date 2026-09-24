@@ -4,6 +4,8 @@ import csv
 import hashlib
 import json
 import os
+import uuid
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,7 @@ from monai.data import (  # type: ignore[attr-defined]
     PersistentDataset,
     list_data_collate,
 )
+from monai.utils import convert_to_tensor
 from torch.utils.data import DataLoader
 
 from .modalities import MODALITIES, combination_to_mask, mask_to_combination_id
@@ -155,6 +158,33 @@ class BraTSPersistentDataset(PersistentDataset):
 
     def __getitem__(self, index: int) -> dict[str, Any] | list[dict[str, Any]]:  # type: ignore[override]
         return _with_metadata(super().__getitem__(index), self.data[index])
+
+    def _cachecheck(self, item_transformed: Any) -> Any:
+        """Read or build one cache entry safely when many nodes share the cache.
+
+        MONAI writes to a temporary directory on /tmp and then moves the file,
+        which across filesystems is a copy: clients on other nodes could read a
+        half-written file, and a job killed mid-copy left a truncated one that
+        MONAI re-raises on. Write beside the target and rename atomically, and
+        rebuild any entry that fails to load.
+        """
+        hashfile = self.cache_dir / f"{self.hash_func(item_transformed).decode('utf-8')}.pt"
+        if hashfile.is_file():
+            try:
+                return torch.load(hashfile, weights_only=self.weights_only)
+            except Exception:  # truncated or concurrently replaced entry: rebuild it
+                pass
+        transformed = self._pre_transform(deepcopy(item_transformed))
+        temporary = hashfile.with_name(f".{hashfile.stem}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+        try:
+            torch.save(
+                convert_to_tensor(transformed, convert_numeric=False, track_meta=self.track_meta),
+                temporary,
+            )
+            os.replace(temporary, hashfile)
+        except OSError:
+            temporary.unlink(missing_ok=True)
+        return transformed
 
 
 def persistent_cache_dir(data: dict[str, Any]) -> Path:
