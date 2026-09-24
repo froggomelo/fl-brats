@@ -43,6 +43,11 @@ def run_values(run_dir: Path, device: str | None = None) -> dict[str, Any]:
     values = yaml.safe_load(path.read_text(encoding="utf-8"))
     if device is not None:
         values["device"] = device
+    # Runs from before the preprocessing cache existed would otherwise decompress
+    # every validation subject for every checkpoint. Caching changes speed only.
+    data = values.setdefault("data", {})
+    data.setdefault("cache_mode", "persistent")
+    data.setdefault("cache_location", "node")
     return values
 
 
