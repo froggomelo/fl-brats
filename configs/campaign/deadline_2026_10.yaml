@@ -18,8 +18,11 @@ known_bad_nodes:
   mscluster83: bigbatch GPU unusable (2026-09-24 probe)
   mscluster129: batch GPU unusable (2026-09-24 probe)
 partitions:
-  # 13 running jobs per user: two five-job runs, leaving room for revalidation.
-  batch: {max_active: 2}
+  # Final training runs all use bigbatch's RTX 3090, like the finished
+  # baselines, so every result comes from one GPU model. batch (RTX 3060) only
+  # evaluates fixed checkpoints. The two FedAMM alpha 0.1 runs started on batch
+  # on 2026-09-24 finish there and are rerun on bigbatch.
+  batch: {max_active: 0}
   # 6 running jobs per user: one run. Whole nodes so each client owns its GPU.
   bigbatch:
     max_active: 1
