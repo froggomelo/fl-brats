@@ -248,12 +248,19 @@ def main() -> int:
                 str(runtime_config), str(run_dir), use_apptainer, image,
             ]
             client_job = subprocess.check_output(client_command, cwd=REPO_ROOT, text=True).strip()
+            # Clients exit after the last round while the server still runs the
+            # best/final evaluation, so only cancel a server that outlives a grace
+            # period (it is then stuck, e.g. waiting for a client that died).
+            grace_minutes = int(slurm.get("finalize_grace_minutes", 180))
             cleanup_job = subprocess.check_output(
                 [
                     "sbatch", "--parsable", f"--partition={slurm['partition']}",
                     f"--dependency=afterany:{client_job}",
+                    "--cpus-per-task=1", "--mem=256M", f"--time={grace_minutes + 10}",
                     f"--output={log_dir}/cleanup-%j.out", f"--error={log_dir}/cleanup-%j.err",
-                    f"--wrap=scancel {server_job} || true",
+                    f"--wrap=for _ in $(seq {grace_minutes}); do "
+                    f"squeue -h -j {server_job} 2>/dev/null | grep -q . || exit 0; sleep 60; "
+                    f"done; scancel {server_job} || true",
                 ],
                 cwd=REPO_ROOT, text=True,
             ).strip()
