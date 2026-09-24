@@ -178,10 +178,15 @@ class BraTSPersistentDataset(PersistentDataset):
         transformed = self._pre_transform(deepcopy(item_transformed))
         temporary = hashfile.with_name(f".{hashfile.stem}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
         try:
-            torch.save(
-                convert_to_tensor(transformed, convert_numeric=False, track_meta=self.track_meta),
-                temporary,
-            )
+            # Crops return views; torch.save writes a view's whole storage, so
+            # clone to store only the cropped volume (entries were ~2.7x larger).
+            payload = convert_to_tensor(transformed, convert_numeric=False, track_meta=self.track_meta)
+            if isinstance(payload, dict):
+                payload = {
+                    key: value.clone() if isinstance(value, torch.Tensor) else value
+                    for key, value in payload.items()
+                }
+            torch.save(payload, temporary)
             os.replace(temporary, hashfile)
         except OSError:
             temporary.unlink(missing_ok=True)
@@ -191,7 +196,7 @@ class BraTSPersistentDataset(PersistentDataset):
 def persistent_cache_dir(data: dict[str, Any]) -> Path:
     """Cache directory keyed on every setting that shapes the cached tensors."""
     settings = {
-        "version": "brats-deterministic-v1",
+        "version": "brats-deterministic-v2",
         "orientation": data.get("orientation", "RAS"),
         "spacing": data.get("spacing", [1.0, 1.0, 1.0]),
         "patch_size": data.get("patch_size", [96, 96, 96]),

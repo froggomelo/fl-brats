@@ -9,6 +9,7 @@ from monai.transforms import (  # type: ignore[attr-defined]
     EnsureChannelFirstd,
     EnsureTyped,
     LoadImaged,
+    MapTransform,
     NormalizeIntensityd,
     Orientationd,
     RandFlipd,
@@ -20,8 +21,15 @@ from monai.transforms import (  # type: ignore[attr-defined]
 from .labels import brats_to_regions
 
 
-class BraTSRegionsd:
+class BraTSRegionsd(MapTransform):
+    """Convert the label to WT/TC/ET channels.
+
+    A MONAI Transform subclass so PersistentDataset keeps caching past it: the
+    cache stops at the first transform that is random or not a MONAI Transform.
+    """
+
     def __init__(self, key: str = "label") -> None:
+        super().__init__(keys=[key])
         self.key = key
 
     def __call__(self, data: dict[str, Any]) -> dict[str, Any]:

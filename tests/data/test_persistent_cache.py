@@ -74,3 +74,29 @@ def test_node_cache_location_uses_local_root(tmp_path: Path, monkeypatch) -> Non
     monkeypatch.setenv("FL_BRATS_CACHE_ROOT", str(tmp_path / "shared"))
     assert persistent_cache_dir({"cache_location": "node"}).parent == tmp_path / "node"
     assert persistent_cache_dir({}).parent == tmp_path / "shared" / "persistent"
+
+
+def test_cache_holds_full_deterministic_prefix_without_view_storage(
+    raw_root: Path, tmp_path: Path
+) -> None:
+    directory = make_subject(raw_root, shape=(24, 24, 24))
+    records = [_record(directory, "BraTS2021_00000", ("t1", "t1ce", "t2", "flair"))]
+    data = {"patch_size": [8, 8, 8], "divisible_by": 4, "cache_dir": str(tmp_path / "c")}
+    BraTSPersistentDataset(records, build_transforms(data, True), persistent_cache_dir(data))[0]
+    (entry,) = persistent_cache_dir(data).glob("*.pt")
+    cached = torch.load(entry, weights_only=False)
+    # Region conversion and padding are cached, so the label has WT/TC/ET channels.
+    assert cached["label"].shape[0] == 3
+    assert all(size % 4 == 0 for size in cached["image"].shape[1:])
+    # Only the cropped volume is stored, not the uncropped storage behind a view.
+    stored = sum(
+        value.untyped_storage().nbytes()
+        for value in cached.values()
+        if isinstance(value, torch.Tensor)
+    )
+    tensors = sum(
+        value.numel() * value.element_size()
+        for value in cached.values()
+        if isinstance(value, torch.Tensor)
+    )
+    assert stored == tensors
