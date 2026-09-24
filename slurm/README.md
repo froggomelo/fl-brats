@@ -82,18 +82,24 @@ copied into the continuation, and new artifacts retain global numbering (the
 first new checkpoint in this example is `round_0136.pt`). The source run is
 never modified.
 
-## Federated missing-modality evaluation cadence
+## Federated evaluation cadence
 
-Missing-modality experiments use lightweight natural-distribution Dice and
-loss for per-round monitoring and early stopping. HD95, sensitivity, and the
-15 non-empty modality combinations run every 10 global rounds and on the final
-round. Configure the cadence under `missing_modalities.evaluation` with
-`robustness_every_rounds` and `expensive_metrics_every_rounds`.
+Every round, the server evaluates the global model on the held-out validation
+set (natural modality masks, Dice and loss). This drives `best.pt` and early
+stopping. At finalization the server evaluates `best.pt` and `final.pt` with
+full metrics (HD95, sensitivity) and, for missing-modality runs, all 15
+modality combinations, under `validation_evaluation/{best,final}/`.
 
-After training, the launcher submits separate four-client evaluation arrays
-for `best.pt` and `final.pt`, each followed by an aggregation job. Their
-authoritative robustness summaries are written to `evaluation/best/summary.json`
-and `evaluation/final/summary.json`. The best-checkpoint post-training stage is
-necessary because a checkpoint can only be identified as globally best after
-its natural per-round evaluation has completed. Evaluating `final.pt` separately
-also covers runs stopped early between 10-round robustness intervals.
+HD95, sensitivity and the robustness pass for every 10th round are
+reporting-only and run after training from the saved round checkpoints:
+
+```bash
+fedbrats evaluate-periodic-checkpoints --run-dir RUN [--run-dir CONTINUATION ...] \
+  --every 10 --device cuda --test-best
+```
+
+Pass every directory of a resumed run, oldest first. Results go to
+`periodic_evaluation/` in the newest directory. `--test-best` then reports
+test-cohort metrics for the validation-selected checkpoint in
+`final_evaluation/`. The campaign driver (`docs/campaign.md`) submits this job
+for each finished run.
