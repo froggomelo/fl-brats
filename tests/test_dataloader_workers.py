@@ -30,3 +30,10 @@ def test_workers_draw_independent_augmentation() -> None:
 
 def test_worker_draws_are_reproducible() -> None:
     assert _draws(2) == _draws(2)
+
+
+def test_workers_are_spawned_not_forked() -> None:
+    # Forked workers of a process with live gRPC threads abort.
+    dataset = Dataset([{"index": 0}], transform=_Draw())
+    loader = build_dataloader(dataset, 1, False, workers=1, seed=7, pin_memory=False)
+    assert loader.multiprocessing_context.get_start_method() == "spawn"

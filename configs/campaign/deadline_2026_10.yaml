@@ -47,6 +47,8 @@ runs:
   - {config: configs/fedavg_train_configs_uneven/client_sweeps/k8.yaml, seeds: [42], partitions: [batch, bigbatch]}
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b4.yaml, seeds: [42], partitions: [batch, bigbatch]}
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [bigbatch]}
-  # Model-agnostic (dropped first if time runs out)
-  - {config: configs/model_agnostic_uneven/sam1/baseline.yaml, seeds: [42, 43, 44], partitions: [bigbatch]}
-  - {config: configs/model_agnostic_uneven/sam2/baseline.yaml, seeds: [42, 43, 44], partitions: [bigbatch]}
+  # Model-agnostic (dropped first if time runs out). Not runnable yet: the
+  # pretrained checkpoints artifacts/pretrained/sam1.pth and sam2.pt are missing
+  # and SAM has never been smoke-tested. Re-enable once both are done.
+  # - {config: configs/model_agnostic_uneven/sam1/baseline.yaml, seeds: [42, 43, 44], partitions: [bigbatch]}
+  # - {config: configs/model_agnostic_uneven/sam2/baseline.yaml, seeds: [42, 43, 44], partitions: [bigbatch]}

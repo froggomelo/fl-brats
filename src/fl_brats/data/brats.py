@@ -277,6 +277,8 @@ def build_dataloader(
     # MONAI's worker_init_fn reseeds them per worker from the loader generator;
     # without it every worker would produce the same crops and flips.
     # Persistent workers keep those streams advancing across epochs and rounds.
+    # Spawn, not fork: Flower's gRPC threads are live when workers start, and
+    # forked children of a gRPC process abort ("skipping fork() handlers").
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -287,4 +289,5 @@ def build_dataloader(
         collate_fn=list_data_collate,
         worker_init_fn=monai_worker_init_fn if workers > 0 else None,
         persistent_workers=workers > 0,
+        multiprocessing_context="spawn" if workers > 0 else None,
     )
