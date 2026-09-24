@@ -79,3 +79,23 @@ def test_per_client_dice_variance_is_reported() -> None:
     result = per_client_summary(clients)
     assert result["dice_variance"]["wt_dice"] == pytest.approx(0.04)
     assert len(result["clients"]) == 2
+
+
+def test_parallel_hd95_matches_serial_evaluation() -> None:
+    import torch
+    from torch.utils.data import DataLoader
+
+    from fl_brats.training.engine import evaluate
+
+    torch.manual_seed(0)
+    records = []
+    for _ in range(5):
+        label = torch.zeros(3, 12, 12, 12)
+        label[:, 3:8, 4:9, 2:7] = 1
+        records.append({"image": torch.randn(4, 12, 12, 12), "label": label})
+    loader = DataLoader(records, batch_size=1)
+    model = torch.nn.Conv3d(4, 3, kernel_size=1)
+    loss = torch.nn.BCEWithLogitsLoss()
+    serial = evaluate(model, loader, loss, torch.device("cpu"))
+    parallel = evaluate(model, loader, loss, torch.device("cpu"), hd95_workers=2)
+    assert serial == parallel

@@ -27,7 +27,7 @@ missing_modalities:
   evaluation:
     evaluate_all_non_empty_combinations: true
     report_per_client: true
-    robustness_every_rounds: 10
-    expensive_metrics_every_rounds: 10
+    robustness_every_rounds: 0  # periodic metrics run after training; see federated_uneven.yaml
+    expensive_metrics_every_rounds: 0
     evaluate_best_checkpoint: true
     evaluate_final_checkpoint: true

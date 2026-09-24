@@ -1407,6 +1407,32 @@ def revalidate_federated_run_command(
                                         expensive=expensive_metrics, dry_run=dry_run), indent=2))
 
 
+@app.command("evaluate-periodic-checkpoints")
+def evaluate_periodic_checkpoints_command(
+    run_dirs: list[Path] = typer.Option(
+        ..., "--run-dir", help="Run directories oldest first; a resumed run lists its whole chain."
+    ),
+    split: Path = typer.Option(..., "--split"),
+    every: int = typer.Option(10, "--every"),
+    index_path: Path | None = typer.Option(None, "--index-path"),
+    device: str | None = typer.Option(None, "--device"),
+    hd95_workers: int | None = typer.Option(None, "--hd95-workers"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """Resumable full metrics and modality robustness for every Nth round checkpoint."""
+    from fl_brats.federated.periodic import evaluate_periodic
+
+    typer.echo(
+        json.dumps(
+            evaluate_periodic(
+                run_dirs, split, every=every, index_path=index_path, device=device,
+                hd95_workers=hd95_workers, dry_run=dry_run,
+            ),
+            indent=2,
+        )
+    )
+
+
 @app.command("revalidate-federated-runs")
 def revalidate_federated_runs_command(
     run_dirs: list[Path] = typer.Option([], "--run-dir"),

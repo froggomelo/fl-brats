@@ -1,12 +1,15 @@
 """One training/evaluation engine for centralized and federated paths."""
 
+import multiprocessing
 import time
+from collections import deque
+from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
 import torch
 from torch.utils.data import DataLoader
 
-from fl_brats.metrics.segmentation import REGIONS, segmentation_metrics
+from fl_brats.metrics.segmentation import REGIONS, _hd95, segmentation_metrics
 from fl_brats.models.fedamm import FedAMMOutput, fedamm_auxiliary_loss, semantic_prototypes
 
 
@@ -141,28 +144,70 @@ def evaluate(
     *,
     metric_names: tuple[str, ...] = ("dice", "hd95", "sensitivity"),
     timing: dict[str, float] | None = None,
+    hd95_workers: int = 0,
 ) -> dict[str, float]:
+    """Average loss and segmentation metrics over the loader.
+
+    HD95 runs a single-threaded CPU distance transform that takes seconds per
+    subject for scattered predictions. With ``hd95_workers`` it runs in a
+    process pool while the GPU moves on; results are summed in batch order, so
+    the averages are identical to the serial computation.
+    """
     model.eval()
     aggregate: dict[str, float] = {"loss": 0.0}
     for metric in metric_names:
         aggregate.update({f"{region}_{metric}": 0.0 for region in REGIONS})
         aggregate[f"mean_{metric}"] = 0.0
     samples = 0
-    for batch in loader:
-        batch = move_batch_to_device(batch, device)
-        logits = logits_from_output(forward_batch(model, batch))
-        n = len(logits)
-        metrics = segmentation_metrics(logits, batch["label"], metric_names=("dice",)) if "dice" in metric_names else {}
-        expensive = tuple(name for name in metric_names if name != "dice")
-        if expensive:
-            started = time.perf_counter()
-            metrics.update(segmentation_metrics(logits, batch["label"], metric_names=expensive))
-            if timing is not None:
-                timing["expensive_metrics_seconds"] = timing.get("expensive_metrics_seconds", 0.0) + time.perf_counter() - started
-        aggregate["loss"] += float(loss_fn(logits, batch["label"])) * n
+    parallel_hd95 = "hd95" in metric_names and hd95_workers > 0
+    inline = tuple(name for name in metric_names if name != "dice" and not (parallel_hd95 and name == "hd95"))
+    pending: deque[tuple[Any, int]] = deque()
+    batch_rows: list[dict[str, float]] = []
+    started_expensive = time.perf_counter()
+    pool = (
+        ProcessPoolExecutor(max_workers=hd95_workers, mp_context=multiprocessing.get_context("spawn"))
+        if parallel_hd95
+        else None
+    )
+    try:
+        for batch in loader:
+            batch = move_batch_to_device(batch, device)
+            logits = logits_from_output(forward_batch(model, batch))
+            n = len(logits)
+            metrics = segmentation_metrics(logits, batch["label"], metric_names=("dice",)) if "dice" in metric_names else {}
+            if inline:
+                started = time.perf_counter()
+                metrics.update(segmentation_metrics(logits, batch["label"], metric_names=inline))
+                if timing is not None:
+                    timing["expensive_metrics_seconds"] = timing.get("expensive_metrics_seconds", 0.0) + time.perf_counter() - started
+            if pool is not None:
+                prediction = (torch.sigmoid(logits) >= 0.5).cpu()
+                pending.append((pool.submit(_hd95, prediction, batch["label"].bool().cpu()), len(batch_rows)))
+                # Bound in-flight volumes (~27 MB each) so memory stays flat.
+                while len(pending) > 2 * hd95_workers:
+                    _store_hd95(batch_rows, *pending.popleft())
+            metrics["loss"] = float(loss_fn(logits, batch["label"]))
+            metrics["_n"] = float(n)
+            batch_rows.append(metrics)
+            samples += n
+        while pending:
+            _store_hd95(batch_rows, *pending.popleft())
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
+    if pool is not None and timing is not None:
+        timing["expensive_metrics_seconds"] = timing.get("expensive_metrics_seconds", 0.0) + time.perf_counter() - started_expensive
+    for metrics in batch_rows:
+        n = metrics.pop("_n")
         for key, value in metrics.items():
             aggregate[key] += value * n
-        samples += n
     return {key: value / samples if samples else 0.0 for key, value in aggregate.items()} | {
         "subjects": float(samples)
     }
+
+
+def _store_hd95(rows: list[dict[str, float]], future: Any, index: int) -> None:
+    values = future.result()
+    for region, value in zip(REGIONS, values, strict=True):
+        rows[index][f"{region}_hd95"] = value
+    rows[index]["mean_hd95"] = sum(values) / len(REGIONS)

@@ -102,6 +102,7 @@ class HeldOutEvaluator:
             ("cuda" if torch.cuda.is_available() else "cpu") if device == "auto" else device
         )
         self.loss_fn = create_loss(values.get("loss", {}))
+        self.hd95_workers = int(self.policy.get("hd95_workers", 0))
         self.robustness_enabled = bool(
             values.get("missing_modalities", {}).get("enabled", False)
         ) and bool(self.policy.get("evaluate_all_non_empty_combinations", True))
@@ -190,6 +191,7 @@ class HeldOutEvaluator:
                 self.device,
                 metric_names=names,
                 timing=timing,
+                hd95_workers=self.hd95_workers,
             )
         )
         natural_seconds = time.perf_counter() - started
@@ -199,7 +201,12 @@ class HeldOutEvaluator:
             combinations = {
                 key: canonical_metrics(value)
                 for key, value in evaluate_modality_combinations(
-                    model, self.loader, self.loss_fn, self.device, metric_names=names
+                    model,
+                    self.loader,
+                    self.loss_fn,
+                    self.device,
+                    metric_names=names,
+                    hd95_workers=self.hd95_workers,
                 ).items()
             }
         metrics.update(

@@ -450,3 +450,44 @@ def test_distributed_server_accepts_slurm_bootstrap_and_wires_global_evaluation(
     with pytest.raises(ValueError, match="already contains"):
         start_server("localhost:8080", values, run_dir=run)
     assert sha256_file(run / "checkpoints/best.pt") == before
+
+
+def test_periodic_evaluation_spans_resume_chain_and_resumes(tmp_path, monkeypatch):
+    from fl_brats.federated.periodic import evaluate_periodic
+
+    first, split = fixture_run(tmp_path)
+    config = json.dumps(
+        {"device": "cpu", "loss": {"name": "dice_ce"}, "missing_modalities": {"enabled": True, "mode": "arbitrary"}}
+    )
+    (first / "resolved_config.yaml").write_text(config)
+    second = tmp_path / "continuation"
+    (second / "checkpoints").mkdir(parents=True)
+    (second / "resolved_config.yaml").write_text(config)
+    for run, numbers in ((first, (5, 10, 15)), (second, (16, 20, 25, 30))):
+        for number in numbers:
+            torch.save(
+                {"round": number, "model_config": {}, "model_state": torch.nn.Linear(1, 1).state_dict()},
+                run / f"checkpoints/round_{number:04d}.pt",
+            )
+    monkeypatch.setattr(HeldOutEvaluator, "prepare", lambda self: None)
+    monkeypatch.setattr("fl_brats.federated.periodic.create_model", lambda cfg: torch.nn.Linear(1, 1))
+    calls = []
+
+    def run_eval(self, model, **kwargs):
+        calls.append(kwargs)
+        if len(calls) == 2:
+            raise InterruptedError()
+        return {"mean_dice": 0.5, "evaluation_seconds": 1.0}, {"t1": {"mean_dice": 0.1}, "flair": {"mean_dice": 0.2}}
+
+    monkeypatch.setattr(HeldOutEvaluator, "run", run_eval)
+    with pytest.raises(InterruptedError):
+        evaluate_periodic([first, second], split, every=10)
+    summary = evaluate_periodic([first, second], split, every=10)
+    assert summary["rounds"] == [10, 20, 30]
+    assert all(call == {"expensive": True, "robustness": True} for call in calls)
+    output = second / "periodic_evaluation"
+    rounds = [json.loads(line)["round"] for line in (output / "rounds.jsonl").read_text().splitlines()]
+    combos = [json.loads(line)["round"] for line in (output / "modality_combinations.jsonl").read_text().splitlines()]
+    assert rounds == [10, 20, 30]
+    assert combos == [10, 10, 20, 20, 30, 30]
+    assert len(calls) == 4  # 10, interrupted 20, then 20 and 30

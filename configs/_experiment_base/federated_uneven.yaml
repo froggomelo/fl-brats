@@ -95,8 +95,15 @@ missing_modalities:
 # Dedicated research evaluation data: held-out validation only, never pooled client data.
 evaluation:
   natural_every_rounds: 1
-  expensive_metrics_every_rounds: 10
-  robustness_every_rounds: 10
+  # HD95/sensitivity and the 15-combination robustness pass are reporting-only
+  # and blocked training for hours every tenth round. They run after training
+  # on the saved checkpoints instead (fedbrats evaluate-periodic-checkpoints
+  # --every 10); best and final checkpoints still get them at finalization.
+  expensive_metrics_every_rounds: 0
+  robustness_every_rounds: 0
+  periodic_evaluation_every_rounds: 10
+  # HD95 runs a single-threaded CPU distance transform; batch nodes have 6 CPUs.
+  hd95_workers: 5
   evaluate_best_checkpoint: true
   evaluate_final_checkpoint: true
   client_diagnostics: false

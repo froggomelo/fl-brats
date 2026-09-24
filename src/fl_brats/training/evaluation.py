@@ -35,6 +35,7 @@ def evaluate_modality_combinations(
     device: torch.device,
     *,
     metric_names: tuple[str, ...] = ("dice", "hd95", "sensitivity"),
+    hd95_workers: int = 0,
 ) -> dict[str, dict[str, float]]:
     """Evaluate every non-empty mask without mutating records or manifests."""
     results: dict[str, dict[str, float]] = {}
@@ -46,6 +47,7 @@ def evaluate_modality_combinations(
             loss_fn,
             device,
             metric_names=metric_names,
+            hd95_workers=hd95_workers,
         )
         metrics["subjects"] = metrics.get("subjects", 0.0)
         metrics["available_modalities"] = float(mask.sum())
