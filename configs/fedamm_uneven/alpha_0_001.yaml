@@ -3,3 +3,4 @@ experiment: {variant: alpha_0_001}
 missing_modalities:
   arbitrary:
     per_modality_missing_probability: {t1: 0.001, t1ce: 0.001, t2: 0.001, flair: 0.001}
+data: {partition_root: data/partitions/missing_uneven/alpha_0_001}

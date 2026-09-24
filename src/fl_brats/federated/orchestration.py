@@ -15,7 +15,12 @@ import flwr as fl
 import torch
 
 from fl_brats.data.brats import build_dataloader, build_dataset, records_from_client_manifest
-from fl_brats.data.cohorts import read_split, split_path_for, validate_client_manifest
+from fl_brats.data.cohorts import (
+    read_split,
+    split_path_for,
+    validate_client_manifest,
+    validate_client_missingness,
+)
 from fl_brats.data.hashing import sha256_file
 from fl_brats.data.transforms import build_transforms
 from fl_brats.losses.segmentation import create_loss
@@ -190,6 +195,7 @@ def build_client(values: dict[str, Any], client_id: str, partition_root: Path) -
         raise ValueError(f"unknown client ID {client_id!r}: missing {path}")
     split = read_split(split_path_for(values))
     ids = validate_client_manifest(path, split)
+    validate_client_missingness(path, values.get("missing_modalities"))
     print(f"{client_id}: training only, {len(ids)} subjects; disjoint from validation/test", flush=True)
     records = records_from_client_manifest(path)
     if not records:

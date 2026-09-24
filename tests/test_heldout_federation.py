@@ -7,7 +7,12 @@ import pytest
 import torch
 from flwr.common import ndarrays_to_parameters
 
-from fl_brats.data.cohorts import read_split, validate_client_manifest, validate_split
+from fl_brats.data.cohorts import (
+    read_split,
+    validate_client_manifest,
+    validate_client_missingness,
+    validate_split,
+)
 from fl_brats.data.hashing import sha256_file
 from fl_brats.federated.evaluation import HeldOutEvaluator
 from fl_brats.federated.finalization import finalize_federation
@@ -56,6 +61,49 @@ def test_client_only_accepts_training_subjects(tmp_path):
             validate_client_manifest(manifest, split)
     manifest.write_text(json.dumps({"subjects": [{"subject_id": "a", "split": "train"}]}))
     assert validate_client_manifest(manifest, split) == ["a"]
+
+
+def test_client_missingness_must_match_configured_policy(tmp_path):
+    from fl_brats.data.modalities import policy_from_config
+
+    def policy(probability):
+        return {
+            "enabled": True,
+            "mode": "arbitrary",
+            "seed": 42,
+            "arbitrary": {
+                "per_modality_missing_probability": dict.fromkeys(
+                    ("t1", "t1ce", "t2", "flair"), probability
+                )
+            },
+        }
+
+    subjects = [f"s{i}" for i in range(50)]
+    built = policy_from_config(policy(0.5))
+    manifest = tmp_path / "client_0.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "client_name": "client_0",
+                "subjects": [
+                    {
+                        "subject_id": s,
+                        "available_modalities": list(
+                            built.available_modalities(
+                                subject_id=s, client_id="client_0", split="train"
+                            )
+                        ),
+                    }
+                    for s in subjects
+                ],
+            }
+        )
+    )
+    validate_client_missingness(manifest, policy(0.5))
+    with pytest.raises(ValueError, match="differ from the configured"):
+        validate_client_missingness(manifest, policy(0.001))
+    with pytest.raises(ValueError, match="differ from the configured"):
+        validate_client_missingness(manifest, {"enabled": False})
 
 
 @pytest.mark.parametrize("algorithm", ["fedavg", "fedamm"])

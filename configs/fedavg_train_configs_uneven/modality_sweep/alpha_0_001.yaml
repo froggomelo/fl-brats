@@ -3,3 +3,4 @@ experiment: {family: fedavg_train_configs_uneven/modality_sweep, variant: alpha_
 missing_modalities:
   arbitrary:
     per_modality_missing_probability: {t1: 0.001, t1ce: 0.001, t2: 0.001, flair: 0.001}
+data: {partition_root: data/partitions/missing_uneven/alpha_0_001}

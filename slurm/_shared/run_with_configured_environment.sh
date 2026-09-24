@@ -31,7 +31,13 @@ if [[ "$use_apptainer" == "true" ]]; then
     --env "FL_BRATS_CACHE_ROOT=${FL_BRATS_CACHE_ROOT:-$repo_root/cache}"
     --env "FL_BRATS_CHECKPOINT_ROOT=${FL_BRATS_CHECKPOINT_ROOT:-$repo_root/checkpoints}"
   )
-  exec apptainer exec --nv "${apptainer_env[@]}" \
+  # Images bake src/ in at build time. FL_BRATS_BIND_SOURCE=1 runs the checked-out
+  # source instead (the image installs fl_brats editable from /workspace/src).
+  source_bind=()
+  if [[ "${FL_BRATS_BIND_SOURCE:-0}" == "1" ]]; then
+    source_bind=(--bind "$repo_root/src:/workspace/src:ro")
+  fi
+  exec apptainer exec --nv "${apptainer_env[@]}" "${source_bind[@]}" \
     --bind "$repo_root:$repo_root" \
     --bind "$data_root:$data_root:ro" \
     --pwd "$repo_root" "$image" "$@"

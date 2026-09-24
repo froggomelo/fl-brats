@@ -48,3 +48,31 @@ def validate_client_manifest(path: Path, split: dict[str, Any]) -> list[str]:
     if "subject_ids" in payload and sorted(payload["subject_ids"]) != sorted(ids):
         raise ValueError(f"subject_ids disagree with references in {path}")
     return ids
+
+
+def validate_client_missingness(path: Path, missing_config: dict[str, Any] | None) -> None:
+    """Reject a partition whose baked-in modality masks disagree with the config.
+
+    Masks are fixed when the partition is created, so pointing a config at a
+    partition built with another missingness policy would otherwise train
+    silently on the wrong availability pattern.
+    """
+    from fl_brats.data.modalities import MODALITIES, canonical_modality_order, policy_from_config
+
+    policy = policy_from_config(missing_config or {})
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    client_id = payload.get("client_name") or f"client_{payload.get('client_id', path.stem)}"
+    mismatched = [
+        item["subject_id"]
+        for item in payload["subjects"]
+        if canonical_modality_order(item.get("available_modalities", list(MODALITIES)))
+        != policy.available_modalities(
+            subject_id=item["subject_id"], client_id=client_id, split="train"
+        )
+    ]
+    if mismatched:
+        raise ValueError(
+            f"{path}: modality masks of {len(mismatched)}/{len(payload['subjects'])} subjects "
+            "differ from the configured missing_modalities policy; recreate the partition "
+            "with prepare-experiment-partition for this config"
+        )

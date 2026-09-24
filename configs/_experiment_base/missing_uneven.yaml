@@ -5,7 +5,7 @@ initial_weights_by_seed:
   43: artifacts/initial_weights/fedamm_seed_43.pt
   44: artifacts/initial_weights/fedamm_seed_44.pt
 data:
-  partition_root: data/partitions/fedavg_missing_modalities_uneven
+  partition_root: data/partitions/missing_uneven/alpha_0_1
 model:
   name: fedamm
   in_channels: 4

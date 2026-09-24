@@ -14,6 +14,10 @@ shift 2
 echo "job_id=${SLURM_JOB_ID:-manual} host=$(hostname) command=$*"
 if [[ "$use_container" == "true" ]]; then
   [[ -f "$image" ]] || { echo "Configured Apptainer image does not exist: $image" >&2; exit 2; }
-  exec apptainer exec --nv --bind "$repo_root:$repo_root" --pwd "$repo_root" "$image" "$@"
+  source_bind=()
+  if [[ "${FL_BRATS_BIND_SOURCE:-0}" == "1" ]]; then
+    source_bind=(--bind "$repo_root/src:/workspace/src:ro")
+  fi
+  exec apptainer exec --nv "${source_bind[@]}" --bind "$repo_root:$repo_root" --pwd "$repo_root" "$image" "$@"
 fi
 exec "$@"
