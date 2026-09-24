@@ -21,7 +21,12 @@ from fl_brats.comparison.baselines import compare
 from fl_brats.config.loader import load_config, resolved_dict
 from fl_brats.config.schema import ProjectConfig
 from fl_brats.config.validation import format_validation_error, validate_config
-from fl_brats.data.brats import build_dataloader, build_dataset, records_from_index
+from fl_brats.data.brats import (
+    build_dataloader,
+    build_dataset,
+    records_from_client_manifest,
+    records_from_index,
+)
 from fl_brats.data.discovery import discover_records
 from fl_brats.data.hashing import sha256_file
 from fl_brats.data.indexing import build_dataset_index
@@ -54,6 +59,7 @@ from fl_brats.training.checkpointing import (
     save_checkpoint,
 )
 from fl_brats.training.engine import evaluate, forward_batch, logits_from_output, train_one_epoch
+from fl_brats.training.evaluation import evaluate_modality_combinations
 from fl_brats.utils.environment import collect_environment, write_environment_report
 from fl_brats.utils.logging import configure_logging
 from fl_brats.utils.paths import (
@@ -834,6 +840,114 @@ def evaluate_checkpoint(
     typer.echo(json.dumps(summary, indent=2))
 
 
+@app.command("evaluate-federated-checkpoint")
+def evaluate_federated_checkpoint(
+    context: typer.Context,
+    checkpoint: Path = typer.Option(..., "--checkpoint"),
+    client_id: str = typer.Option(..., "--client-id"),
+    output_dir: Path = typer.Option(..., "--output-dir"),
+    config: Path | None = typer.Option(None, "--config"),
+) -> None:
+    """Run training-partition diagnostics for one client (never model selection)."""
+    values = _experiment_values(config, context)
+    payload = load_checkpoint(checkpoint)
+    model_values = payload.get("model_config")
+    if not isinstance(model_values, dict) or not isinstance(payload.get("model_state"), dict):
+        raise typer.BadParameter("checkpoint lacks model_config or model_state")
+    partition_root = Path(
+        values.get("partition_root") or values.get("data", {}).get("partition_root", "")
+    )
+    manifest = partition_root / f"{client_id}.json"
+    records = records_from_client_manifest(manifest)
+    if not records:
+        raise typer.BadParameter(f"client manifest is empty: {manifest}")
+    data = values.get("data", {})
+    loader = build_dataloader(
+        build_dataset(records, build_transforms(data, False)),
+        int(values.get("local_batch_size", values.get("batch_size", 1))),
+        False,
+        int(values.get("num_workers", 0)),
+        int(values.get("seed", 42)),
+        values.get("pin_memory"),
+    )
+    model = create_model(model_values)
+    model.load_state_dict(payload["model_state"], strict=True)
+    device_name = str(values.get("device", "auto"))
+    import torch
+
+    device = torch.device(
+        ("cuda" if torch.cuda.is_available() else "cpu")
+        if device_name == "auto"
+        else device_name
+    )
+    model.to(device)
+    loss_fn = create_loss(values.get("loss", {}))
+    typer.echo("Training-partition diagnostics; use evaluate-final-run for held-out test reporting.")
+    natural = evaluate(model, loader, loss_fn, device)
+    combinations = evaluate_modality_combinations(model, loader, loss_fn, device)
+    result = {
+        "schema_version": 1,
+        "checkpoint": str(checkpoint),
+        "checkpoint_round": int(payload.get("round", 0)),
+        "client_id": client_id,
+        "cohort": "client_training_partition_diagnostic",
+        "subjects": len(records),
+        "natural": natural,
+        "combinations": combinations,
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    destination = output_dir / f"{client_id}.json"
+    temporary = destination.with_suffix(".tmp")
+    temporary.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    temporary.replace(destination)
+    typer.echo(str(destination))
+
+
+@app.command("aggregate-federated-checkpoint-evaluation")
+def aggregate_federated_checkpoint_evaluation(
+    input_dir: Path = typer.Option(..., "--input-dir"),
+) -> None:
+    """Aggregate per-client training-partition diagnostics by subject count."""
+    rows = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(input_dir.glob("client_*.json"))]
+    if not rows:
+        raise typer.BadParameter(f"no client evaluations found in {input_dir}")
+
+    def weighted(items: list[tuple[dict[str, float], int]]) -> dict[str, float]:
+        keys = sorted({key for metrics, _ in items for key in metrics})
+        return {
+            key: sum(float(metrics[key]) * weight for metrics, weight in items if key in metrics)
+            / sum(weight for metrics, weight in items if key in metrics)
+            for key in keys
+        }
+
+    combination_names = sorted(
+        {name for row in rows for name in row.get("combinations", {})}
+    )
+    summary = {
+        "schema_version": 1,
+        "checkpoint": rows[0]["checkpoint"],
+        "checkpoint_round": rows[0]["checkpoint_round"],
+        "clients": len(rows),
+        "subjects": sum(int(row["subjects"]) for row in rows),
+        "natural": weighted(
+            [(row["natural"], int(row["subjects"])) for row in rows]
+        ),
+        "combinations": {
+            name: weighted(
+                [
+                    (row["combinations"][name], int(row["subjects"]))
+                    for row in rows
+                    if name in row.get("combinations", {})
+                ]
+            )
+            for name in combination_names
+        },
+    }
+    destination = input_dir / "summary.json"
+    destination.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    typer.echo(str(destination))
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         raise typer.BadParameter(f"metrics file does not exist: {path}")
@@ -1270,3 +1384,58 @@ def compare_sam_command(
     except ValueError as error:
         typer.echo(f"ERROR: {error}", err=True)
         raise typer.Exit(1) from error
+
+
+@app.command("revalidate-federated-run")
+def revalidate_federated_run_command(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    split: Path = typer.Option(..., "--split"),
+    index_path: Path | None = typer.Option(None, "--index-path"),
+    device: str | None = typer.Option(None, "--device"),
+    expensive_metrics: bool = typer.Option(False, "--expensive-metrics"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """Resume held-out checkpoint search without changing historical artifacts."""
+    from fl_brats.federated.revalidation import revalidate_run
+    typer.echo(json.dumps(revalidate_run(run_dir, split, index_path=index_path, device=device,
+                                        expensive=expensive_metrics, dry_run=dry_run), indent=2))
+
+
+@app.command("revalidate-federated-runs")
+def revalidate_federated_runs_command(
+    run_dirs: list[Path] = typer.Option([], "--run-dir"),
+    run_glob: str | None = typer.Option(None, "--run-glob"),
+    split: Path = typer.Option(..., "--split"),
+    index_path: Path | None = typer.Option(None, "--index-path"),
+    device: str | None = typer.Option(None, "--device"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """Sequential resumable revalidation of explicit directories or a quoted glob."""
+    import glob
+    from fl_brats.federated.revalidation import revalidate_run
+    roots = sorted(set(path.resolve() for path in run_dirs) | {
+        Path(path).resolve() for path in glob.glob(run_glob or "")
+    })
+    if not roots:
+        raise typer.BadParameter("provide --run-dir or a matching --run-glob")
+    for root in roots:
+        typer.echo(json.dumps(revalidate_run(root, split, index_path=index_path,
+                                            device=device, dry_run=dry_run), indent=2))
+
+
+@app.command("evaluate-final-run")
+def evaluate_final_run_command(
+    run_dir: Path = typer.Option(..., "--run-dir"),
+    split: Path = typer.Option(..., "--split"),
+    checkpoint: Path | None = typer.Option(None, "--checkpoint"),
+    final_round: int | None = typer.Option(None, "--final-round"),
+    index_path: Path | None = typer.Option(None, "--index-path"),
+    device: str | None = typer.Option(None, "--device"),
+    robustness: bool | None = typer.Option(None, "--robustness/--no-robustness"),
+    output_dir: Path | None = typer.Option(None, "--output-dir"),
+) -> None:
+    """Report test performance of an already selected or predetermined checkpoint."""
+    from fl_brats.federated.revalidation import evaluate_final_run
+    typer.echo(str(evaluate_final_run(run_dir, split, checkpoint=checkpoint, final_round=final_round,
+                                     index_path=index_path, device=device, robustness=robustness,
+                                     output_dir=output_dir)))

@@ -125,9 +125,9 @@ def test_resume_restores_state_history_and_global_round_offset(tmp_path) -> None
 
     assert restored is not None
     assert restored.completed_round == 3
-    assert restored.best_round == 2
+    assert restored.best_round is None  # historical training-partition scores are not validation
     assert restored.status == "running"
-    assert restored.best_checkpoint == str(continuation / "checkpoints" / "best.pt")
+    assert restored.best_checkpoint is None
     assert rounds_to_run({"num_rounds": 5}, restored) == 2
     assert [
         json.loads(line)["round"]
@@ -183,5 +183,37 @@ def test_resumed_aggregation_writes_global_round_number(tmp_path) -> None:
     assert parameters is not None
     assert strategy.state.completed_round == 4
     assert (tmp_path / "checkpoints" / "round_0004.pt").exists()
+    strategy.evaluate(1, parameters)
     record = json.loads((tmp_path / "metrics" / "rounds.jsonl").read_text().splitlines()[-1])
     assert record["round"] == 4
+
+
+def test_fedamm_evaluation_schedule_is_lightweight_except_every_tenth_and_final(
+    tmp_path,
+) -> None:
+    model = torch.nn.Linear(2, 1)
+    strategy = create_research_fedavg(
+        {
+            "num_clients": 1,
+            "num_rounds": 25,
+            "missing_modalities": {
+                "enabled": True,
+                "evaluation": {
+                    "evaluate_all_non_empty_combinations": True,
+                    "robustness_every_rounds": 10,
+                    "expensive_metrics_every_rounds": 10,
+                },
+            },
+        },
+        run_dir=tmp_path,
+        model=model,
+    )
+
+    assert strategy.on_evaluate_config_fn(1) == {
+        "server_round": 1,
+        "evaluate_modality_robustness": False,
+        "compute_expensive_metrics": False,
+    }
+    assert strategy.on_evaluate_config_fn(10)["evaluate_modality_robustness"] is True
+    assert strategy.on_evaluate_config_fn(10)["compute_expensive_metrics"] is True
+    assert strategy.on_evaluate_config_fn(25)["evaluate_modality_robustness"] is True

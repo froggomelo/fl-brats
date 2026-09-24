@@ -12,7 +12,9 @@ def test_modality_combination_evaluation_streams_masked_batches(monkeypatch: Any
     ]
     evaluated: list[list[dict[str, torch.Tensor]]] = []
 
-    def consume(_model: Any, batches: Any, _loss_fn: Any, _device: Any) -> dict[str, float]:
+    def consume(
+        _model: Any, batches: Any, _loss_fn: Any, _device: Any, **_kwargs: Any
+    ) -> dict[str, float]:
         assert not isinstance(batches, list)
         consumed = list(batches)
         evaluated.append(consumed)

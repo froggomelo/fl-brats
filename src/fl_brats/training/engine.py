@@ -1,5 +1,6 @@
 """One training/evaluation engine for centralized and federated paths."""
 
+import time
 from typing import Any
 
 import torch
@@ -133,11 +134,17 @@ def train_local_epochs(*args: Any, epochs: int = 1, **kwargs: Any) -> dict[str, 
 
 @torch.no_grad()
 def evaluate(
-    model: torch.nn.Module, loader: DataLoader[Any], loss_fn: Any, device: torch.device
+    model: torch.nn.Module,
+    loader: DataLoader[Any],
+    loss_fn: Any,
+    device: torch.device,
+    *,
+    metric_names: tuple[str, ...] = ("dice", "hd95", "sensitivity"),
+    timing: dict[str, float] | None = None,
 ) -> dict[str, float]:
     model.eval()
     aggregate: dict[str, float] = {"loss": 0.0}
-    for metric in ("dice", "hd95", "sensitivity"):
+    for metric in metric_names:
         aggregate.update({f"{region}_{metric}": 0.0 for region in REGIONS})
         aggregate[f"mean_{metric}"] = 0.0
     samples = 0
@@ -145,7 +152,13 @@ def evaluate(
         batch = move_batch_to_device(batch, device)
         logits = logits_from_output(forward_batch(model, batch))
         n = len(logits)
-        metrics = segmentation_metrics(logits, batch["label"])
+        metrics = segmentation_metrics(logits, batch["label"], metric_names=("dice",)) if "dice" in metric_names else {}
+        expensive = tuple(name for name in metric_names if name != "dice")
+        if expensive:
+            started = time.perf_counter()
+            metrics.update(segmentation_metrics(logits, batch["label"], metric_names=expensive))
+            if timing is not None:
+                timing["expensive_metrics_seconds"] = timing.get("expensive_metrics_seconds", 0.0) + time.perf_counter() - started
         aggregate["loss"] += float(loss_fn(logits, batch["label"])) * n
         for key, value in metrics.items():
             aggregate[key] += value * n

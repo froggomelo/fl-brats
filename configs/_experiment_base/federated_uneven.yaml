@@ -47,9 +47,9 @@ federated:
   early_stopping_patience: 50
   num_clients: 4
   fraction_fit: 1.0
-  fraction_evaluate: 1.0
+  fraction_evaluate: 0.0
   min_fit_clients: 4
-  min_evaluate_clients: 4
+  min_evaluate_clients: 0
   min_available_clients: 4
   local_epochs: 1
   accept_failures: false
@@ -82,3 +82,13 @@ missing_modalities:
   enabled: false
   mode: none
   evaluation: {evaluate_all_non_empty_combinations: true, report_per_client: true}
+
+# Dedicated research evaluation data: held-out validation only, never pooled client data.
+evaluation:
+  natural_every_rounds: 1
+  expensive_metrics_every_rounds: 10
+  robustness_every_rounds: 10
+  evaluate_best_checkpoint: true
+  evaluate_final_checkpoint: true
+  client_diagnostics: false
+  modality_seed: 42

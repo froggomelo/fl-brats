@@ -6,6 +6,7 @@ import random
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .cohorts import validate_split
 from .hashing import sha256_file, sha256_payload
 from .modalities import (
     MODALITIES,
@@ -29,6 +30,7 @@ def create_partition(
     if not fractions or any(x <= 0 for x in fractions) or abs(sum(fractions) - 1) > 1e-9:
         raise ValueError("client fractions must be positive and sum to 1")
     split = json.loads(split_path.read_text(encoding="utf-8"))
+    validate_split(split)
     subjects = list(split["train_subjects"])
     if len(subjects) < len(fractions):
         raise ValueError("no client may be empty")

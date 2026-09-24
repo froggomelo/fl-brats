@@ -51,3 +51,8 @@ sbatch slurm/environment/environment_check.sbatch
 ```
 
 See `docs/` for configuration, environment, Apptainer, SLURM, cluster, architecture, and reproducibility guidance. Future modules will add data, models, training, federated orchestration, compression, and experiments while keeping this infrastructure boundary.
+
+Federated model selection uses a fixed held-out validation cohort. See
+[the validation and historical revalidation guide](docs/federated_validation.md)
+for cohort semantics, diagnostics, resumable checkpoint search, separate final
+test reporting, Slurm commands, and compute planning.

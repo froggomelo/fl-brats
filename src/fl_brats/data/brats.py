@@ -85,7 +85,7 @@ def records_from_index(index_path: Path, subject_ids: list[str]) -> list[dict[st
                 _resolve_record_path(rows[s][f"{m}_path"], root)
                 for m in ("t1", "t1ce", "t2", "flair")
             ],
-            "label": _resolve_record_path(rows[s]["seg_path"], root),
+            "label": _resolve_record_path(rows[s].get("seg_path") or rows[s]["segmentation_path"], root),
             "subject_id": s,
             "client_id": "centralized",
             "available_modalities": MODALITIES,

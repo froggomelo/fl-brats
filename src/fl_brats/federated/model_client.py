@@ -76,6 +76,7 @@ class ModelFedAvgClient(FedAvgClient):
         self.strategy, self.fedprox_mu = strategy, fedprox_mu
         self.quantization_config = quantization_config or {}
         self.evaluate_modality_robustness = evaluate_modality_robustness
+        self._evaluation_config: dict[str, Any] = {}
         self._sparsification_residual: torch.Tensor | None = None
         self._quantization_residuals: dict[str, torch.Tensor] = {}
         self._global_arrays_before_fit: list[np.ndarray] | None = None
@@ -89,10 +90,11 @@ class ModelFedAvgClient(FedAvgClient):
                 raise ValueError("train_fn or train_loader, loss_fn, and optimizer are required")
             train_fn = self._train
         if evaluate_fn is None:
-            if validation_loader is None or loss_fn is None:
-                raise ValueError("evaluate_fn or validation_loader and loss_fn are required")
-            evaluate_fn = self._evaluate
+            evaluate_fn = self._evaluate if validation_loader is not None else self._evaluation_disabled
         super().__init__(self.model, self.keys, train_fn, evaluate_fn, examples)
+
+    def _evaluation_disabled(self) -> dict[str, float]:
+        raise RuntimeError("client evaluation disabled; use server held-out validation")
 
     def get_model_parameters(self) -> list[np.ndarray]:
         return state_to_arrays(self.model)[1]
@@ -133,10 +135,25 @@ class ModelFedAvgClient(FedAvgClient):
 
     def _evaluate(self) -> dict[str, float]:
         assert self.validation_loader is not None and self.loss_fn is not None
-        result = evaluate(self.model, self.validation_loader, self.loss_fn, self.device)
-        if self.evaluate_modality_robustness:
+        expensive = bool(self._evaluation_config.get("compute_expensive_metrics", False))
+        metric_names = ("dice", "hd95", "sensitivity") if expensive else ("dice",)
+        result = evaluate(
+            self.model,
+            self.validation_loader,
+            self.loss_fn,
+            self.device,
+            metric_names=metric_names,
+        )
+        run_robustness = bool(
+            self._evaluation_config.get("evaluate_modality_robustness", False)
+        )
+        if self.evaluate_modality_robustness and run_robustness:
             combinations = evaluate_modality_combinations(
-                self.model, self.validation_loader, self.loss_fn, self.device
+                self.model,
+                self.validation_loader,
+                self.loss_fn,
+                self.device,
+                metric_names=("dice", "hd95", "sensitivity"),
             )
             for combination, metrics in combinations.items():
                 for key, value in metrics.items():
@@ -168,7 +185,7 @@ class ModelFedAvgClient(FedAvgClient):
             else None
         )
         if "fedamm_global_prototypes_json" in config:
-            setattr(self.model, "global_prototypes_json", config["fedamm_global_prototypes_json"])
+            self.model.global_prototypes_json = config["fedamm_global_prototypes_json"]
         metrics = self._finite(self.train_fn())
         arrays = self.get_model_parameters()
         metrics["client_id"] = self.client_id  # Flower scalar contract permits strings.
@@ -324,6 +341,10 @@ class ModelFedAvgClient(FedAvgClient):
         self, parameters: list[np.ndarray], config: dict[str, Any]
     ) -> tuple[float, int, dict[str, Any]]:
         self.set_model_parameters(parameters)
-        metrics = self._finite(self.evaluate_fn())
+        self._evaluation_config = dict(config)
+        try:
+            metrics = self._finite(self.evaluate_fn())
+        finally:
+            self._evaluation_config = {}
         metrics["client_id"] = self.client_id
         return metrics["loss"], self.examples, metrics

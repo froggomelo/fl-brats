@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import numpy as np
@@ -104,6 +105,7 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
         self.prototype_library = GlobalPrototypeLibrary(clusters_per_combination)
 
     def aggregate_fit(self, server_round: int, results: Any, failures: Any) -> tuple[Parameters | None, dict[str, Any]]:
+        aggregation_started = time.perf_counter()
         if failures and not self.accept_failures:
             self.writer.write_client_records(self._records(server_round, results, failures))
             return None, {}
@@ -123,59 +125,9 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
         else:
             parameters = ndarrays_to_parameters(aggregate_sample_count_arrays(results))
         prototype_metrics = self.prototype_library.update_from_results(results)
-        import time
-        from dataclasses import asdict
-        from .research import ExperimentState
-
-        round_metric = self._mean(records, "dice_wt")
-        elapsed = time.perf_counter() - self._round_started.pop(
-            server_round, time.perf_counter()
+        return self._persist_aggregate(
+            server_round, parameters, prototype_metrics, records, aggregation_started
         )
-        max_client_training = self._max(records, "fit_seconds")
-        coordination = (
-            max(elapsed - max_client_training, 0.0)
-            if max_client_training is not None
-            else None
-        )
-        round_record = {
-            "schema_version": 1,
-            "round": global_round,
-            "client_wt_dice_mean": round_metric,
-            "round_wall_seconds": elapsed,
-            "max_client_training_seconds": max_client_training,
-            "communication_and_coordination_seconds": coordination,
-            "successful_clients": sum(record.status == "completed" for record in records),
-            **prototype_metrics,
-        }
-        next_state = ExperimentState(**asdict(self.state))
-        next_state.completed_round = global_round
-        next_state.uploaded_bytes += sum(record.upload_payload_bytes for record in records)
-        next_state.downloaded_bytes += sum(record.download_payload_bytes for record in records)
-        checkpoint = self.checkpoints.save_round(global_round, parameters, next_state, round_record)
-        next_state.latest_checkpoint = str(checkpoint)
-        if round_metric is not None and (
-            next_state.best_metric is None or round_metric > next_state.best_metric
-        ):
-            next_state.best_metric, next_state.best_round = round_metric, global_round
-            next_state.best_checkpoint = str(self.checkpoints.save_alias(checkpoint, "best.pt"))
-        self.writer.write_client_records(records)
-        self.writer.write_round_record(round_record)
-        self.writer.write_communication_record(
-            {
-                "round": global_round,
-                "uploaded_bytes": sum(r.upload_payload_bytes for r in records),
-                "downloaded_bytes": sum(r.download_payload_bytes for r in records),
-                "network_transmission_seconds": None,
-                "communication_and_coordination_seconds": coordination,
-                "measurement_note": (
-                    "Round wall time minus the slowest reported client training time; "
-                    "includes serialization, RPC, scheduling, waiting, and aggregation overhead."
-                ),
-            }
-        )
-        self.state = next_state
-        self.writer.write_state(self.state)
-        return parameters, prototype_metrics
 
     def configure_fit(self, server_round: int, parameters: Parameters, client_manager: Any) -> Any:
         instructions = super().configure_fit(server_round, parameters, client_manager)

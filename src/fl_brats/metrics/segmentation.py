@@ -32,13 +32,19 @@ def _hd95(prediction: torch.Tensor, target: torch.Tensor) -> list[float]:
 
 
 def segmentation_metrics(
-    logits: torch.Tensor, target: torch.Tensor, threshold: float = 0.5
+    logits: torch.Tensor,
+    target: torch.Tensor,
+    threshold: float = 0.5,
+    metric_names: tuple[str, ...] = ("dice", "hd95", "sensitivity"),
 ) -> dict[str, float]:
     """Compute subject-macro Dice, sensitivity, and HD95 for WT, TC, and ET."""
+    unsupported = set(metric_names) - {"dice", "hd95", "sensitivity"}
+    if unsupported:
+        raise ValueError(f"unsupported segmentation metrics: {sorted(unsupported)}")
     prediction = torch.sigmoid(logits) >= threshold
     truth = target.bool()
     result: dict[str, float] = {}
-    hd95 = _hd95(prediction, truth)
+    hd95 = _hd95(prediction, truth) if "hd95" in metric_names else None
     for channel, region in enumerate(REGIONS):
         predicted = prediction[:, channel].flatten(1)
         actual = truth[:, channel].flatten(1)
@@ -50,14 +56,17 @@ def segmentation_metrics(
             torch.ones_like(dice_denominator),
             2 * intersection / dice_denominator,
         )
-        sensitivity = torch.where(
-            actual_count == 0,
-            (predicted_count == 0).float(),
-            intersection / actual_count,
-        )
-        result[f"{region}_dice"] = float(dice.mean())
-        result[f"{region}_hd95"] = hd95[channel]
-        result[f"{region}_sensitivity"] = float(sensitivity.mean())
-    for metric in ("dice", "hd95", "sensitivity"):
+        if "dice" in metric_names:
+            result[f"{region}_dice"] = float(dice.mean())
+        if hd95 is not None:
+            result[f"{region}_hd95"] = hd95[channel]
+        if "sensitivity" in metric_names:
+            sensitivity = torch.where(
+                actual_count == 0,
+                (predicted_count == 0).float(),
+                intersection / actual_count,
+            )
+            result[f"{region}_sensitivity"] = float(sensitivity.mean())
+    for metric in metric_names:
         result[f"mean_{metric}"] = sum(result[f"{region}_{metric}"] for region in REGIONS) / 3
     return result

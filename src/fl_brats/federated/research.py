@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+import shutil
 import time
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -135,6 +137,8 @@ class CheckpointManager:
             "metrics": dict(metrics),
         }
         path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            raise ValueError(f"refusing to overwrite round checkpoint: {path}")
         temporary = path.with_suffix(".tmp")
         torch.save(payload, temporary)
         temporary.replace(path)
@@ -143,7 +147,7 @@ class CheckpointManager:
     def save_alias(self, source: Path, name: str) -> Path:
         destination = self.run_dir / "checkpoints" / name
         temporary = destination.with_suffix(".tmp")
-        temporary.write_bytes(source.read_bytes())
+        shutil.copyfile(source, temporary)
         temporary.replace(destination)
         return destination
 
@@ -168,11 +172,15 @@ class ResearchFedAvgStrategy(FedAvg):
         minimum_rounds: int = 0,
         initial_state: ExperimentState | None = None,
         round_offset: int = 0,
+        client_diagnostics: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         if early_stopping_patience is not None and int(early_stopping_patience) < 1:
             raise ValueError("early_stopping_patience must be a positive integer")
+        self.client_diagnostics = client_diagnostics
+        self._evaluated_rounds: set[int] = set()
+        self._round_timing: dict[int, dict[str, Any]] = {}
         self.writer = writer
         self.checkpoints = checkpoints
         self.state = initial_state or ExperimentState()
@@ -194,8 +202,7 @@ class ResearchFedAvgStrategy(FedAvg):
             self.early_stopping_patience is not None
             and self.state.completed_round >= self.minimum_rounds
             and self.state.best_round is not None
-            and self.state.completed_round - self.state.best_round
-            >= self.early_stopping_patience
+            and self.state.completed_round - self.state.best_round >= self.early_stopping_patience
         )
 
     def _mark_early_stopped(self) -> None:
@@ -211,6 +218,8 @@ class ResearchFedAvgStrategy(FedAvg):
         return super().configure_fit(server_round, parameters, client_manager)
 
     def configure_evaluate(self, server_round: int, parameters: Any, client_manager: Any) -> Any:
+        if not self.client_diagnostics:
+            return []
         if self._should_stop_early():
             self._mark_early_stopped()
             return []
@@ -219,10 +228,11 @@ class ResearchFedAvgStrategy(FedAvg):
     def aggregate_fit(
         self, server_round: int, results: Any, failures: Any
     ) -> tuple[Parameters | None, dict[str, Any]]:
+        aggregation_started = time.perf_counter()
         global_round = self.global_round(server_round)
         records = self._records(global_round, results, failures)
         if self._uses_quantized_payloads(results):
-            parameters, metrics = self._aggregate_quantized_fit(server_round, results)
+            parameters, metrics = self._aggregate_quantized_fit(global_round, results)
         elif self._uses_sparse_payloads(results):
             parameters, metrics = self._aggregate_sparse_fit(results)
         else:
@@ -230,53 +240,107 @@ class ResearchFedAvgStrategy(FedAvg):
         if parameters is None:
             self.writer.write_client_records(records)
             return None, metrics
+        return self._persist_aggregate(
+            server_round, parameters, metrics, records, aggregation_started
+        )
+
+    def _persist_aggregate(self, server_round, parameters, metrics, records, aggregation_started):
+        """Shared by FedAvg, compressed transports, and modality-weighted FedAMM."""
+        global_round = self.global_round(server_round)
         self._current_arrays = parameters_to_ndarrays(parameters)
-        elapsed = time.perf_counter() - self._round_started.pop(
-            server_round, time.perf_counter()
-        )
-        max_client_training = self._max(records, "fit_seconds")
-        coordination = (
-            max(elapsed - max_client_training, 0.0)
-            if max_client_training is not None
-            else None
-        )
-        round_record = {
+        aggregation_seconds = time.perf_counter() - aggregation_started
+        record = {
             "schema_version": SCHEMA_VERSION,
             "round": global_round,
-            "round_wall_seconds": elapsed,
-            "max_client_training_seconds": max_client_training,
-            "communication_and_coordination_seconds": coordination,
-            "successful_clients": sum(record.status == "completed" for record in records),
+            "fit_aggregation_serialization_seconds": aggregation_seconds,
+            "max_client_training_seconds": self._max(records, "fit_seconds"),
+            "successful_clients": sum(r.status == "completed" for r in records),
             "mean_client_drift": self._mean(records, "client_update_l2"),
             "max_client_drift": self._max(records, "client_update_l2"),
-            "mean_normalized_client_drift": self._mean(
-                records, "normalized_client_update_l2"
-            ),
+            "mean_normalized_client_drift": self._mean(records, "normalized_client_update_l2"),
         }
         next_state = ExperimentState(**asdict(self.state))
         next_state.completed_round = global_round
-        next_state.uploaded_bytes += sum(record.upload_payload_bytes for record in records)
-        next_state.downloaded_bytes += sum(record.download_payload_bytes for record in records)
-        checkpoint = self.checkpoints.save_round(global_round, parameters, next_state, round_record)
+        next_state.uploaded_bytes += sum(r.upload_payload_bytes for r in records)
+        next_state.downloaded_bytes += sum(r.download_payload_bytes for r in records)
+        started = time.perf_counter()
+        checkpoint = self.checkpoints.save_round(global_round, parameters, next_state, record)
+        record["checkpoint_writing_seconds"] = time.perf_counter() - started
         next_state.latest_checkpoint = str(checkpoint)
+        self._round_timing[server_round] = record
         self.writer.write_client_records(records)
-        self.writer.write_round_record(round_record)
         self.writer.write_communication_record(
             {
                 "round": global_round,
                 "uploaded_bytes": sum(r.upload_payload_bytes for r in records),
                 "downloaded_bytes": sum(r.download_payload_bytes for r in records),
                 "network_transmission_seconds": None,
-                "communication_and_coordination_seconds": coordination,
+                "communication_and_coordination_seconds": None,
                 "measurement_note": (
-                    "Round wall time minus the slowest reported client training time; "
-                    "includes serialization, RPC, scheduling, waiting, and aggregation overhead."
+                    "No inferred network timing; measured components in metrics/rounds.jsonl."
                 ),
             }
         )
         self.state = next_state
         self.writer.write_state(self.state)
         return parameters, metrics
+
+    def evaluate(self, server_round: int, parameters: Parameters):
+        """Flower invokes this after aggregate_fit and before distributed diagnostics.
+
+        Skip Flower's initial round-zero evaluation and rounds without aggregation.
+        Only this held-out natural result can select a checkpoint or stop training.
+        """
+        global_round = self.global_round(server_round)
+        if (
+            server_round == 0
+            or server_round in self._evaluated_rounds
+            or server_round not in self._round_timing
+        ):
+            return None
+        self._evaluated_rounds.add(server_round)
+        result = (
+            self.evaluate_fn(global_round, parameters_to_ndarrays(parameters), {})
+            if self.evaluate_fn
+            else None
+        )
+        timing = self._round_timing.pop(server_round)
+        if result is not None:
+            loss, metrics = result
+            score = float(metrics["mean_dice"])
+            if not math.isfinite(score):
+                raise ValueError("non-finite held-out validation mean Dice")
+            row = {
+                "round": global_round,
+                "loss": loss,
+                **metrics,
+                "checkpoint": self.state.latest_checkpoint,
+                "selection_criterion": "held_out_natural_validation_mean_dice",
+            }
+            self.writer._append(self.writer.run_dir / "metrics/validation_rounds.jsonl", row)
+            for key in (
+                "natural_validation_seconds",
+                "expensive_metrics_seconds",
+                "robustness_seconds",
+            ):
+                timing[key] = metrics.get(key)
+            if self.state.best_metric is None or score > self.state.best_metric:
+                started = time.perf_counter()
+                self.state.best_checkpoint = str(
+                    self.checkpoints.save_alias(Path(self.state.latest_checkpoint), "best.pt")
+                )
+                timing["checkpoint_writing_seconds"] += time.perf_counter() - started
+                self.state.best_metric, self.state.best_round = score, global_round
+                print(
+                    f"Selected best.pt round={global_round} held-out mean_dice={score:.6f}",
+                    flush=True,
+                )
+            self.writer.write_state(self.state)
+        timing["round_wall_seconds"] = time.perf_counter() - self._round_started.pop(
+            server_round, time.perf_counter()
+        )
+        self.writer.write_round_record(timing)
+        return result
 
     def _uses_sparse_payloads(self, results: Any) -> bool:
         if not results:
@@ -356,7 +420,11 @@ class ResearchFedAvgStrategy(FedAvg):
         }
         if failures:
             record["failures"] = [str(failure) for failure in failures]
-        self.writer.write_evaluation_record(record)
+        record = {
+            key.replace("validation_", "training_partition_diagnostic_"): value
+            for key, value in record.items()
+        }
+        self.writer._append(self.writer.run_dir / "metrics/client_diagnostics.jsonl", record)
         for proxy, result in results:
             modality_metrics = {
                 key: value for key, value in result.metrics.items() if key.startswith("modality__")
@@ -370,16 +438,6 @@ class ResearchFedAvgStrategy(FedAvg):
                         "metrics": modality_metrics,
                     },
                 )
-        next_state = ExperimentState(**asdict(self.state))
-        if mean_dice is not None and next_state.latest_checkpoint is not None and (
-            next_state.best_metric is None or mean_dice > next_state.best_metric
-        ):
-            next_state.best_metric, next_state.best_round = mean_dice, global_round
-            next_state.best_checkpoint = str(
-                self.checkpoints.save_alias(Path(next_state.latest_checkpoint), "best.pt")
-            )
-            self.state = next_state
-            self.writer.write_state(self.state)
         return loss, metrics
 
     @staticmethod
@@ -492,7 +550,7 @@ class ResearchFedAvgStrategy(FedAvg):
                     et_hd95=self._float(metric, "et_hd95"),
                     wt_sensitivity=self._float(metric, "wt_sensitivity"),
                     tc_sensitivity=self._float(metric, "tc_sensitivity"),
-                    et_sensitivity=self._float(metric, "et_sensitivity")
+                    et_sensitivity=self._float(metric, "et_sensitivity"),
                 )
             )
         for failure in failures:

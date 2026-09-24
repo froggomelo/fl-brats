@@ -35,6 +35,20 @@ def test_empty_metric_policy_is_finite_and_explicit() -> None:
     assert metrics["mean_hd95"] == 0.0
 
 
+def test_dice_only_metrics_skip_expensive_hd95_and_sensitivity() -> None:
+    target = torch.zeros((1, 3, 2, 2, 2))
+    logits = torch.full_like(target, -20)
+
+    metrics = segmentation_metrics(logits, target, metric_names=("dice",))
+
+    assert set(metrics) == {
+        "wt_dice",
+        "tc_dice",
+        "et_dice",
+        "mean_dice",
+    }
+
+
 def test_run_level_reporting_uses_final_dice_and_measured_payloads() -> None:
     evaluations = [
         {"round": 1, "validation_mean_dice": 0.7},

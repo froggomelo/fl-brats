@@ -24,4 +24,10 @@ missing_modalities:
   arbitrary:
     per_modality_missing_probability: {t1: 0.1, t1ce: 0.1, t2: 0.1, flair: 0.1}
     combination_probabilities: {}
-  evaluation: {evaluate_all_non_empty_combinations: true, report_per_client: true}
+  evaluation:
+    evaluate_all_non_empty_combinations: true
+    report_per_client: true
+    robustness_every_rounds: 10
+    expensive_metrics_every_rounds: 10
+    evaluate_best_checkpoint: true
+    evaluate_final_checkpoint: true

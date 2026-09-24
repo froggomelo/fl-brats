@@ -29,13 +29,24 @@ def _masked_batches(
 
 @torch.no_grad()
 def evaluate_modality_combinations(
-    model: torch.nn.Module, loader: Any, loss_fn: Any, device: torch.device
+    model: torch.nn.Module,
+    loader: Any,
+    loss_fn: Any,
+    device: torch.device,
+    *,
+    metric_names: tuple[str, ...] = ("dice", "hd95", "sensitivity"),
 ) -> dict[str, dict[str, float]]:
     """Evaluate every non-empty mask without mutating records or manifests."""
     results: dict[str, dict[str, float]] = {}
     for combination in all_non_empty_modality_combinations():
         mask = combination_to_mask(combination)
-        metrics = evaluate(model, _masked_batches(loader, mask), loss_fn, device)
+        metrics = evaluate(
+            model,
+            _masked_batches(loader, mask),
+            loss_fn,
+            device,
+            metric_names=metric_names,
+        )
         metrics["subjects"] = metrics.get("subjects", 0.0)
         metrics["available_modalities"] = float(mask.sum())
         metrics["counterfactual"] = 1.0

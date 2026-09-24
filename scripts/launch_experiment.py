@@ -220,6 +220,72 @@ def main() -> int:
                 cwd=REPO_ROOT, text=True,
             ).strip()
             jobs = {"server": server_job, "clients": client_job, "cleanup": cleanup_job}
+            missing = resolved.get("missing_modalities", {})
+            evaluation = missing.get("evaluation", {}) if isinstance(missing, dict) else {}
+            # Authoritative held-out best/final evaluation now runs on the server.
+            # Retain the old client jobs only as explicitly requested diagnostics.
+            evaluation = {**evaluation, **resolved.get("evaluation", {})}
+            if bool(evaluation.get("client_diagnostics", False)) and bool(
+                evaluation.get("evaluate_all_non_empty_combinations", True)
+            ):
+                evaluation_sbatch = [
+                    item for item in sbatch if not item.startswith("--dependency=")
+                ]
+
+                aliases = []
+                if bool(evaluation.get("evaluate_best_checkpoint", False)):
+                    aliases.append("best")
+                if bool(evaluation.get("evaluate_final_checkpoint", False)):
+                    aliases.append("final")
+                for alias in aliases:
+                    evaluation_dir = run_dir / "evaluation" / alias
+                    evaluation_job = subprocess.check_output(
+                        evaluation_sbatch
+                        + [
+                            f"--dependency=afterany:{cleanup_job}",
+                            f"--array=0-{clients - 1}",
+                            f"--job-name=flb-eval-{alias}-{_slug(variant)[:30]}",
+                            f"--output={log_dir}/evaluate-{alias}-%A-%a.out",
+                            f"--error={log_dir}/evaluate-{alias}-%A-%a.err",
+                            str(
+                                REPO_ROOT
+                                / "slurm"
+                                / "_shared"
+                                / "evaluate_federated_checkpoint.sbatch"
+                            ),
+                            str(runtime_config),
+                            str(run_dir / "checkpoints" / f"{alias}.pt"),
+                            str(evaluation_dir),
+                            "client_",
+                            use_apptainer,
+                            image,
+                        ],
+                        cwd=REPO_ROOT,
+                        text=True,
+                    ).strip()
+                    aggregate_job = subprocess.check_output(
+                        [
+                            "sbatch",
+                            "--parsable",
+                            f"--partition={slurm['partition']}",
+                            f"--dependency=afterok:{evaluation_job}",
+                            f"--output={log_dir}/aggregate-{alias}-%j.out",
+                            f"--error={log_dir}/aggregate-{alias}-%j.err",
+                            str(
+                                REPO_ROOT / "slurm" / "_shared" / "run_experiment.sbatch"
+                            ),
+                            use_apptainer,
+                            image,
+                            "fedbrats",
+                            "aggregate-federated-checkpoint-evaluation",
+                            "--input-dir",
+                            str(evaluation_dir),
+                        ],
+                        cwd=REPO_ROOT,
+                        text=True,
+                    ).strip()
+                    jobs[f"{alias}_evaluation"] = evaluation_job
+                    jobs[f"{alias}_evaluation_aggregate"] = aggregate_job
             (log_dir / "slurm-job-ids.json").write_text(
                 json.dumps(jobs, indent=2) + "\n", encoding="utf-8"
             )
