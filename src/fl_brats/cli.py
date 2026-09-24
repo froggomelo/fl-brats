@@ -1136,6 +1136,7 @@ def _experiment_values(config: Path | None, context: typer.Context) -> dict[str,
         "FL_BRATS_CACHE_ROOT": ("cache_root",),
         "FL_BRATS_CHECKPOINT_ROOT": ("checkpoint_root",),
         "FL_BRATS_PARTITION_ROOT": ("data", "partition_root"),
+        "FL_BRATS_SPLIT_PATH": ("data", "split_path"),
         "FL_BRATS_INITIAL_WEIGHTS": ("initial_weights",),
         "FL_BRATS_DEVICE": ("device",),
     }
