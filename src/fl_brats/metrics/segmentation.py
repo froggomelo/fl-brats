@@ -4,35 +4,59 @@ from __future__ import annotations
 
 import torch
 from monai.metrics import compute_hausdorff_distance  # type: ignore[attr-defined]
-from monai.metrics.utils import get_mask_edges
 
 
 REGIONS = ("wt", "tc", "et")
 
 
+def _mask_edges(mask: torch.Tensor) -> torch.Tensor:
+    """MONAI's edges of a [H, W, D] mask: the mask XOR its binary erosion.
+
+    get_mask_edges erodes with scipy's default 6-connected cross and treats
+    everything outside the (zero-padded) crop as background, so an edge voxel is
+    a mask voxel with at least one of its six face neighbours outside the mask.
+    Edges are translation-invariant, so the crop is not needed.
+    """
+    padded = torch.nn.functional.pad(mask[None, None].float(), (1, 1, 1, 1, 1, 1))[0, 0].bool()
+    core = padded[1:-1, 1:-1, 1:-1]
+    interior = (
+        core
+        & padded[:-2, 1:-1, 1:-1] & padded[2:, 1:-1, 1:-1]
+        & padded[1:-1, :-2, 1:-1] & padded[1:-1, 2:, 1:-1]
+        & padded[1:-1, 1:-1, :-2] & padded[1:-1, 1:-1, 2:]
+    )
+    return core & ~interior
+
+
 def _nearest_edge_distances(source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     """Euclidean distance from each ``source`` voxel to the nearest ``target`` voxel.
 
-    Equals MONAI's exact EDT lookup: squared distances between integer
-    coordinates are computed exactly (at most ~1.4e5, well inside float32's
-    exact-integer range), the square root is taken in float64 and stored as
-    float32, as monai_distance_transform_edt does. Chunked to bound memory.
+    Equals MONAI's exact EDT lookup. Squared distances come from a float32
+    matrix product of integer coordinates: every product and sum is an integer
+    below 2**24, so float32 is exact provided TF32 (which truncates the
+    mantissa) is off, and it is forced off here. The square root is taken in
+    float64 and stored as float32, as monai_distance_transform_edt does.
     """
-    source_points = source.nonzero().to(torch.float32)
-    target_points = target.nonzero().to(torch.float32)
-    best = torch.empty(len(source_points), dtype=torch.float32, device=source.device)
-    chunk = max(1, (1 << 25) // max(len(target_points), 1))  # ~400 MB per block
-    for start in range(0, len(source_points), chunk):
-        block = source_points[start : start + chunk]
-        squared = ((block[:, None, :] - target_points[None, :, :]) ** 2).sum(-1)
-        best[start : start + chunk] = squared.min(dim=1).values
+    x = source.nonzero().float()
+    y = target.nonzero().float()
+    x2, y2 = (x * x).sum(1), (y * y).sum(1)
+    best = torch.empty(len(x), dtype=torch.float32, device=source.device)
+    chunk = max(1, (1 << 25) // max(len(y), 1))  # ~128 MB of float32 per block
+    tf32 = torch.backends.cuda.matmul.allow_tf32
+    torch.backends.cuda.matmul.allow_tf32 = False
+    try:
+        for start in range(0, len(x), chunk):
+            block = x[start : start + chunk]
+            squared = x2[start : start + chunk, None] + y2[None, :] - 2.0 * (block @ y.T)
+            best[start : start + chunk] = squared.min(dim=1).values
+    finally:
+        torch.backends.cuda.matmul.allow_tf32 = tf32
     return best.double().sqrt().float()
 
 
 def _hd95_gpu(predicted: torch.Tensor, truth: torch.Tensor) -> float:
-    """HD95 of two non-empty [H, W, D] masks with MONAI's edges and percentile."""
-    edges_pred, edges_gt = get_mask_edges(predicted, truth, crop=True, always_return_as_numpy=False)[:2]
-    edges_pred, edges_gt = edges_pred.to(predicted.device), edges_gt.to(predicted.device)
+    """HD95 of two non-empty [H, W, D] masks, identical to MONAI's on CPU."""
+    edges_pred, edges_gt = _mask_edges(predicted), _mask_edges(truth)
     directed = (
         _nearest_edge_distances(edges_pred, edges_gt).cpu(),
         _nearest_edge_distances(edges_gt, edges_pred).cpu(),
