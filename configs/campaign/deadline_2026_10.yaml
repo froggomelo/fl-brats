@@ -1,8 +1,9 @@
-# Every remaining training run for the mid-October 2026 deadline, in priority
-# order. Missing-modality runs come first. The communication-efficiency tuning
-# runs come early because the comm_eff "best" configs depend on their results;
-# add those configs here once the best p and bit widths are chosen. SAM is
-# last and is the first thing to drop if time runs out.
+# Every training run for the mid-October 2026 deadline, in priority order.
+# All final training runs on batch (RTX 3060, one client per GPU) so every
+# result, the baselines included, comes from one GPU model and one code
+# version; the August bigbatch baselines are retrained for the same reason.
+# Missing-modality runs come first. SAM is last and is the first thing to
+# drop if time runs out.
 name: deadline_2026_10
 stall_minutes: 75
 finalize_minutes: 180
@@ -18,41 +19,46 @@ known_bad_nodes:
   mscluster83: bigbatch GPU unusable (2026-09-24 probe)
   mscluster129: batch GPU unusable (2026-09-24 probe)
 partitions:
-  # Final training runs all use bigbatch's RTX 3090, like the finished
-  # baselines, so every result comes from one GPU model. batch (RTX 3060) only
-  # evaluates fixed checkpoints. The two FedAMM alpha 0.1 runs started on batch
-  # on 2026-09-24 finish there and are rerun on bigbatch.
-  batch: {max_active: 0}
-  # 6 running jobs per user: one run. Whole nodes so each client owns its GPU.
-  bigbatch:
-    max_active: 1
-    set: ["slurm.exclusive=true", "slurm.cpus_per_task=14", "slurm.memory=120000M", 'slurm.time="72:00:00"']
+  # max_jobs is the per-user running-job limit (13 on batch). A run is only
+  # submitted when all its jobs (server + clients) can hold a slot at once:
+  # two five-job runs, leaving three slots for periodic evaluation.
+  batch: {max_active: 2, max_jobs: 13}
+  # Not used for final training (2026-09-24): no working node was free and the
+  # queue head waited ~3 days. Kept so status shows the old attempts.
+  bigbatch: {max_active: 0, max_jobs: 6}
 # After a run finishes, one single-GPU job computes HD95/sensitivity and the
-# modality-robustness pass for every 10th round checkpoint.
+# modality-robustness pass for every 10th round checkpoint, then the test report.
 posthoc: {partition: batch, max_active: 2, every: 10}
 runs:
   # Missing modalities, alpha = 0.1
-  - {config: configs/fedamm_uneven/alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch, bigbatch]}
-  - {config: configs/fedavg_missing_modalities_uneven/alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch, bigbatch]}
-  # Communication-efficiency tuning (prerequisite for the comm_eff best runs)
-  - {config: configs/selective_transmission_uneven/p_0_25.yaml, seeds: [42], partitions: [batch, bigbatch]}
-  - {config: configs/selective_transmission_uneven/p_0_1.yaml, seeds: [42], partitions: [batch, bigbatch]}
-  - {config: configs/selective_transmission_uneven/p_0_01.yaml, seeds: [42], partitions: [batch, bigbatch]}
-  - {config: configs/fedmpq_uneven/homogeneous_4bit.yaml, seeds: [42], partitions: [batch, bigbatch]}
-  - {config: configs/fedmpq_uneven/heterogeneous_2_4_8bit.yaml, seeds: [42], partitions: [batch, bigbatch]}
+  - {config: configs/fedamm_uneven/alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
   # Missing modalities, alpha = 0.001
-  - {config: configs/fedamm_uneven/alpha_0_001.yaml, seeds: [42, 43, 44], partitions: [batch, bigbatch]}
-  - {config: configs/fedavg_train_configs_uneven/modality_sweep/alpha_0_001.yaml, seeds: [42], partitions: [batch, bigbatch]}
-  # Training-configuration sweeps. e10 is the longest run; bigbatch's 72 h
-  # limit and faster GPU suit it. b8 needs the 3090's 24 GB.
-  - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e10.yaml, seeds: [42], partitions: [bigbatch, batch]}
-  # e5 reruns from scratch: its round-120 run from 2026-09-18 carries best-metric
-  # and early-stopping state from the old client-side evaluation, which would
-  # corrupt held-out model selection if resumed.
-  - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5.yaml, seeds: [42], partitions: [batch, bigbatch]}
-  - {config: configs/fedavg_train_configs_uneven/client_sweeps/k8.yaml, seeds: [42], partitions: [batch, bigbatch]}
-  - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b4.yaml, seeds: [42], partitions: [batch, bigbatch]}
-  - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [bigbatch]}
+  - {config: configs/fedamm_uneven/alpha_0_001.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/modality_sweep/alpha_0_001.yaml, seeds: [42], partitions: [batch]}
+  # Full-modality reference every method is compared against
+  - {config: configs/fedavg_uneven/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  # Communication-efficiency tuning (prerequisite for the comm_eff best runs;
+  # add those configs here once the best p and bit widths are chosen)
+  - {config: configs/selective_transmission_uneven/p_0_25.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/selective_transmission_uneven/p_0_1.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/selective_transmission_uneven/p_0_01.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedmpq_uneven/homogeneous_4bit.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedmpq_uneven/heterogeneous_2_4_8bit.yaml, seeds: [42], partitions: [batch]}
+  # Even-split reference
+  - {config: configs/fedavg_even/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  # Training-configuration sweeps. e10 exceeds batch's 24 h limit and resumes
+  # from its latest round. e5 reruns from scratch: its 2026-09-18 run carries
+  # selection state from the old client-side evaluation.
+  - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e10.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/client_sweeps/k3.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/client_sweeps/k5.yaml, seeds: [42], partitions: [batch]}
+  # Nine jobs: runs only while no other five-job run is active.
+  - {config: configs/fedavg_train_configs_uneven/client_sweeps/k8.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b4.yaml, seeds: [42], partitions: [batch]}
+  # Must be memory-tested on the 12 GB RTX 3060 before it runs.
+  - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [batch]}
   # Model-agnostic (dropped first if time runs out). Not runnable yet: the
   # pretrained checkpoints artifacts/pretrained/sam1.pth and sam2.pt are missing
   # and SAM has never been smoke-tested. Re-enable once both are done.

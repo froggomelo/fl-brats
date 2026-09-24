@@ -26,8 +26,12 @@ from typing import Any
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from launch_experiment import _load_experiment_yaml  # noqa: E402
 GPU_MARKER = re.compile(r"FL_BRATS_GPU_UNAVAILABLE host=(\S+)")
 DONE = {"completed", "early_stopped"}
+# Pending jobs that do not compete for the per-user running-job limit yet.
+NOT_WAITING_FOR_A_SLOT = {"Dependency", "DependencyNeverSatisfied", "JobHeldUser", "JobHeldAdmin"}
 
 
 def _now() -> float:
@@ -106,6 +110,37 @@ class Campaign:
             master, state, node = (line.split("|") + ["", ""])[:3]
             jobs.setdefault(master.strip(), []).append((state.strip(), node.strip()))
         return jobs
+
+    @staticmethod
+    def jobs_holding_slots(partition: str) -> int:
+        """Our jobs on a partition that run or will run as soon as a slot frees."""
+        output = subprocess.run(
+            ["squeue", "-h", "-r", "-u", getpass.getuser(), "-p", partition, "-o", "%T|%r"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+        count = 0
+        for line in output.splitlines():
+            state, reason = (line.split("|") + [""])[:2]
+            if state == "RUNNING" or (state == "PENDING" and reason not in NOT_WAITING_FOR_A_SLOT):
+                count += 1
+        return count
+
+    def fits(self, partition: str, needed: int) -> bool:
+        """Whether a run's jobs can all hold slots at once under the partition's job budget.
+
+        A run whose jobs cannot all start deadlocks: the server waits for a
+        client that waits for a slot. Budgets are the per-user QOS limit.
+        """
+        budget = self.spec["partitions"].get(partition, {}).get("max_jobs")
+        if budget is None:
+            return True
+        return self.jobs_holding_slots(partition) + needed <= int(budget)
+
+    @staticmethod
+    def jobs_needed(config: str) -> int:
+        """Jobs a run holds at once: the server and one per client."""
+        values = _load_experiment_yaml(REPO_ROOT / config)
+        return 1 + int(values.get("federated", {}).get("num_clients", 4))
 
     @staticmethod
     def latest_checkpoint(attempts: list[dict[str, Any]]) -> tuple[int, Path | None]:
@@ -234,6 +269,33 @@ class Campaign:
                 unit["status"] = "pending"
                 self.log(f"retry {key}: {reason}; resume from round {after}")
 
+    def archive_off_partition(self) -> None:
+        """Set aside finished attempts made on a partition the unit may no longer use.
+
+        Every final result must come from one GPU model, so a unit is never
+        resumed from, evaluated from, or counted done by an attempt on another
+        partition. Active attempts are left to finish; they are archived on the
+        tick after they end and the unit then reruns from scratch.
+        """
+        for unit_spec in self.units():
+            unit = self.state["units"][unit_spec["key"]]
+            if unit["status"] == "active":
+                continue
+            allowed = set(unit_spec["partitions"]) | {"-"}
+            moved = [a for a in unit["attempts"] if a["partition"] not in allowed]
+            if not moved:
+                continue
+            unit.setdefault("archived_attempts", []).extend(moved)
+            unit["attempts"] = [a for a in unit["attempts"] if a["partition"] in allowed]
+            if unit["status"] in ("done", "stuck"):
+                unit["status"], unit["no_progress"] = "pending", 0
+                unit.pop("final_run_dir", None)
+                unit.pop("posthoc", None)
+            self.log(
+                f"archived {len(moved)} attempt(s) of {unit_spec['key']} on "
+                f"{', '.join(sorted({a['partition'] for a in moved}))}; rerun on {'/'.join(unit_spec['partitions'])}"
+            )
+
     # ------------------------------------------------------------------ submit
     def submit(self) -> None:
         limits = {name: int(cfg.get("max_active", 1)) for name, cfg in self.spec["partitions"].items()}
@@ -245,7 +307,14 @@ class Campaign:
             unit = self.state["units"][unit_spec["key"]]
             if unit["status"] != "pending":
                 continue
-            partition = next((p for p in unit_spec["partitions"] if active.get(p, 0) < limits.get(p, 0)), None)
+            needed = self.jobs_needed(unit_spec["config"])
+            partition = next(
+                (
+                    p for p in unit_spec["partitions"]
+                    if active.get(p, 0) < limits.get(p, 0) and self.fits(p, needed)
+                ),
+                None,
+            )
             if partition is None:
                 continue
             round_number, checkpoint = self.latest_checkpoint(unit["attempts"])
@@ -330,8 +399,9 @@ class Campaign:
             1 for unit in self.state["units"].values()
             if unit.get("posthoc", {}).get("status") == "active"
         )
+        partition = settings.get("partition", "batch")
         for unit_spec in self.units():
-            if active >= limit:
+            if active >= limit or not self.fits(partition, 1):
                 return
             unit = self.state["units"][unit_spec["key"]]
             job = unit.get("posthoc")
@@ -342,7 +412,6 @@ class Campaign:
                 continue
             log_dir = Path(unit["attempts"][-1]["log_dir"] or self.root) / "periodic"
             log_dir.mkdir(parents=True, exist_ok=True)
-            partition = settings.get("partition", "batch")
             command = [
                 "sbatch", "--parsable", f"--partition={partition}",
                 f"--job-name=flb-periodic",
@@ -409,6 +478,7 @@ def main() -> int:
         queue = campaign.queue()
         campaign.reconcile(queue)
         campaign.reconcile_posthoc(queue)
+        campaign.archive_off_partition()
         campaign.submit()
         campaign.submit_posthoc()
         campaign.save()
