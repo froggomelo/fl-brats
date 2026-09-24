@@ -22,6 +22,13 @@ users, so the Xid code is unknown.
 Only idle bigbatch nodes could be probed. Busy bigbatch nodes are untested;
 the job-start check catches any bad ones.
 
+## Unsupported GPUs
+
+stampede nodes carry a GTX 1060 (compute capability 6.1). The image's PyTorch
+has no kernels for it ("no kernel image is available for execution on the
+device"), so stampede cannot run GPU work. The job-start check requires
+compute capability 7.0 or higher.
+
 ## Slow I/O
 
 mscluster124 (batch) held a client in uninterruptible I/O wait for more than
@@ -44,6 +51,7 @@ caches with `rm -rf /var/tmp/$USER/fl-brats-cache` in a job on that node.
 |---|---|---|---|
 | batch | 6 CPUs, 30 GB, RTX 3060 12 GB | 13 running, 100 submitted jobs | 24 h |
 | bigbatch | 14 CPUs, 124 GB, RTX 3090 24 GB | 6 running, 48 submitted jobs | 72 h |
+| stampede | 16 CPUs, 30 GB, GTX 1060 6 GB (unsupported) | 2 running jobs | |
 
 GRES requests are rejected on both partitions; the GPU comes with the node.
 A federated run needs five jobs (server and four clients), so bigbatch fits one

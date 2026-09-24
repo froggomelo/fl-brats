@@ -23,9 +23,14 @@ export FL_BRATS_DATA_ROOT="$data_root"
 export FL_BRATS_RAW_ROOT="$raw_root"
 # Some nodes expose a GPU whose driver is broken; device=auto would then fall back
 # to CPU silently. Exit 75 so the run can be resubmitted away from this node.
-if [[ "${FL_BRATS_REQUIRE_GPU:-0}" == "1" ]] && ! nvidia-smi -L >/dev/null 2>&1; then
-  echo "FL_BRATS_GPU_UNAVAILABLE host=$(hostname -s)" >&2
-  exit 75
+# The image's PyTorch has no kernels for GPUs older than compute capability 7.0
+# (stampede's GTX 1060 is 6.1): nvidia-smi works there but CUDA calls fail.
+if [[ "${FL_BRATS_REQUIRE_GPU:-0}" == "1" ]]; then
+  capability="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1)"
+  if [[ -z "$capability" ]] || ! awk -v c="$capability" 'BEGIN { exit !(c + 0 >= 7.0) }'; then
+    echo "FL_BRATS_GPU_UNAVAILABLE host=$(hostname -s) compute_capability=${capability:-none}" >&2
+    exit 75
+  fi
 fi
 if [[ "$use_apptainer" == "true" ]]; then
   [[ -f "$image" ]] || { echo "Configured Apptainer image does not exist: $image" >&2; exit 2; }
