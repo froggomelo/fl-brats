@@ -125,13 +125,15 @@ class Campaign:
                 count += 1
         return count
 
-    def fits(self, partition: str, needed: int) -> bool:
-        """Whether a run's jobs can all hold slots at once under the partition's job budget.
+    def fits(self, partition: str, needed: int, budget: int | None = None) -> bool:
+        """Whether a run's jobs can all hold slots at once under a job budget.
 
         A run whose jobs cannot all start deadlocks: the server waits for a
-        client that waits for a slot. Budgets are the per-user QOS limit.
+        client that waits for a slot. The default budget is the partition's
+        training budget (max_jobs); periodic evaluation passes its own.
         """
-        budget = self.spec["partitions"].get(partition, {}).get("max_jobs")
+        if budget is None:
+            budget = self.spec["partitions"].get(partition, {}).get("max_jobs")
         if budget is None:
             return True
         return self.jobs_holding_slots(partition) + needed <= int(budget)
@@ -367,7 +369,9 @@ class Campaign:
                 None,
             )
             if partition is None:
-                continue
+                # Strict priority: a later, smaller run must not take the slots
+                # the next run in order is waiting for.
+                return
             round_number, checkpoint = self.latest_checkpoint(unit["attempts"])
             command = [
                 sys.executable, str(REPO_ROOT / "scripts" / "launch_experiment.py"),
@@ -452,7 +456,7 @@ class Campaign:
         )
         partition = settings.get("partition", "batch")
         for unit_spec in self.units():
-            if active >= limit or not self.fits(partition, 1):
+            if active >= limit or not self.fits(partition, 1, settings.get("max_jobs")):
                 return
             unit = self.state["units"][unit_spec["key"]]
             job = unit.get("posthoc")
