@@ -43,10 +43,10 @@ runs:
   # Training-configuration sweeps. e10 is the longest run; bigbatch's 72 h
   # limit and faster GPU suit it. b8 needs the 3090's 24 GB.
   - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e10.yaml, seeds: [42], partitions: [bigbatch, batch]}
-  - config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5.yaml
-    seeds: [42]
-    partitions: [batch, bigbatch]
-    existing: {42: /home-mscluster/ldemelo/fl-brats/outputs/fedavg_train_configs_uneven/local_epochs_sweeps/e5_seed_42_20260918_112321_995829}
+  # e5 reruns from scratch: its round-120 run from 2026-09-18 carries best-metric
+  # and early-stopping state from the old client-side evaluation, which would
+  # corrupt held-out model selection if resumed.
+  - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5.yaml, seeds: [42], partitions: [batch, bigbatch]}
   - {config: configs/fedavg_train_configs_uneven/client_sweeps/k8.yaml, seeds: [42], partitions: [batch, bigbatch]}
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b4.yaml, seeds: [42], partitions: [batch, bigbatch]}
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [bigbatch]}
