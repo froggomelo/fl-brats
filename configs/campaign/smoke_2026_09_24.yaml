@@ -1,0 +1,26 @@
+# Four-round smoke of the missing-modality runs through the campaign driver,
+# exercising the persistent cache, resume state, GPU check, and bigbatch GPUs.
+name: smoke_2026_09_24
+stall_minutes: 45
+finalize_minutes: 90
+max_attempts_without_progress: 3
+known_bad_nodes: &bad
+  mscluster44: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster45: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster57: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster59: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster62: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster65: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster75: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster83: bigbatch GPU unusable (2026-09-24 probe)
+  mscluster129: batch GPU unusable (2026-09-24 probe)
+partitions:
+  batch: {max_active: 2}
+  bigbatch:
+    max_active: 1
+    set: ["slurm.exclusive=true", "slurm.cpus_per_task=14", "slurm.memory=120000M", 'slurm.time="72:00:00"']
+runs:
+  - {config: configs/smoke/missing_uneven_4_rounds/fedamm_alpha_0_1.yaml, seeds: [42], partitions: [bigbatch]}
+  - {config: configs/smoke/missing_uneven_4_rounds/fedavg_alpha_0_1.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/smoke/missing_uneven_4_rounds/fedamm_alpha_0_001.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/smoke/missing_uneven_4_rounds/fedavg_alpha_0_001.yaml, seeds: [42], partitions: [batch]}

@@ -93,11 +93,40 @@ def main() -> int:
         metavar="JOBID",
         help="Wait for this Slurm job before starting; its exit status is ignored.",
     )
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Override a dotted config key with a YAML value, e.g. slurm.exclusive=true.",
+    )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="NODES",
+        help="Comma-separated nodes to keep this run off, added to slurm.exclude.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.resume_checkpoint and not args.resume_checkpoint.expanduser().is_file():
         parser.error(f"resume checkpoint does not exist: {args.resume_checkpoint}")
     values = _load_experiment_yaml(args.config.resolve())
+    for assignment in args.set:
+        key, separator, raw = assignment.partition("=")
+        if not separator or not key:
+            parser.error(f"--set expects KEY=VALUE, got {assignment!r}")
+        destination = values
+        *parents, leaf = key.split(".")
+        for part in parents:
+            destination = destination.setdefault(part, {})
+        destination[leaf] = yaml.safe_load(raw)
+    if args.exclude:
+        slurm_values = values.setdefault("slurm", {})
+        configured = slurm_values.get("exclude") or []
+        configured = configured.split(",") if isinstance(configured, str) else list(configured)
+        extra = [node for item in args.exclude for node in item.split(",") if node]
+        slurm_values["exclude"] = sorted(set(configured) | set(extra))
     experiment = values["experiment"]
     seeds = [args.seed] if args.seed is not None else list(experiment.get("seeds", [42]))
     family, variant = str(experiment["family"]), str(experiment.get("variant", args.config.stem))
@@ -298,7 +327,9 @@ def main() -> int:
             (log_dir / "slurm-job-ids.json").write_text(
                 json.dumps(jobs, indent=2) + "\n", encoding="utf-8"
             )
-            submitted.append({"run_id": run_id, "run_dir": str(run_dir), "jobs": jobs})
+            submitted.append(
+                {"run_id": run_id, "run_dir": str(run_dir), "log_dir": str(log_dir), "jobs": jobs}
+            )
             previous_job = cleanup_job
             continue
         sbatch.extend(
