@@ -37,3 +37,15 @@ def test_workers_are_spawned_not_forked() -> None:
     dataset = Dataset([{"index": 0}], transform=_Draw())
     loader = build_dataloader(dataset, 1, False, workers=1, seed=7, pin_memory=False)
     assert loader.multiprocessing_context.get_start_method() == "spawn"
+
+
+def test_worker_loader_raises_open_file_limit() -> None:
+    import resource
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (min(256, hard), hard))
+    try:
+        build_dataloader(Dataset([{"index": 0}]), 1, False, workers=1, seed=7, pin_memory=False)
+        assert resource.getrlimit(resource.RLIMIT_NOFILE)[0] == hard
+    finally:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))

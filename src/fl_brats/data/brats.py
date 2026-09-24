@@ -260,6 +260,22 @@ def build_dataset(
     return BraTSDataset(records, transform=transform)
 
 
+def _raise_open_file_limit() -> None:
+    """Lift the soft open-file limit to the hard limit for worker tensor passing.
+
+    Workers hand each tensor storage back through a file descriptor. MONAI
+    tensors carry several storages, and the containers' soft limit of 1024 ran
+    out ("received 0 items of ancdata"), killing the client. Spawned workers
+    inherit the raised limit.
+    """
+    import resource
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    target = hard if hard != resource.RLIM_INFINITY else 1 << 20
+    if soft < target:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+
+
 def build_dataloader(
     dataset: Dataset,
     batch_size: int,
@@ -269,6 +285,8 @@ def build_dataloader(
     pin_memory: bool | None = None,
 ) -> DataLoader[Any]:
     generator = torch.Generator().manual_seed(seed)
+    if workers > 0:
+        _raise_open_file_limit()
     if pin_memory is None:
         pin_memory = _env_flag("FL_BRATS_PIN_MEMORY")
     if pin_memory is None:
