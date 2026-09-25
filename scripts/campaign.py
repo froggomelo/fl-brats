@@ -157,6 +157,19 @@ class Campaign:
         budget = settings.get("max_jobs") if training else None
         return budget is None or self.training_jobs(partition) + needed <= int(budget)
 
+    def can_backfill(self, partitions: list[str], needed: int, blocked: int) -> bool:
+        """Whether a later run may start while an earlier one waits.
+
+        Only if the earlier run still fits once the current training runs end:
+        training budget minus this run's jobs must cover it. A one-job
+        centralized run then uses the slot two five-job runs leave in an
+        11-slot budget, and a five-job run never overtakes k8 (nine jobs).
+        """
+        return any(
+            int(self.spec["partitions"].get(p, {}).get("max_jobs", 0)) - needed >= blocked
+            for p in partitions
+        )
+
     @staticmethod
     def jobs_needed(config: str) -> int:
         """Jobs a run holds at once: the server and one per client, or one centralized job."""
@@ -388,11 +401,14 @@ class Campaign:
         for unit in self.state["units"].values():
             if unit["status"] == "active":
                 active[unit["attempts"][-1]["partition"]] = active.get(unit["attempts"][-1]["partition"], 0) + 1
+        blocked: int | None = None  # jobs the first run that did not fit needs
         for unit_spec in self.units():
             unit = self.state["units"][unit_spec["key"]]
             if unit["status"] != "pending":
                 continue
             needed = self.jobs_needed(unit_spec["config"])
+            if blocked is not None and not self.can_backfill(unit_spec["partitions"], needed, blocked):
+                continue
             partition = next(
                 (
                     p for p in unit_spec["partitions"]
@@ -401,9 +417,11 @@ class Campaign:
                 None,
             )
             if partition is None:
-                # Strict priority: a later, smaller run must not take the slots
-                # the next run in order is waiting for.
-                return
+                # Priority: later runs may only use slots the blocked run could
+                # never use (see can_backfill).
+                if blocked is None:
+                    blocked = needed
+                continue
             round_number, checkpoint = self.resume_point(unit_spec["config"], unit["attempts"])
             command = [
                 sys.executable, str(REPO_ROOT / "scripts" / "launch_experiment.py"),
