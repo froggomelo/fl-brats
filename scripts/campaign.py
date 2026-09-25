@@ -126,13 +126,19 @@ class Campaign:
         return count
 
     def training_jobs(self, partition: str) -> int:
-        """Jobs held by the campaign's active training runs on a partition."""
-        return sum(
-            self.jobs_needed(unit_spec["config"])
-            for unit_spec in self.units()
-            if (unit := self.state["units"][unit_spec["key"]])["status"] == "active"
-            and unit["attempts"][-1]["partition"] == partition
-        )
+        """Jobs the campaign's active training runs still hold on a partition.
+
+        Counted from the queue, so a run whose clients have exited while its
+        server finalizes holds one slot, not five.
+        """
+        queue = self.queue()
+        total = 0
+        for unit in self.state["units"].values():
+            if unit["status"] != "active" or unit["attempts"][-1]["partition"] != partition:
+                continue
+            jobs = unit["attempts"][-1]["jobs"]
+            total += sum(len(queue.get(jobs[k], [])) for k in ("server", "clients", "job") if k in jobs)
+        return total
 
     def fits(self, partition: str, needed: int, *, training: bool = True) -> bool:
         """Whether a run's jobs can all hold slots at once.
