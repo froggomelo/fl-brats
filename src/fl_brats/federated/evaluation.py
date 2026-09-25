@@ -59,6 +59,17 @@ def canonical_metrics(metrics: dict[str, float]) -> dict[str, float]:
     return {aliases.get(key, key): value for key, value in metrics.items()}
 
 
+def make_result_directory(path: Path) -> None:
+    """Create an empty directory for evaluation results, never reusing a full one.
+
+    Not ``mkdir(exist_ok=False)``: on NFS a retried mkdir can report EEXIST
+    for the directory it just created (2026-09-25 lost a test report this way).
+    """
+    path.mkdir(parents=True, exist_ok=True)
+    if any(path.iterdir()):
+        raise ValueError(f"refusing to overwrite evaluation results in {path}")
+
+
 class HeldOutEvaluator:
     def __init__(
         self,
@@ -269,8 +280,7 @@ class HeldOutEvaluator:
         model = create_model(payload["model_config"])
         load_checkpoint_state(model, payload["model_state"])
         metrics, combinations = self.run(model, expensive=True, robustness=self.robustness_enabled)
-        destination.mkdir(parents=True, exist_ok=False)
-        atomic_write_json(destination / "metrics.json", metrics)
+        make_result_directory(destination)
         atomic_write_json(
             destination / "metadata.json",
             self.metadata
@@ -287,3 +297,5 @@ class HeldOutEvaluator:
             ),
             encoding="utf-8",
         )
+        # Written last: its presence marks a complete evaluation.
+        atomic_write_json(destination / "metrics.json", metrics)

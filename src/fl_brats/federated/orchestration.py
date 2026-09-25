@@ -295,7 +295,9 @@ def run_local_federation(values: dict[str, Any], run_dir: Path) -> dict[str, Any
     clients = [build_client(values, client_id, partition_root) for client_id in client_ids]
     if len(clients) < int(values.get("min_available_clients", len(clients))):
         raise ValueError("fewer usable client partitions than min_available_clients")
-    run_dir.mkdir(parents=True, exist_ok=False)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    if any(run_dir.iterdir()):
+        raise ValueError(f"run directory is not empty: {run_dir}")
     for relative in ("checkpoints", "metrics", "communication", "logs"):
         (run_dir / relative).mkdir()
     (run_dir / "resolved_config.yaml").write_text(

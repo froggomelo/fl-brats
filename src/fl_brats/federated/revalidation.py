@@ -222,7 +222,9 @@ def evaluate_final_run(
     destination = output_dir or run_dir / (
         "final_evaluation" if final_round is None else f"final_evaluation_round_{final_round:04d}"
     )
-    if destination.exists():
+    # An empty directory is left by an interrupted attempt (or a spurious NFS
+    # EEXIST); only existing results are protected.
+    if destination.exists() and any(destination.iterdir()):
         raise ValueError(f"refusing to overwrite final evaluation: {destination}")
     evaluator = HeldOutEvaluator(
         run_values(run_dir, device), split_path, cohort="test", index_path=index_path
