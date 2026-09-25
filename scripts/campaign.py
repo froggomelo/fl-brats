@@ -121,7 +121,9 @@ class Campaign:
         count = 0
         for line in output.splitlines():
             state, reason = (line.split("|") + [""])[:2]
-            if state == "RUNNING" or (state == "PENDING" and reason not in NOT_WAITING_FOR_A_SLOT):
+            # Held jobs appear as "JobHeldUser" or "job requeued in held state".
+            held = "held" in reason.lower()
+            if state == "RUNNING" or (state == "PENDING" and reason not in NOT_WAITING_FOR_A_SLOT and not held):
                 count += 1
         return count
 
