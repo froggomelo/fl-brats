@@ -62,8 +62,8 @@ runs:
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b4.yaml, seeds: [42], partitions: [batch]}
   # Must be memory-tested on the 12 GB RTX 3060 before it runs.
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [batch]}
-  # Model-agnostic (dropped first if time runs out). Not runnable yet: the
-  # pretrained checkpoints artifacts/pretrained/sam1.pth and sam2.pt are missing
-  # and SAM has never been smoke-tested. Re-enable once both are done.
-  # - {config: configs/model_agnostic_uneven/sam1/baseline.yaml, seeds: [42, 43, 44], partitions: [bigbatch]}
-  # - {config: configs/model_agnostic_uneven/sam2/baseline.yaml, seeds: [42, 43, 44], partitions: [bigbatch]}
+  # Model-agnostic, last and dropped first if time runs out. Smoke-tested and
+  # learning-checked 2026-09-25 (docs/sam.md). SAM 1 runs past batch's 24 h
+  # limit and resumes from its latest round.
+  - {config: configs/model_agnostic_uneven/sam2/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/model_agnostic_uneven/sam1/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
