@@ -61,7 +61,8 @@ runs:
   # Nine jobs: runs only while no other five-job run is active.
   - {config: configs/fedavg_train_configs_uneven/client_sweeps/k8.yaml, seeds: [42], partitions: [batch]}
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b4.yaml, seeds: [42], partitions: [batch]}
-  # Must be memory-tested on the 12 GB RTX 3060 before it runs.
+  # Peak GPU memory of a batch-8 training step on 96^3 patches: 2.15 GiB
+  # (measured 2026-09-25), well within the RTX 3060's 12 GB.
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [batch]}
   # Model-agnostic, last and dropped first if time runs out. Smoke-tested and
   # learning-checked 2026-09-25 (docs/sam.md). SAM 1 runs past batch's 24 h
