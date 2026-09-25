@@ -117,6 +117,15 @@ def main() -> int:
         metavar="NODES",
         help="Comma-separated nodes to keep this run off, added to slurm.exclude.",
     )
+    parser.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help=(
+            "Skip the job that cancels a server stuck after its clients end; for callers "
+            "that watch the run themselves (scripts/campaign.py). It would otherwise hold "
+            "a job slot for the whole finalization."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.resume_checkpoint and not args.resume_checkpoint.expanduser().is_file():
@@ -262,7 +271,7 @@ def main() -> int:
             # best/final evaluation, so only cancel a server that outlives a grace
             # period (it is then stuck, e.g. waiting for a client that died).
             grace_minutes = int(slurm.get("finalize_grace_minutes", 180))
-            cleanup_job = subprocess.check_output(
+            cleanup_job = None if args.no_cleanup else subprocess.check_output(
                 [
                     "sbatch", "--parsable", f"--partition={slurm['partition']}",
                     f"--dependency=afterany:{client_job}",
@@ -274,7 +283,9 @@ def main() -> int:
                 ],
                 cwd=REPO_ROOT, text=True,
             ).strip()
-            jobs = {"server": server_job, "clients": client_job, "cleanup": cleanup_job}
+            jobs = {"server": server_job, "clients": client_job}
+            if cleanup_job:
+                jobs["cleanup"] = cleanup_job
             missing = resolved.get("missing_modalities", {})
             evaluation = missing.get("evaluation", {}) if isinstance(missing, dict) else {}
             # Authoritative held-out best/final evaluation now runs on the server.
@@ -297,7 +308,7 @@ def main() -> int:
                     evaluation_job = subprocess.check_output(
                         evaluation_sbatch
                         + [
-                            f"--dependency=afterany:{cleanup_job}",
+                            f"--dependency=afterany:{cleanup_job or server_job}",
                             f"--array=0-{clients - 1}",
                             f"--job-name=flb-eval-{alias}-{_slug(variant)[:30]}",
                             f"--output={log_dir}/evaluate-{alias}-%A-%a.out",
@@ -347,7 +358,7 @@ def main() -> int:
             submitted.append(
                 {"run_id": run_id, "run_dir": str(run_dir), "log_dir": str(log_dir), "jobs": jobs}
             )
-            previous_job = cleanup_job
+            previous_job = cleanup_job or server_job
             continue
         sbatch.extend(
             [

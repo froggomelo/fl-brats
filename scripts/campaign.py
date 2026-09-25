@@ -409,6 +409,8 @@ class Campaign:
                 sys.executable, str(REPO_ROOT / "scripts" / "launch_experiment.py"),
                 unit_spec["config"], "--mode", "slurm", "--seed", str(unit_spec["seed"]),
                 "--set", f"slurm.partition={partition}",
+                # The tick cancels a server stuck in finalization (finalize_minutes).
+                "--no-cleanup",
             ]
             for assignment in list(self.spec["partitions"][partition].get("set", [])) + unit_spec["set"]:
                 command += ["--set", assignment]
