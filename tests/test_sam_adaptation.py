@@ -11,7 +11,12 @@ from fl_brats.sam.modalities import fixed_rgb_mapping
 from fl_brats.sam.prompts import generate_prompts
 from fl_brats.sam.reconstruction import reconstruct_volume
 from fl_brats.sam.slicing import extract_slices
-from fl_brats.training.engine import forward_batch, sample_training_slices, train_one_epoch
+from fl_brats.training.engine import (
+    forward_batch,
+    sample_training_slices,
+    stack_subject_slices,
+    train_one_epoch,
+)
 
 TINY = {"backend": "tiny", "input_size": 8}
 
@@ -68,6 +73,13 @@ def test_checkpoint_state_holds_only_trainable_weights_and_round_trips() -> None
         load_checkpoint_state(other, {**state, "backend.image_encoder.0.weight": torch.zeros(1)})
 
 
+def test_subject_slices_stack_back_in_sampling_order() -> None:
+    slices = torch.arange(2 * 3).float().view(6, 1, 1, 1).expand(6, 3, 2, 2)
+    stacked = stack_subject_slices(slices, subjects=2)
+    assert stacked.shape == (2, 3, 2, 2, 3)
+    assert stacked[1, 0, 0, 0].tolist() == [3.0, 4.0, 5.0]
+
+
 def test_training_slices_favour_tumour_and_keep_image_label_pairs() -> None:
     torch.manual_seed(0)
     image = torch.zeros(1, 4, 6, 6, 10)
@@ -93,8 +105,17 @@ def test_slice_model_trains_on_slices_and_predicts_whole_volumes() -> None:
     before = model.projection.projection.weight.detach().clone()
     loader = [{"image": image, "label": label}]
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
-    result = train_one_epoch(model, loader, torch.nn.BCEWithLogitsLoss(), optimizer, torch.device("cpu"))
-    assert result["samples"] == 4.0
+    seen: list[tuple[int, ...]] = []
+
+    def loss_fn(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        seen.append(tuple(logits.shape))
+        assert logits.shape == target.shape
+        return torch.nn.functional.binary_cross_entropy_with_logits(logits, target)
+
+    result = train_one_epoch(model, loader, loss_fn, optimizer, torch.device("cpu"))
+    # One subject per step; the loss sees its four slices stacked as a volume.
+    assert result["samples"] == 1.0
+    assert seen == [(1, 3, 6, 7, 4)]
     # Gradients reach the projection through the frozen encoder, which is unchanged.
     assert not torch.equal(before, model.projection.projection.weight)
     assert all(not p.requires_grad for p in model.backend.image_encoder.parameters())

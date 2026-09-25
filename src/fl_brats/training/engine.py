@@ -44,6 +44,18 @@ def sample_training_slices(batch: dict[str, Any], count: int, tumour_fraction: f
     return {**batch, "image": torch.cat(images), "label": torch.cat(labels)}
 
 
+def stack_subject_slices(slices: torch.Tensor, subjects: int) -> torch.Tensor:
+    """Regroup [subjects * k, C, H, W] slices into [subjects, C, H, W, k] stacks.
+
+    The loss is then computed per subject over its sampled slices, as it is
+    over a 3D patch for volume models. Per-slice Dice would reward empty
+    predictions on every slice (and region) without tumour, and training
+    collapses to predicting nothing.
+    """
+    stacked = slices.reshape(subjects, -1, *slices.shape[1:])
+    return stacked.permute(0, *range(2, stacked.ndim), 1)
+
+
 def forward_batch(model: torch.nn.Module, batch: dict[str, Any]) -> torch.Tensor:
     """Pass explicit masks when a model advertises mask support."""
     if is_slice_model(model) and batch["image"].ndim == 5:
@@ -115,6 +127,7 @@ def train_one_epoch(
     config = getattr(model, "config", {}) if slice_model else {}
     for batch in loader:
         batch = move_batch_to_device(batch, device)
+        subjects = len(batch["image"])
         if slice_model:
             batch = sample_training_slices(
                 batch,
@@ -123,14 +136,18 @@ def train_one_epoch(
             )
         optimizer.zero_grad(set_to_none=True)
         output = forward_batch(model, batch)
-        loss = batch_loss(output, batch["label"], loss_fn, model)
+        target = batch["label"]
+        if slice_model:
+            output = stack_subject_slices(output, subjects)
+            target = stack_subject_slices(target, subjects)
+        loss = batch_loss(output, target, loss_fn, model)
         if proximal_mu:
             loss = loss + 0.5 * proximal_mu * proximal_penalty(
                 model, proximal_global_parameters, device
             )
         loss.backward()
         optimizer.step()
-        n = len(batch["image"])
+        n = subjects
         total += float(loss.detach()) * n
         samples += n
         if isinstance(output, FedAMMOutput) and getattr(model, "emit_prototypes", True):
