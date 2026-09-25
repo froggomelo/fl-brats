@@ -21,9 +21,10 @@ known_bad_nodes:
 partitions:
   # batch allows 13 running jobs per user (job_limit). A run is only submitted
   # when all its jobs (server + clients, or one centralized job) can hold a
-  # slot at once. Training runs hold at most 11 slots (two five-job runs plus
-  # a centralized run), so two always remain for periodic evaluation.
-  batch: {max_active: 3, max_jobs: 11, job_limit: 13}
+  # slot at once. Training runs hold at most 12 slots: two five-job runs, a
+  # centralized run, and the one slot a finalizing server keeps for its last
+  # hour, so the next run starts while the previous one finalizes.
+  batch: {max_active: 4, max_jobs: 12, job_limit: 13}
   # Not used for final training (2026-09-24): no working node was free and the
   # queue head waited ~3 days. Kept so status shows the old attempts.
   bigbatch: {max_active: 0, max_jobs: 6, job_limit: 6}
