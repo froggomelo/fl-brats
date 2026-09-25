@@ -132,20 +132,21 @@ class Campaign:
                 count += 1
         return count
 
-    def training_jobs(self, partition: str) -> int:
-        """Jobs the campaign's active training runs still hold on a partition.
-
-        Counted from the queue, so a run whose clients have exited while its
-        server finalizes holds one slot, not five.
-        """
+    def held_jobs(self, partition: str) -> dict[str, int]:
+        """Jobs each active run on a partition still holds, from the queue
+        (a run whose clients exited while its server finalizes holds one)."""
         queue = self.queue()
-        total = 0
-        for unit in self.state["units"].values():
+        held: dict[str, int] = {}
+        for key, unit in self.state["units"].items():
             if unit["status"] != "active" or unit["attempts"][-1]["partition"] != partition:
                 continue
             jobs = unit["attempts"][-1]["jobs"]
-            total += sum(len(queue.get(jobs[k], [])) for k in ("server", "clients", "job") if k in jobs)
-        return total
+            held[key] = sum(len(queue.get(jobs[k], [])) for k in ("server", "clients", "job") if k in jobs)
+        return held
+
+    def training_jobs(self, partition: str) -> int:
+        """Jobs the campaign's active training runs still hold on a partition."""
+        return sum(self.held_jobs(partition).values())
 
     def fits(self, partition: str, needed: int, *, training: bool = True) -> bool:
         """Whether a run's jobs can all hold slots at once.
@@ -165,15 +166,21 @@ class Campaign:
     def can_backfill(self, partitions: list[str], needed: int, blocked: int) -> bool:
         """Whether a later run may start while an earlier one waits.
 
-        Only if the earlier run still fits once the current training runs end:
-        training budget minus this run's jobs must cover it. A one-job
-        centralized run then uses the slot two five-job runs leave in an
-        11-slot budget, and a five-job run never overtakes k8 (nine jobs).
+        Only if the waiting run would still fit as soon as any training run
+        moves to finalization (clients gone, the server alone holding one
+        slot): budget minus what would then be held, minus this run's jobs,
+        must cover it. In practice one centralized run can use the slot two
+        five-job runs leave, and a five-job run never overtakes k8.
         """
-        return any(
-            int(self.spec["partitions"].get(p, {}).get("max_jobs", 0)) - needed >= blocked
-            for p in partitions
-        )
+        for partition in partitions:
+            budget = int(self.spec["partitions"].get(partition, {}).get("max_jobs", 0))
+            held = self.held_jobs(partition)
+            total = sum(held.values())
+            training = [count for count in held.values() if count > 1]
+            after = [total - count + 1 for count in training] or [total]
+            if all(budget - value - needed >= blocked for value in after):
+                return True
+        return False
 
     @staticmethod
     def jobs_needed(config: str) -> int:
