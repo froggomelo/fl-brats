@@ -122,7 +122,7 @@ def main() -> int:
         action="store_true",
         help=(
             "Skip the job that cancels a server stuck after its clients end; for callers "
-            "that watch the run themselves (scripts/campaign.py). It would otherwise hold "
+            "that watch the run themselves (scripts/monitoring/campaign.py). It would otherwise hold "
             "a job slot for the whole finalization."
         ),
     )

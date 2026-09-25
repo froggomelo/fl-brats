@@ -25,7 +25,7 @@ from typing import Any
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from launch_experiment import _load_experiment_yaml  # noqa: E402
 GPU_MARKER = re.compile(r"FL_BRATS_GPU_UNAVAILABLE host=(\S+)")
@@ -46,7 +46,12 @@ class Campaign:
     def __init__(self, spec_path: Path) -> None:
         self.spec_path = spec_path.resolve()
         self.spec = yaml.safe_load(self.spec_path.read_text(encoding="utf-8"))
-        self.root = REPO_ROOT / "logs" / "campaign" / str(self.spec["name"])
+        # Monitoring logs live under logs/monitoring/ (Experiments.md layout).
+        self.root = REPO_ROOT / "logs" / "monitoring" / "campaign" / str(self.spec["name"])
+        legacy = REPO_ROOT / "logs" / "campaign" / str(self.spec["name"])
+        if legacy.is_dir() and not self.root.exists():
+            self.root.parent.mkdir(parents=True, exist_ok=True)
+            legacy.rename(self.root)  # one-time move of a campaign started before the layout change
         self.root.mkdir(parents=True, exist_ok=True)
         self.state_path = self.root / "state.json"
         self.state: dict[str, Any] = (

@@ -1,9 +1,9 @@
 # Cluster node health
 
 Last checked 2026-09-24. Campaign files list these under `known_bad_nodes`,
-and `scripts/campaign.py` adds any node that fails the job-start GPU check
+and `scripts/monitoring/campaign.py` adds any node that fails the job-start GPU check
 (`FL_BRATS_GPU_UNAVAILABLE` in a job's `.err`, exit code 75) to
-`logs/campaign/<name>/state.json`. Every later submission excludes them.
+`logs/monitoring/campaign/<name>/state.json`. Every later submission excludes them.
 
 ## GPU present but unusable
 

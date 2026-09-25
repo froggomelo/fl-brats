@@ -1,20 +1,31 @@
 # Running the experiment campaign
 
-`scripts/campaign.py` keeps a prioritized list of federated runs moving on
+`scripts/monitoring/campaign.py` keeps a prioritized list of federated runs moving on
 mscluster, where jobs hit wall-time limits, nodes die, and some GPUs are
 unusable. The campaign file lists runs in priority order; the driver is
-stateless between ticks apart from `logs/campaign/<name>/state.json`.
+stateless between ticks apart from `logs/monitoring/campaign/<name>/state.json`.
 
 ```bash
-python3 scripts/campaign.py tick   configs/campaign/deadline_2026_10.yaml
-python3 scripts/campaign.py status configs/campaign/deadline_2026_10.yaml
+python3 scripts/monitoring/campaign.py tick   configs/campaign/deadline_2026_10.yaml
+python3 scripts/monitoring/campaign.py status configs/campaign/deadline_2026_10.yaml
 ```
 
 Run `tick` every few minutes from cron on the login node:
 
 ```bash
-(crontab -l 2>/dev/null; echo '*/5 * * * * cd $HOME/fl-brats && bash -lc "python3 scripts/campaign.py tick configs/campaign/deadline_2026_10.yaml" >> logs/campaign/cron.log 2>&1') | crontab -
+(crontab -l 2>/dev/null; echo '*/5 * * * * cd $HOME/fl-brats && bash -lc "python3 scripts/monitoring/campaign.py tick configs/campaign/deadline_2026_10.yaml" >> logs/monitoring/campaign/cron.log 2>&1') | crontab -
 ```
+
+## Where files go
+
+`outputs/` and `logs/` follow the Experiments.md layout, mirroring `configs/`
+and `scripts/`: one folder per experiment family (with `client_sweeps/`,
+`local_epochs_sweeps/`, `mini_batch_sweeps/`, `modality_sweep/` under
+`fedavg_train_configs_uneven/` and `sam1/`, `sam2/` under
+`model_agnostic_uneven/`), plus `data_preprocessing/`, `environment/` and
+`monitoring/` (campaign state, revalidation). A run's folder is
+`<family>/<variant>_seed_<seed>_<timestamp>` in both. Smoke tests go under
+`smoke/<family>/`, and runs from before this layout under `<family>/legacy/`.
 
 ## What a tick does
 
@@ -44,7 +55,7 @@ Run `tick` every few minutes from cron on the login node:
    every 10th round across the whole resume chain, then the test report of the
    selected checkpoint), within `job_limit`.
 
-Events are appended to `logs/campaign/<name>/events.log`.
+Events are appended to `logs/monitoring/campaign/<name>/events.log`.
 
 ## Faithful resumes
 
