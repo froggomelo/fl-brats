@@ -9,9 +9,14 @@ use_apptainer="$3"
 image="$4"
 repo_root="${SLURM_SUBMIT_DIR:-$(pwd)}"
 address_file="$run_dir/server_address.txt"
-deadline=$((SECONDS + 600))
+deadline=$((SECONDS + 1200))
+# NFS clients cache failed lookups: a node that looked for the run directory
+# before the server created it can keep reporting it missing for minutes
+# (2026-09-25: two clients timed out while the file had existed for 10 min).
+# Listing the parent directories makes the node re-read them.
 while [[ ! -s "$address_file" ]]; do
   (( SECONDS < deadline )) || { echo "timed out waiting for $address_file" >&2; exit 3; }
+  ls -a "$(dirname "$run_dir")" "$run_dir" >/dev/null 2>&1 || true
   sleep 2
 done
 address="$(<"$address_file")"
