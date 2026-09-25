@@ -1,15 +1,28 @@
+# Experiments.md: FedAMM (alpha 0.1) combined with the best communication-
+# efficient setting: selective transmission (p from tuning) with mixed
+# 2/4/8-bit quantization of the transmitted values.
 extends: ../fedamm_uneven/alpha_0_1.yaml
-experiment: {family: fedamm_comm_eff_uneven, variant: alpha_0_1_p_0_1_4bit, runs: 3, seeds: [42, 43, 44]}
+experiment: {family: fedamm_comm_eff_uneven, variant: best, runs: 3, seeds: [42, 43, 44]}
 federated: {strategy: fedamm}
 selection:
   status: provisional
-  note: Replace alpha, sparsification fraction, and bit-width policy after component tuning.
+  note: Set sparsification.fraction to the p chosen from the selective-transmission tuning runs.
 quantization:
   enabled: true
-  mode: fixed
+  mode: mixed
   transmitted_object: delta
   scheme: symmetric
   granularity: per_tensor
   rounding: nearest
-  fixed: {bit_width: 4}
+  mixed:
+    candidate_bit_widths: [2, 4, 8]
+    default_bit_width: 4
+    default_average_bit_width_budget: 4.0
+    client_average_bit_width_budgets: {client_0: 8.0, client_1: 4.0, client_2: 2.0, client_3: 2.0}
+    allocation_strategy: fedmpq_inspired
+    update_allocation_every_rounds: 1
+    minimum_layer_bit_width: 2
+    maximum_layer_bit_width: 8
+    protected_layer_minimum_bit_width: 8
+    protected_layer_patterns: [output, final, classifier, normalization]
   sparsification: {enabled: true, method: topk, fraction: 0.1, error_feedback: true, scope: global}

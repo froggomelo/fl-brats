@@ -27,7 +27,7 @@ from .quantization import (
     quantize_update,
     serialize_client_update,
 )
-from .sparsification import create_sparse_update, sparse_update_to_ndarrays
+from .sparsification import LayerQuantizedValues, create_sparse_update, sparse_update_to_ndarrays
 
 
 def modality_count_metrics(records: list[dict[str, Any]]) -> dict[str, float]:
@@ -212,6 +212,37 @@ class ModelFedAvgClient(FedAvgClient):
             raise ValueError("client produced non-finite loss or metric")
         return output
 
+    def _sparse_bit_width_allocation(self) -> Any:
+        """Mixed-precision allocation over the layers of a sparse update.
+
+        Same FedMPQ-inspired allocator and client budget as dense mixed mode,
+        with each layer weighted by what it transmits: its selected entries and
+        their L2 norm, so the average bit width is over transmitted values.
+        """
+        mixed = self.quantization_config.get("mixed", {})
+        patterns = [str(item).lower() for item in mixed.get("protected_layer_patterns", [])]
+        budget = float(
+            mixed.get("client_average_bit_width_budgets", {}).get(
+                self.client_id, mixed.get("default_average_bit_width_budget", 4.0)
+            )
+        )
+
+        def allocate(statistics: dict[str, tuple[int, float]]) -> dict[str, int]:
+            return BitWidthAllocator().allocate(
+                layer_statistics={
+                    name: LayerQuantizationStats(count, norm + 1e-12)
+                    for name, (count, norm) in statistics.items()
+                },
+                candidate_bit_widths=list(mixed.get("candidate_bit_widths", [2, 4, 8])),
+                average_budget=budget,
+                protected_layers={
+                    name for name in statistics if any(pattern in name.lower() for pattern in patterns)
+                },
+                protected_minimum=int(mixed.get("protected_layer_minimum_bit_width", 8)),
+            ).assignments
+
+        return allocate
+
     def fit(
         self, parameters: list[np.ndarray], config: dict[str, Any]
     ) -> tuple[list[np.ndarray], int, dict[str, Any]]:
@@ -242,8 +273,8 @@ class ModelFedAvgClient(FedAvgClient):
             quant_enabled = bool(self.quantization_config.get("enabled", False))
             quant_mode = str(self.quantization_config.get("mode", "none"))
             bit_width = int(self.quantization_config.get("fixed", {}).get("bit_width", 8))
-            if quant_enabled and quant_mode != "fixed":
-                raise ValueError("combined sparse+quantized updates currently require fixed mode")
+            if quant_enabled and quant_mode not in ("fixed", "mixed"):
+                raise ValueError(f"unsupported quantization mode with sparsification: {quant_mode}")
             update, self._sparsification_residual = create_sparse_update(
                 client_id=self.client_id,
                 round_index=int(config.get("server_round", 0)),
@@ -265,6 +296,11 @@ class ModelFedAvgClient(FedAvgClient):
                     if self.quantization_config.get("rounding") == "stochastic"
                     else None
                 ),
+                allocate_bit_widths=(
+                    self._sparse_bit_width_allocation()
+                    if quant_enabled and quant_mode == "mixed"
+                    else None
+                ),
             )
             upload_arrays = sparse_update_to_ndarrays(update)
             metrics.update(
@@ -281,6 +317,8 @@ class ModelFedAvgClient(FedAvgClient):
                     ),
                 }
             )
+            if isinstance(update.values, LayerQuantizedValues):
+                metrics["upload_achieved_average_bit_width"] = float(update.values.average_bit_width)
         elif bool(self.quantization_config.get("enabled", False)):
             if self._global_arrays_before_fit is None:
                 raise ValueError("quantized delta requires cached global parameters")

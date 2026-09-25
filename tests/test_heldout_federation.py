@@ -337,7 +337,7 @@ def test_checkpoint_mutation_invalidates_revalidation_resume(tmp_path, monkeypat
 
 
 @pytest.mark.parametrize("algorithm", ["fedavg", "fedamm"])
-@pytest.mark.parametrize("transport", ["quantized", "sparse"])
+@pytest.mark.parametrize("transport", ["quantized", "sparse", "sparse_mixed"])
 def test_compressed_aggregation_retains_global_validation(tmp_path, algorithm, transport):
     from fl_brats.federated.model_client import ModelFedAvgClient
 
@@ -353,6 +353,13 @@ def test_compressed_aggregation_retains_global_validation(tmp_path, algorithm, t
     config = {"enabled": True, "mode": "fixed", "fixed": {"bit_width": 8}}
     if transport == "sparse":
         config = {"sparsification": {"enabled": True, "fraction": 1.0}}
+    if transport == "sparse_mixed":
+        config = {
+            "enabled": True,
+            "mode": "mixed",
+            "mixed": {"candidate_bit_widths": [2, 4, 8], "default_average_bit_width_budget": 4.0},
+            "sparsification": {"enabled": True, "fraction": 0.7},
+        }
     client = ModelFedAvgClient(client_model, train_fn=train, examples=1, quantization_config=config)
     calls = []
 
@@ -368,6 +375,9 @@ def test_compressed_aggregation_retains_global_validation(tmp_path, algorithm, t
         round_offset=3,
     )
     arrays, examples, metrics = client.fit(state_to_arrays(model)[1], strategy.on_fit_config_fn(1))
+    if transport == "sparse_mixed":
+        assert metrics["upload_transmitted_parameter_count"] == 3.0
+        assert metrics["upload_achieved_average_bit_width"] <= 4.0
     result = SimpleNamespace(
         parameters=ndarrays_to_parameters(arrays), num_examples=examples, metrics=metrics
     )

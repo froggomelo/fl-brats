@@ -6,7 +6,8 @@ import hashlib
 import json
 import math
 import struct
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 import numpy as np
@@ -26,13 +27,34 @@ from .quantization import (
 SPARSE_UPDATE_MAGIC = b"FLBRATS_SPARSE_UPDATE_V1"
 SCHEMA_VERSION = 1
 
+# Maps each layer with selected entries to (selected count, L2 norm of its
+# selected values) and returns that layer's bit width.
+BitWidthAllocation = Callable[[dict[str, tuple[int, float]]], dict[str, int]]
+
+
+@dataclass
+class LayerQuantizedValues:
+    """Selected values quantized per layer: one segment per layer with entries,
+    in index order, each with its own bit width and scale (mixed precision)."""
+
+    segments: list[tuple[str, QuantizedTensor]] = field(default_factory=list)
+
+    @property
+    def count(self) -> int:
+        return sum(int(item.values.numel()) for _, item in self.segments)
+
+    @property
+    def average_bit_width(self) -> float:
+        bits = sum(int(item.values.numel()) * item.params.bit_width for _, item in self.segments)
+        return bits / max(self.count, 1)
+
 
 @dataclass
 class SparseClientUpdate:
     client_id: str
     round_index: int
     indices: torch.Tensor
-    values: torch.Tensor | QuantizedTensor
+    values: torch.Tensor | QuantizedTensor | LayerQuantizedValues
     total_parameters: int
     layers: list[dict[str, Any]]
     sample_count: int
@@ -125,8 +147,13 @@ def create_sparse_update(
     granularity: QuantizationGranularity = "per_tensor",
     rounding: RoundingMode = "nearest",
     seed: int | None = None,
+    allocate_bit_widths: BitWidthAllocation | None = None,
 ) -> tuple[SparseClientUpdate, torch.Tensor]:
-    """Select global Top-rho delta entries and return the next residual vector."""
+    """Select global Top-rho delta entries and return the next residual vector.
+
+    With ``allocate_bit_widths`` the selected values are quantized per layer at
+    the bit width it assigns (mixed precision); otherwise at ``bit_width``.
+    """
     if not 0 < fraction <= 1:
         raise ValueError("sparsification fraction must be in (0, 1]")
     layers, total = _layer_metadata(keys, local_arrays, global_arrays)
@@ -151,9 +178,15 @@ def create_sparse_update(
         _, indices = torch.topk(compensated.abs(), k=selected, largest=True, sorted=True)
         indices = indices.sort().values.to(torch.int64)
     selected_values = compensated[indices].contiguous()
-    transmitted: torch.Tensor | QuantizedTensor
+    transmitted: torch.Tensor | QuantizedTensor | LayerQuantizedValues
     reconstructed_values: torch.Tensor
-    if quantize_values:
+    if quantize_values and allocate_bit_widths is not None:
+        transmitted = _quantize_per_layer(
+            selected_values, indices, layers, allocate_bit_widths,
+            scheme=scheme, granularity=granularity, rounding=rounding, seed=seed,
+        )
+        reconstructed_values = _dequantize_layers(transmitted, compensated.dtype)
+    elif quantize_values:
         transmitted = quantize_tensor(
             selected_values,
             bit_width=bit_width,
@@ -185,6 +218,56 @@ def create_sparse_update(
     )
 
 
+def _layer_slices(indices: torch.Tensor, layers: list[dict[str, Any]]) -> list[tuple[str, int, int]]:
+    """(layer name, start, stop) of each layer's run in the sorted selected indices."""
+    bounds = torch.tensor([int(layer["offset"]) for layer in layers] + [layers[-1]["offset"] + layers[-1]["count"]])
+    positions = torch.searchsorted(indices, bounds).tolist()
+    return [
+        (str(layer["name"]), positions[i], positions[i + 1])
+        for i, layer in enumerate(layers)
+        if positions[i + 1] > positions[i]
+    ]
+
+
+def _quantize_per_layer(
+    values: torch.Tensor,
+    indices: torch.Tensor,
+    layers: list[dict[str, Any]],
+    allocate: BitWidthAllocation,
+    *,
+    scheme: QuantizationScheme,
+    granularity: QuantizationGranularity,
+    rounding: RoundingMode,
+    seed: int | None,
+) -> LayerQuantizedValues:
+    if granularity != "per_tensor":
+        raise ValueError("per-layer sparse quantization uses one scale per layer (per_tensor)")
+    runs = _layer_slices(indices, layers)
+    statistics = {name: (stop - start, float(values[start:stop].norm())) for name, start, stop in runs}
+    widths = allocate(statistics)
+    missing = sorted(set(statistics) - set(widths))
+    if missing:
+        raise ValueError(f"bit-width allocation is missing layers: {missing[:5]}")
+    return LayerQuantizedValues(
+        [
+            (
+                name,
+                quantize_tensor(
+                    values[start:stop], bit_width=int(widths[name]), scheme=scheme,
+                    granularity="per_tensor", rounding=rounding, seed=seed,
+                ),
+            )
+            for name, start, stop in runs
+        ]
+    )
+
+
+def _dequantize_layers(values: LayerQuantizedValues, dtype: torch.dtype = torch.float32) -> torch.Tensor:
+    if not values.segments:
+        return torch.zeros(0, dtype=dtype)
+    return torch.cat([dequantize_tensor(item, dtype=dtype) for _, item in values.segments])
+
+
 def _index_dtype(total_parameters: int) -> tuple[str, np.dtype[Any]]:
     return (
         ("uint32", np.dtype("<u4"))
@@ -193,7 +276,25 @@ def _index_dtype(total_parameters: int) -> tuple[str, np.dtype[Any]]:
     )
 
 
-def _value_metadata(values: torch.Tensor | QuantizedTensor) -> dict[str, Any]:
+def _value_metadata(values: torch.Tensor | QuantizedTensor | LayerQuantizedValues) -> dict[str, Any]:
+    if isinstance(values, LayerQuantizedValues):
+        return {
+            "encoding": "quantized_per_layer",
+            "segments": [
+                {
+                    "layer": name,
+                    "count": int(item.values.numel()),
+                    "dtype": str(item.original_dtype).replace("torch.", ""),
+                    "bit_width": item.params.bit_width,
+                    "qmin": item.params.qmin,
+                    "qmax": item.params.qmax,
+                    "scheme": item.params.scheme,
+                    "granularity": item.params.granularity,
+                    "scale": item.params.scale.detach().cpu().tolist(),
+                }
+                for name, item in values.segments
+            ],
+        }
     if isinstance(values, QuantizedTensor):
         params = values.params
         return {
@@ -215,7 +316,14 @@ def _value_metadata(values: torch.Tensor | QuantizedTensor) -> dict[str, Any]:
 def serialize_sparse_client_update(update: SparseClientUpdate) -> bytes:
     index_name, index_dtype = _index_dtype(update.total_parameters)
     indices = update.indices.detach().cpu().numpy().astype(index_dtype, copy=False).tobytes()
-    if isinstance(update.values, QuantizedTensor):
+    if isinstance(update.values, LayerQuantizedValues):
+        if any(item.params.scheme != "symmetric" for _, item in update.values.segments):
+            raise ValueError("packed sparse quantized values require symmetric quantization")
+        # Each layer's codes are packed separately, so every segment starts on a byte.
+        values = b"".join(
+            pack_quantized_values(item.values, item.params.bit_width) for _, item in update.values.segments
+        )
+    elif isinstance(update.values, QuantizedTensor):
         if update.values.params.scheme != "symmetric":
             raise ValueError("packed sparse quantized values require symmetric quantization")
         values = pack_quantized_values(update.values.values, update.values.params.bit_width)
@@ -279,7 +387,41 @@ def deserialize_sparse_client_update(
         raise ValueError("sparse update indices must be unique and sorted")
     raw_values = body[index_bytes:]
     value_meta = meta["value"]
-    if value_meta["encoding"] == "quantized":
+    from .quantization import QuantizationParams
+
+    if value_meta["encoding"] == "quantized_per_layer":
+        segments: list[tuple[str, QuantizedTensor]] = []
+        cursor = 0
+        for segment in value_meta["segments"]:
+            width, size = int(segment["bit_width"]), int(segment["count"])
+            length = math.ceil(size * width / 8)
+            codes = unpack_quantized_values(
+                raw_values[cursor : cursor + length], bit_width=width, count=size, device=device
+            )
+            cursor += length
+            segments.append(
+                (
+                    str(segment["layer"]),
+                    QuantizedTensor(
+                        codes.to(torch.int32),
+                        QuantizationParams(
+                            width,
+                            torch.tensor(segment["scale"], device=device),
+                            None,
+                            int(segment["qmin"]),
+                            int(segment["qmax"]),
+                            str(segment["scheme"]),
+                            str(segment["granularity"]),
+                        ),
+                        (size,),
+                        getattr(torch, segment["dtype"]),
+                    ),
+                )
+            )
+        if cursor != len(raw_values) or sum(int(x["count"]) for x in value_meta["segments"]) != count:
+            raise ValueError("per-layer sparse values do not match the selected count")
+        values: torch.Tensor | QuantizedTensor | LayerQuantizedValues = LayerQuantizedValues(segments)
+    elif value_meta["encoding"] == "quantized":
         codes = unpack_quantized_values(
             raw_values,
             bit_width=int(value_meta["bit_width"]),
@@ -292,9 +434,7 @@ def deserialize_sparse_client_update(
             if value_meta["zero_point"] is None
             else torch.tensor(value_meta["zero_point"], device=device)
         )
-        from .quantization import QuantizationParams
-
-        values: torch.Tensor | QuantizedTensor = QuantizedTensor(
+        values = QuantizedTensor(
             codes.to(torch.int32),
             QuantizationParams(
                 int(value_meta["bit_width"]),
@@ -332,6 +472,8 @@ def deserialize_sparse_client_update(
 
 
 def dequantized_sparse_values(update: SparseClientUpdate) -> torch.Tensor:
+    if isinstance(update.values, LayerQuantizedValues):
+        return _dequantize_layers(update.values)
     if isinstance(update.values, QuantizedTensor):
         return dequantize_tensor(update.values)
     return update.values
