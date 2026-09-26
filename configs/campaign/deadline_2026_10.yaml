@@ -64,6 +64,11 @@ runs:
   # Peak GPU memory of a batch-8 training step on 96^3 patches: 2.15 GiB
   # (measured 2026-09-25), well within the RTX 3060's 12 GB.
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [batch]}
+  # Best communication-efficient settings (Experiments.md): p = 0.25, chosen by
+  # highest validation Dice of the selective transmission tuning runs, with
+  # mixed 2/4/8-bit quantization; FedAMM combination at alpha 0.1.
+  - {config: configs/comm_eff_uneven/best.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_uneven/best.yaml, seeds: [42, 43, 44], partitions: [batch]}
   # Missing modalities, alpha = 0.2 (added 2026-09-26): a third level to test
   # FedAMM further, with the FedAvg-MM control; mirrors alpha 0.1.
   - {config: configs/fedamm_uneven/alpha_0_2.yaml, seeds: [42, 43, 44], partitions: [batch]}
