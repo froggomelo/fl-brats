@@ -1,0 +1,6 @@
+extends: alpha_0_1.yaml
+experiment: {variant: alpha_0_2}
+missing_modalities:
+  arbitrary:
+    per_modality_missing_probability: {t1: 0.2, t1ce: 0.2, t2: 0.2, flair: 0.2}
+data: {partition_root: data/partitions/missing_uneven/alpha_0_2}
