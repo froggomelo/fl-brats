@@ -37,6 +37,10 @@ Alpha = 0.1
 
 3 runs
 
+Alpha = 0.2
+
+3 runs
+
 ## Training Configuration Sweeps
 
 ### Client Sweeps
@@ -75,6 +79,9 @@ Alpha = 0.1
 3 runs
 
 Alpha = 0.001
+3 runs
+
+Alpha = 0.2
 3 runs
 
 ## FedMPQ Tuning Uneven

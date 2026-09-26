@@ -64,6 +64,10 @@ runs:
   # Peak GPU memory of a batch-8 training step on 96^3 patches: 2.15 GiB
   # (measured 2026-09-25), well within the RTX 3060's 12 GB.
   - {config: configs/fedavg_train_configs_uneven/mini_batch_sweeps/b8.yaml, seeds: [42], partitions: [batch]}
+  # Missing modalities, alpha = 0.2 (added 2026-09-26): a third level to test
+  # FedAMM further, with the FedAvg-MM control; mirrors alpha 0.1.
+  - {config: configs/fedamm_uneven/alpha_0_2.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/alpha_0_2.yaml, seeds: [42, 43, 44], partitions: [batch]}
   # Model-agnostic, last and dropped first if time runs out. Smoke-tested and
   # learning-checked 2026-09-25 (docs/sam.md). SAM 1 runs past batch's 24 h
   # limit and resumes from its latest round.
