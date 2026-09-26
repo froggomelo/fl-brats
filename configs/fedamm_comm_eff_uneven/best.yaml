@@ -5,8 +5,11 @@ extends: ../fedamm_uneven/alpha_0_1.yaml
 experiment: {family: fedamm_comm_eff_uneven, variant: best, runs: 3, seeds: [42, 43, 44]}
 federated: {strategy: fedamm}
 selection:
-  status: provisional
-  note: Set sparsification.fraction to the p chosen from the selective-transmission tuning runs.
+  status: selected
+  note: >-
+    p = 0.25 had the highest held-out validation Dice of the selective
+    transmission tuning runs (seed 42): p 0.25 0.8552, p 0.1 0.8513,
+    p 0.01 0.8419 (2026-09-26). Test data was not used for the choice.
 quantization:
   enabled: true
   mode: mixed
@@ -25,4 +28,4 @@ quantization:
     maximum_layer_bit_width: 8
     protected_layer_minimum_bit_width: 8
     protected_layer_patterns: [output, final, classifier, normalization]
-  sparsification: {enabled: true, method: topk, fraction: 0.1, error_feedback: true, scope: global}
+  sparsification: {enabled: true, method: topk, fraction: 0.25, error_feedback: true, scope: global}
