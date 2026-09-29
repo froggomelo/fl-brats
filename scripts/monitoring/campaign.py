@@ -542,9 +542,14 @@ class Campaign:
             ]
             if self.state["bad_nodes"]:
                 command.append("--exclude=" + ",".join(sorted(self.state["bad_nodes"])))
+            # Evaluate in the run's own image: SAM needs the image with its packages.
+            run_values = _load_experiment_yaml(REPO_ROOT / unit_spec["config"])
+            image = (run_values.get("slurm") or {}).get("image") or settings.get(
+                "image", "apptainer/fl-brats-batch.sif"
+            )
             command += [
                 str(REPO_ROOT / "slurm" / "_shared" / "run_with_configured_environment.sh"),
-                "true", str(settings.get("image", "apptainer/fl-brats-batch.sif")),
+                "true", str(image),
                 "fedbrats", "evaluate-periodic-checkpoints",
                 "--every", str(settings.get("every", 10)), "--device", "cuda", "--test-best",
             ]
