@@ -1,0 +1,18 @@
+# Best communication-efficient FedAvg with p chosen to cut traffic: top 10 %
+# selective transmission with mixed 2/4/8-bit quantization. best.yaml (p = 0.25)
+# is kept; its combination uploads more than 2/4/8-bit quantization alone.
+extends: best.yaml
+experiment: {variant: best_p_0_1}
+selection:
+  status: selected
+  note: >-
+    p = 0.1 is the highest-Dice tuned p (seed 42 validation: p 0.25 0.8552,
+    p 0.1 0.8513, p 0.01 0.8419) whose combination with 2/4/8-bit
+    quantization uploads less than the quantization alone. Each selected value
+    carries a 4-byte index, so a client sends p * N * (4 + b / 8) bytes against
+    N * b / 8: at p = 0.25 the four clients upload 21.7 MB per round against
+    9.7 MB for 2/4/8-bit alone; at p = 0.1 about 8.7 MB. The two 2-bit clients
+    still send more than they would quantized only (about 2.0 against 1.2 MB).
+    Chosen by the user on 2026-10-01; test data was not used.
+quantization:
+  sparsification: {enabled: true, method: topk, fraction: 0.1, error_feedback: true, scope: global}

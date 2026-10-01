@@ -1,0 +1,5 @@
+# FedAMM + the communication-efficient setting (top 10 % with 2/4/8-bit, see
+# best_p_0_1.yaml) on the FedAMM-style Dirichlet partition at alpha 1
+# (scheduled at the user's request, 2026-10-01).
+extends: [best_p_0_1.yaml, ../_experiment_base/missing_dirichlet/alpha_1.yaml]
+experiment: {variant: dirichlet_alpha_1}
