@@ -41,6 +41,19 @@ Alpha = 0.2
 
 3 runs
 
+### Zero-filled U-Net
+The full-modality FedAvg U-Net and its initial weights; missing modalities are
+zero channels, with no mask channels. Same partitions, missingness and
+evaluation as above.
+
+Alpha = 0.1
+
+3 runs
+
+Alpha = 0.2
+
+3 runs
+
 ## Training Configuration Sweeps
 
 ### Client Sweeps
