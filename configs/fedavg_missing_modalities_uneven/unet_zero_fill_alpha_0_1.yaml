@@ -1,0 +1,23 @@
+# Zero-fill U-Net control for FedAvg-MM: the full-modality FedAvg U-Net and its
+# initial weights (_experiment_base/federated_uneven.yaml) trained on the same
+# missing-modality partition, policy and evaluation as alpha_0_1.yaml. Absent
+# scans are zero channels: the client loader rebuilds four channels with zeros
+# where a subject's manifest mask is off (data/brats.py), and validation and
+# test multiply by the natural or counterfactual mask. No mask channels
+# (concat_mask: false), so only the architecture differs from FedAvg-MM. The
+# FedAMM-only model keys inherited from alpha_0_1.yaml stay disabled; the U-Net
+# ignores them.
+extends: alpha_0_1.yaml
+experiment: {variant: unet_zero_fill_alpha_0_1}
+initial_weights: artifacts/initial_weights/unet_seed_42.pt
+initial_weights_by_seed:
+  42: artifacts/initial_weights/unet_seed_42.pt
+  43: artifacts/initial_weights/unet_seed_43.pt
+  44: artifacts/initial_weights/unet_seed_44.pt
+model:
+  name: unet
+  in_channels: 4
+  out_channels: 3
+  channels: [16, 32, 64, 128, 256]
+  strides: [2, 2, 2, 2]
+  concat_mask: false
