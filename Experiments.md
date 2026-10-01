@@ -43,15 +43,32 @@ Alpha = 0.2
 
 ### Zero-filled U-Net
 The full-modality FedAvg U-Net and its initial weights; missing modalities are
-zero channels, with no mask channels. Same partitions, missingness and
-evaluation as above.
+zero channels, with no mask channels. Runs on the Dirichlet partition below
+instead of this one (configs unet_zero_fill_alpha_0_{1,2}.yaml are kept but not
+scheduled).
 
+## Missing Modalities, FedAMM-style Dirichlet Partition Uneven
+Each client draws Dirichlet(alpha * ones(15)) over the 15 modality combinations,
+holds one subject of each, and draws the rest from its own proportions (the FedAMM
+authors' scheme). Here alpha is the Dirichlet concentration, not the per-modality
+dropout probability above; small alpha means each client is dominated by one or
+two combinations. Same clients, K, E, B, rounds and evaluation as above. See
+docs/missing_modalities.md.
+
+FedAMM
+Alpha = 0.001, 0.1, 1
+3 runs each
+
+FedAvg-MM (modality-specific encoders; prototypes and modality weighting off)
+Alpha = 0.001, 0.1, 1
+3 runs each
+
+Zero-filled U-Net
+Alpha = 0.001, 0.1, 1
+3 runs each
+
+FedAMM + comm-eff (p = 0.25, b = {2,4,8})
 Alpha = 0.1
-
-3 runs
-
-Alpha = 0.2
-
 3 runs
 
 ## Training Configuration Sweeps
