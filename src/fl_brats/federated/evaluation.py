@@ -97,7 +97,12 @@ class HeldOutEvaluator:
         self.modality_policy.pop("evaluation", None)
         self.modality_policy.update(self.policy.get("natural_missingness", {}))
         self.modality_policy["seed"] = int(self.policy.get("modality_seed", 42))
-        missingness = policy_from_config(self.modality_policy)
+        # dirichlet_combination draws held-out masks from the partition's pooled
+        # training distribution; the other modes ignore partition_root.
+        missingness = policy_from_config(
+            self.modality_policy,
+            partition_root=values.get("partition_root") or values.get("data", {}).get("partition_root"),
+        )
         self.masks = {
             subject: combination_to_mask(
                 missingness.available_modalities(

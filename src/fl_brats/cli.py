@@ -547,10 +547,15 @@ def inspect_modalities(partition_root: Path = typer.Option(..., "--partition-roo
         for ref in refs:
             key = "+".join(ref.get("available_modalities", list(MODALITIES)))
             combinations[key] = combinations.get(key, 0) + 1
+        total = max(len(refs), 1)
         output[str(client["client_id"])] = {
             "subjects": len(refs),
             "modality_counts": modality_counts,
             "combination_counts": combinations,
+            "combination_shares": {key: round(value / total, 4) for key, value in combinations.items()},
+            "all_four_share": round(sum(v for k, v in combinations.items() if len(k.split("+")) == 4) / total, 4),
+            "single_modality_share": round(sum(v for k, v in combinations.items() if len(k.split("+")) == 1) / total, 4),
+            "modality_presence": {key: round(value / total, 4) for key, value in modality_counts.items()},
             "policy_fingerprint": client.get("missingness_policy_fingerprint"),
         }
     typer.echo(json.dumps(output, indent=2, sort_keys=True))

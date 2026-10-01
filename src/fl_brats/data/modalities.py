@@ -179,12 +179,106 @@ class MixedMissingnessPolicy:
         return self.complete.available_modalities(subject_id=subject_id, client_id=client_id, split=split) if client_id in self.complete.explicit else self.arbitrary.available_modalities(subject_id=subject_id, client_id=client_id, split=split)
 
 
-def policy_from_config(config: Mapping[str, object]) -> MissingModalityPolicy:
-    """Build the configured deterministic policy."""
+DIRICHLET_COMBINATION_MODE = "dirichlet_combination"
+
+
+def dirichlet_combination_assignment(
+    client_subjects: list[list[str]], alpha: float, seed: int
+) -> tuple[list[dict[str, tuple[str, ...]]], list[list[float]]]:
+    """Give every training subject a modality combination, FedAMM style.
+
+    Port of generate_mask_distribution_only_maskid from the FedAMM authors' code
+    (github.com/13sky/FedAMM, utils/preprocessing/generate_dir_imb_mr.py). Each
+    client draws its own Dirichlet(alpha * ones(15)) over the 15 non-empty
+    combinations, gets one subject of every combination, and draws the rest from
+    its Dirichlet; the list is shuffled and dealt to the client's subjects in
+    sorted order. All clients' proportions come from one seeded draw, as there.
+    Returns the per-client assignment and each client's Dirichlet proportions.
+    """
+    import numpy as np
+
+    options = all_non_empty_modality_combinations()
+    if alpha <= 0:
+        raise ValueError("dirichlet_combination alpha must be positive")
+    generator = np.random.RandomState(seed)
+    proportions = generator.dirichlet(np.repeat(float(alpha), len(options)), size=len(client_subjects))
+    assignments = []
+    for subjects, weights in zip(client_subjects, proportions, strict=True):
+        if len(subjects) < len(options):
+            raise ValueError(f"each client needs at least {len(options)} subjects, one per combination")
+        total = float(weights.sum())
+        if not np.isfinite(total) or total <= 0:
+            raise ValueError("the Dirichlet draw degenerated; use a larger alpha")
+        extra = generator.choice(len(options), size=len(subjects) - len(options), p=weights / total)
+        ids = list(range(len(options))) + extra.tolist()
+        generator.shuffle(ids)
+        assignments.append({subject: options[i] for subject, i in zip(sorted(subjects), ids, strict=True)})
+    return assignments, proportions.tolist()
+
+
+def pooled_training_distribution(partition_root: object) -> dict[str, int]:
+    """Count training subjects per combination over every client of a partition."""
+    import json
+    from pathlib import Path
+
+    counts: dict[str, int] = {}
+    for path in sorted(Path(str(partition_root)).glob("client_*.json")):
+        for item in json.loads(path.read_text(encoding="utf-8"))["subjects"]:
+            key = modality_combination_key(item.get("available_modalities", list(MODALITIES)))
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+class DirichletCombinationPolicy:
+    """FedAMM-style per-client Dirichlet over the 15 combinations.
+
+    Training subjects get their combination from the partition as a whole
+    (assign; written into the client manifests). Validation and test subjects
+    draw theirs, per subject and seeded, from the pooled training distribution.
+    """
+
+    def __init__(self, seed: int, alpha: float, pooled: Mapping[str, float] | None = None) -> None:
+        if alpha <= 0:
+            raise ValueError("dirichlet_combination.alpha must be positive")
+        self.seed, self.alpha = seed, float(alpha)
+        self.pooled = {
+            modality_combination_key(key.split("+")): float(value)
+            for key, value in (pooled or {}).items()
+            if float(value) > 0
+        }
+
+    def assign(self, client_subjects: list[list[str]]) -> tuple[list[dict[str, tuple[str, ...]]], list[list[float]]]:
+        return dirichlet_combination_assignment(client_subjects, self.alpha, self.seed)
+
+    def available_modalities(self, *, subject_id: str, client_id: str, split: str) -> tuple[str, ...]:
+        if split == "train":
+            raise ValueError("dirichlet_combination training masks come from the partition manifests")
+        if not self.pooled:
+            raise ValueError("dirichlet_combination held-out masks need the training partition (data.partition_root)")
+        keys = [key for key in map(modality_combination_key, all_non_empty_modality_combinations()) if key in self.pooled]
+        point = _rng(self.seed, subject_id, client_id, split).random() * sum(self.pooled.values())
+        running = 0.0
+        for key in keys:
+            running += self.pooled[key]
+            if point < running:
+                return tuple(key.split("+"))
+        return tuple(keys[-1].split("+"))
+
+
+def policy_from_config(config: Mapping[str, object], partition_root: object | None = None) -> MissingModalityPolicy:
+    """Build the configured deterministic policy.
+
+    dirichlet_combination needs partition_root for held-out subjects: they follow
+    the pooled training distribution of that partition.
+    """
     if not config.get("enabled", False) or config.get("mode", "none") == "none": return NoMissingnessPolicy()
+    seed = int(config.get("seed", 42))
+    if config.get("mode") == DIRICHLET_COMBINATION_MODE:
+        settings = dict(config.get(DIRICHLET_COMBINATION_MODE, {}))
+        pooled = pooled_training_distribution(partition_root) if partition_root else None
+        return DirichletCombinationPolicy(seed, float(settings.get("alpha", 0.0)), pooled)
     complete = dict(config.get("complete", {}))
     arbitrary = dict(config.get("arbitrary", {}))
-    seed = int(config.get("seed", 42))
     cp = CompleteMissingnessPolicy(seed, complete.get("client_available_modalities"), int(complete.get("min_available_modalities", 1)), int(complete.get("max_available_modalities", 4)))
     ap = ArbitraryMissingnessPolicy(seed, arbitrary.get("per_modality_missing_probability", {m: 0.0 for m in MODALITIES}), arbitrary.get("combination_probabilities"), bool(config.get("require_at_least_one", True)))
     mode = config["mode"]

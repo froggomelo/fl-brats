@@ -80,12 +80,13 @@ class MissingModalitiesConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     enabled: bool = False
-    mode: Literal["none", "complete", "arbitrary", "mixed"] = "none"
+    mode: Literal["none", "complete", "arbitrary", "mixed", "dirichlet_combination"] = "none"
     modalities: list[str] = Field(default_factory=lambda: ["t1", "t1ce", "t2", "flair"])
     seed: int = Field(default=42, ge=0)
     require_at_least_one: bool = True
     complete: dict[str, object] = Field(default_factory=dict)
     arbitrary: dict[str, object] = Field(default_factory=dict)
+    dirichlet_combination: dict[str, object] = Field(default_factory=dict)
     baseline: dict[str, object] = Field(default_factory=dict)
     evaluation: dict[str, object] = Field(default_factory=dict)
 

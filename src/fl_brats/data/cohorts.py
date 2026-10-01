@@ -62,12 +62,25 @@ def validate_client_missingness(path: Path, missing_config: dict[str, Any] | Non
     policy = policy_from_config(missing_config or {})
     payload = json.loads(path.read_text(encoding="utf-8"))
     client_id = payload.get("client_name") or f"client_{payload.get('client_id', path.stem)}"
+    if hasattr(policy, "assign"):
+        # Partition-level policy: re-derive every client's assignment from the
+        # seed and the partition's subject lists, then compare this client.
+        clients = sorted(
+            (json.loads(other.read_text(encoding="utf-8")) for other in path.parent.glob("client_*.json")),
+            key=lambda client: int(client["client_id"]),
+        )
+        assignment, _ = policy.assign([sorted(client["subject_ids"]) for client in clients])
+        expected = assignment[[int(client["client_id"]) for client in clients].index(int(payload["client_id"]))]
     mismatched = [
         item["subject_id"]
         for item in payload["subjects"]
         if canonical_modality_order(item.get("available_modalities", list(MODALITIES)))
-        != policy.available_modalities(
-            subject_id=item["subject_id"], client_id=client_id, split="train"
+        != (
+            canonical_modality_order(expected[item["subject_id"]])
+            if hasattr(policy, "assign")
+            else policy.available_modalities(
+                subject_id=item["subject_id"], client_id=client_id, split="train"
+            )
         )
     ]
     if mismatched:

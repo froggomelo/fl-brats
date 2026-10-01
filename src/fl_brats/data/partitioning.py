@@ -60,15 +60,22 @@ def create_partition(
             raise ValueError(
                 f"missingness policy references unknown clients: {sorted(unknown_clients)}"
             )
-    cursor = 0
-    for client_id, (requested, count) in enumerate(zip(fractions, counts, strict=True)):
-        ids = sorted(subjects[cursor : cursor + count])
+    client_subjects, cursor = [], 0
+    for count in counts:
+        client_subjects.append(sorted(subjects[cursor : cursor + count]))
         cursor += count
+    # Partition-level policies (dirichlet_combination) assign whole clients at once.
+    assignment, proportions = policy.assign(client_subjects) if hasattr(policy, "assign") else (None, None)
+    for client_id, (requested, count, ids) in enumerate(zip(fractions, counts, client_subjects, strict=True)):
         references = []
         for subject in ids:
             row_number, row = index[subject]
-            available = policy.available_modalities(
-                subject_id=subject, client_id=f"client_{client_id}", split="train"
+            available = (
+                assignment[client_id][subject]
+                if assignment is not None
+                else policy.available_modalities(
+                    subject_id=subject, client_id=f"client_{client_id}", split="train"
+                )
             )
             if not available:
                 raise ValueError(f"missingness policy assigned no modalities to {subject}")
@@ -126,6 +133,8 @@ def create_partition(
         "clients": clients,
         "missingness_policy_fingerprint": fingerprint,
     }
+    if proportions is not None:
+        payload["client_combination_proportions"] = proportions
     payload["partition_manifest_hash"] = sha256_payload(payload)
     (output_dir / "manifest.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
