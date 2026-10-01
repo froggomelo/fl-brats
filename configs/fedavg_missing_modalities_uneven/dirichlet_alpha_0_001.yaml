@@ -1,0 +1,2 @@
+extends: [alpha_0_1.yaml, ../_experiment_base/missing_dirichlet/alpha_0_001.yaml]
+experiment: {variant: dirichlet_alpha_0_001}

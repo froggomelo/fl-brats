@@ -1,0 +1,2 @@
+extends: [unet_zero_fill_alpha_0_1.yaml, ../_experiment_base/missing_dirichlet/alpha_0_1.yaml]
+experiment: {variant: unet_zero_fill_dirichlet_alpha_0_1}

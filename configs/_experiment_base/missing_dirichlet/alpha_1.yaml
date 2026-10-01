@@ -1,0 +1,15 @@
+# FedAMM-style modality partition (missing_modalities.mode=dirichlet_combination):
+# each client draws Dirichlet(alpha * ones(15)) over the 15 non-empty modality
+# combinations, holds one subject of each, and draws the rest from its own
+# proportions. Here alpha is that Dirichlet concentration, not the independent
+# per-modality dropout probability of missing_uneven/alpha_*: small alpha makes
+# each client dominated by one or two combinations. Validation and test subjects
+# follow the pooled training distribution. Layer onto a method config with
+# extends: [<method config>, this file].
+data: {partition_root: data/partitions/missing_dirichlet/alpha_1}
+missing_modalities:
+  mode: dirichlet_combination
+  dirichlet_combination: {alpha: 1}
+  # The per-modality dropout of the parent config does not apply in this mode.
+  arbitrary:
+    per_modality_missing_probability: {t1: 0.0, t1ce: 0.0, t2: 0.0, flair: 0.0}

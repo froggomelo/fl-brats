@@ -1,0 +1,5 @@
+extends: unet_zero_fill_dirichlet_alpha_0_1.yaml
+experiment: {family: fedavg_missing_modalities_uneven, variant: unet_zero_fill_dirichlet_batch_10_rounds, runs: 1, seeds: [42]}
+training: {max_rounds: 10}
+federated: {num_rounds: 10, minimum_rounds: 10, early_stopping_patience: 10}
+slurm: {partition: batch, time: "24:00:00", cpus_per_task: 6, memory: 29000M, use_apptainer: true, image: apptainer/fl-brats-batch.sif}
