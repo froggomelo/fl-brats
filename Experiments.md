@@ -67,9 +67,9 @@ Zero-filled U-Net
 Alpha = 0.001, 0.1, 1
 3 runs each
 
-FedAMM + comm-eff (p = 0.25, b = {2,4,8})
-Alpha = 0.1
-3 runs
+FedAMM + comm-eff (p = 0.1, b = {2,4,8})
+Alpha = 0.1, 1
+3 runs each
 
 ## Training Configuration Sweeps
 
@@ -84,6 +84,19 @@ K = 5
 
 K = 8
 
+1 run
+
+The splits above halve each client's share (K = 8: 439, 219, 109, 54, 27, 13,
+6 and 8 patients): the "extreme imbalance" runs. A second sweep keeps the K = 4
+split's shape (piecewise-linear Lorenz rule, docs/fixed_quantity_skew.md):
+
+K = 3: 58.3 / 26.7 / 15.0 % (511, 233, 131 patients)
+1 run
+
+K = 5: 40 / 25 / 16 / 11 / 8 % (351, 218, 140, 96, 70)
+1 run
+
+K = 8: 25 / 25 / 12.5 / 12.5 / 7.5 / 7.5 / 5 / 5 % (223, 218, 109, 109, 65, 65, 43, 43)
 1 run
 
 ### Local Epoch Sweeps
@@ -138,10 +151,21 @@ b = {2,4,8}
 
 3 runs
 
+p = 0.25 had the highest validation Dice of the tuning runs, but each selected
+value carries a 4-byte index, so p = 0.25 with 2/4/8-bit uploads 21.7 MB per
+round against 9.7 MB for the quantization alone. Rerun with p = 0.1, the
+highest-Dice p whose combination uploads less in total (about 8.7 MB):
+
+p = 0.1, b = {2,4,8}
+3 runs
+
 ## Combined FedAMM + Comm_eff
 Alpha = from above
 p = from above
 b {2,4,8}
+3 runs
+
+Rerun with p = 0.1, as above:
 3 runs
 
 ## Model Agnostic

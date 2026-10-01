@@ -100,7 +100,20 @@ runs:
   - {config: configs/fedamm_uneven/dirichlet_alpha_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
   - {config: configs/fedavg_missing_modalities_uneven/dirichlet_alpha_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
   - {config: configs/fedavg_missing_modalities_uneven/unet_zero_fill_dirichlet_alpha_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
-  # FedAMM + comm-eff on the Dirichlet partition at alpha 0.1 (user, 2026-10-01).
+  # FedAMM + comm-eff (top 10 %, 2/4/8-bit) on the Dirichlet partition at alpha
+  # 0.1 and 1 (user, 2026-10-01).
   - {config: configs/fedamm_comm_eff_uneven/dirichlet_alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_uneven/dirichlet_alpha_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  # Client-count sweep with the K = 4 split's shape (piecewise-linear Lorenz rule,
+  # added 2026-10-01; see docs/fixed_quantity_skew.md). K = 8 takes nine jobs and
+  # K = 3 four, so they run side by side; then K = 5. The k3/k5/k8 runs above keep
+  # the extreme halving split; K = 4 is the existing 50/25/15/10 run.
+  - {config: configs/fedavg_train_configs_uneven/client_sweeps/k8_lorenz.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/client_sweeps/k3_lorenz.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/client_sweeps/k5_lorenz.yaml, seeds: [42], partitions: [batch]}
+  # Best comm-eff and FedAMM + comm-eff rerun with p = 0.1 (user, 2026-10-01): at
+  # p = 0.25 the combination uploads more than 2/4/8-bit quantization alone.
+  - {config: configs/comm_eff_uneven/best_p_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_uneven/best_p_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
   - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5.yaml, seeds: [44], partitions: [batch]}
   - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e10.yaml, seeds: [43, 44], partitions: [batch]}
