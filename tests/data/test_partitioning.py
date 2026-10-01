@@ -44,3 +44,18 @@ def test_dirichlet_combination_partition_writes_and_validates_masks(raw_root: Pa
     path.write_text(json.dumps(client), encoding="utf-8")
     with pytest.raises(ValueError, match="differ from the configured"):
         validate_client_missingness(path, config)
+
+
+def test_remainder_can_go_to_the_largest_client(raw_root: Path, tmp_path: Path) -> None:
+    for i in range(40):
+        make_subject(raw_root, f"BraTS2021_{i:05d}")
+    index, _, _ = build_dataset_index(raw_root, tmp_path / "processed")
+    split = tmp_path / "partitions" / "split_manifest.json"
+    create_split(index, split)
+    train = len(json.loads(split.read_text(encoding="utf-8"))["train_subjects"])
+    fractions = [7 / 12, 4 / 15, 0.15]
+    payload = create_partition(split, split.parent, fractions, remainder_to="largest")
+    counts = [client["subject_count"] for client in payload["clients"]]  # type: ignore[index]
+    floors = [int(train * x + 1e-9) for x in fractions]
+    assert sum(counts) == train and counts[1:] == floors[1:]
+    assert counts[0] == floors[0] + train - sum(floors)

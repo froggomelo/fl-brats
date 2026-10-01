@@ -1,0 +1,14 @@
+# Client-count sweep with the K = 4 split's shape (piecewise-linear Lorenz rule):
+# with clients sorted largest first, the K = 4 shares 50/25/15/10 give the
+# cumulative points (fraction of clients, fraction of patients) (0, 0),
+# (0.25, 0.50), (0.50, 0.75), (0.75, 0.90), (1, 1). Client i of K gets
+# F((i + 1) / K) - F(i / K), F interpolating those points linearly. Sizes are
+# floored from the 875 training subjects and the remainder goes to the largest
+# client. The k3/k5/k8 configs keep the extreme halving split.
+extends: k3.yaml
+experiment: {variant: k3_lorenz}
+data:
+  partition_root: data/partitions/fedavg_train_configs_uneven/k3_lorenz
+  client_proportions: [0.583333333333, 0.266666666667, 0.15]
+  partition_remainder: largest
+federated: {num_clients: 3, min_fit_clients: 3, min_evaluate_clients: 3, min_available_clients: 3}

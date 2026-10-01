@@ -1,0 +1,8 @@
+# Lorenz-shaped client-count sweep; see k3_lorenz.yaml for the rule.
+extends: k3_lorenz.yaml
+experiment: {variant: k8_lorenz}
+data:
+  partition_root: data/partitions/fedavg_train_configs_uneven/k8_lorenz
+  client_proportions: [0.25, 0.25, 0.125, 0.125, 0.075, 0.075, 0.05, 0.05]
+  partition_remainder: largest
+federated: {num_clients: 8, min_fit_clients: 8, min_evaluate_clients: 8, min_available_clients: 8}

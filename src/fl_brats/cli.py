@@ -528,6 +528,7 @@ def prepare_experiment_partition(
         int(values.get("partition_seed", values.get("seed", 42))),
         missingness_policy=policy_from_config(missingness),
         missingness_config=missingness,
+        remainder_to=str(data.get("partition_remainder", "final")),
     )
     typer.echo(json.dumps(result, indent=2))
 

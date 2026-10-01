@@ -26,7 +26,15 @@ def create_partition(
     index_path: Path | None = None,
     missingness_policy: MissingModalityPolicy | None = None,
     missingness_config: dict[str, object] | None = None,
+    remainder_to: str = "final",
 ) -> dict[str, object]:
+    """Split the training subjects into clients of the given fractions.
+
+    Client sizes are floored; the rounding remainder goes to the final client
+    (remainder_to="final", the default) or to the largest one ("largest").
+    """
+    if remainder_to not in {"final", "largest"}:
+        raise ValueError("remainder_to must be final or largest")
     if not fractions or any(x <= 0 for x in fractions) or abs(sum(fractions) - 1) > 1e-9:
         raise ValueError("client fractions must be positive and sum to 1")
     split = json.loads(split_path.read_text(encoding="utf-8"))
@@ -40,15 +48,22 @@ def create_partition(
     if sha256_file(index_path) != split["dataset_index_hash"]:
         raise ValueError("dataset index differs from split manifest")
     random.Random(seed).shuffle(subjects)
-    counts = [max(1, int(len(subjects) * x)) for x in fractions[:-1]]
-    final = len(subjects) - sum(counts)
-    while final < 1:
-        donor = max(range(len(counts)), key=counts.__getitem__)
-        if counts[donor] <= 1:
+    if remainder_to == "largest":
+        # The epsilon keeps exact products such as 0.16 * 875 from flooring low.
+        counts = [int(len(subjects) * x + 1e-9) for x in fractions]
+        if min(counts) < 1:
             raise ValueError("no client may be empty")
-        counts[donor] -= 1
-        final += 1
-    counts.append(final)
+        counts[max(range(len(fractions)), key=fractions.__getitem__)] += len(subjects) - sum(counts)
+    else:
+        counts = [max(1, int(len(subjects) * x)) for x in fractions[:-1]]
+        final = len(subjects) - sum(counts)
+        while final < 1:
+            donor = max(range(len(counts)), key=counts.__getitem__)
+            if counts[donor] <= 1:
+                raise ValueError("no client may be empty")
+            counts[donor] -= 1
+            final += 1
+        counts.append(final)
     output_dir.mkdir(parents=True, exist_ok=True)
     clients = []
     policy = missingness_policy or NoMissingnessPolicy()
@@ -127,7 +142,9 @@ def create_partition(
         "source_training_split_hash": split["split_manifest_hash"],
         "generated_timestamp": datetime.now(timezone.utc).isoformat(),
         "rounding": (
-            "floor all but final client; final client receives remainder "
+            "floor every client; the largest client receives the remainder"
+            if remainder_to == "largest"
+            else "floor all but final client; final client receives remainder "
             "(minimum one subject where feasible)"
         ),
         "clients": clients,
