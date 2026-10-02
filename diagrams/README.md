@@ -21,4 +21,4 @@ The figures read `data/partitions.json`, a snapshot of the client manifests. Ref
 python3 diagrams/export_partitions.py diagrams/data/partitions.json
 ```
 
-The FedAMM α panels are simulated with `paper_style_partition` in `common.py`, which follows `generate_mask_distribution_only_maskid` in the FedAMM release (github.com/13sky/FedAMM) on this study's client sizes, seed 1024. Replace them with the real partitions once those are built.
+The FedAMM α panels are simulated with `paper_style_partition` in `common.py`, which follows `generate_mask_distribution_only_maskid` in the FedAMM release (github.com/13sky/FedAMM) on this study's client sizes, seed 1024. The real partitions (`missing_dirichlet/alpha_{0_001,0_1,1}`, built with seed 42) are now in `partitions.json`; the α panels can switch to them.

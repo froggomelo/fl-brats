@@ -23,6 +23,9 @@ PARTITIONS = {
     "missing_uneven/alpha_0_001": "q = 0.001",
     "missing_uneven/alpha_0_1": "q = 0.1",
     "missing_uneven/alpha_0_2": "q = 0.2",
+    "missing_dirichlet/alpha_0_001": "α = 0.001",
+    "missing_dirichlet/alpha_0_1": "α = 0.1",
+    "missing_dirichlet/alpha_1": "α = 1",
 }
 
 
