@@ -70,6 +70,9 @@ notebooks/.ipynb_checkpoints/
 .idea/
 .vscode/
 .DS_Store
+literature/
+*.png
+*.pdf
 *.sif
 .apptainer-cache/
 .apptainer-tmp/
