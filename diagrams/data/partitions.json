@@ -1,0 +1,387 @@
+{
+ "fedavg_even": {
+  "label": "Even, K = 4",
+  "clients": [
+   {
+    "client": "client_0",
+    "n": 218,
+    "combinations": {
+     "t1+t1ce+t2+flair": 218
+    }
+   },
+   {
+    "client": "client_1",
+    "n": 218,
+    "combinations": {
+     "t1+t1ce+t2+flair": 218
+    }
+   },
+   {
+    "client": "client_2",
+    "n": 218,
+    "combinations": {
+     "t1+t1ce+t2+flair": 218
+    }
+   },
+   {
+    "client": "client_3",
+    "n": 221,
+    "combinations": {
+     "t1+t1ce+t2+flair": 221
+    }
+   }
+  ]
+ },
+ "fedavg_uneven": {
+  "label": "Uneven, K = 4",
+  "clients": [
+   {
+    "client": "client_0",
+    "n": 437,
+    "combinations": {
+     "t1+t1ce+t2+flair": 437
+    }
+   },
+   {
+    "client": "client_1",
+    "n": 218,
+    "combinations": {
+     "t1+t1ce+t2+flair": 218
+    }
+   },
+   {
+    "client": "client_2",
+    "n": 131,
+    "combinations": {
+     "t1+t1ce+t2+flair": 131
+    }
+   },
+   {
+    "client": "client_3",
+    "n": 89,
+    "combinations": {
+     "t1+t1ce+t2+flair": 89
+    }
+   }
+  ]
+ },
+ "fedavg_train_configs_uneven/k3": {
+  "label": "Uneven, K = 3",
+  "clients": [
+   {
+    "client": "client_0",
+    "n": 500,
+    "combinations": {
+     "t1+t1ce+t2+flair": 500
+    }
+   },
+   {
+    "client": "client_1",
+    "n": 249,
+    "combinations": {
+     "t1+t1ce+t2+flair": 249
+    }
+   },
+   {
+    "client": "client_2",
+    "n": 126,
+    "combinations": {
+     "t1+t1ce+t2+flair": 126
+    }
+   }
+  ]
+ },
+ "fedavg_train_configs_uneven/k5": {
+  "label": "Uneven, K = 5",
+  "clients": [
+   {
+    "client": "client_0",
+    "n": 451,
+    "combinations": {
+     "t1+t1ce+t2+flair": 451
+    }
+   },
+   {
+    "client": "client_1",
+    "n": 225,
+    "combinations": {
+     "t1+t1ce+t2+flair": 225
+    }
+   },
+   {
+    "client": "client_2",
+    "n": 112,
+    "combinations": {
+     "t1+t1ce+t2+flair": 112
+    }
+   },
+   {
+    "client": "client_3",
+    "n": 56,
+    "combinations": {
+     "t1+t1ce+t2+flair": 56
+    }
+   },
+   {
+    "client": "client_4",
+    "n": 31,
+    "combinations": {
+     "t1+t1ce+t2+flair": 31
+    }
+   }
+  ]
+ },
+ "fedavg_train_configs_uneven/k8": {
+  "label": "Uneven, K = 8",
+  "clients": [
+   {
+    "client": "client_0",
+    "n": 439,
+    "combinations": {
+     "t1+t1ce+t2+flair": 439
+    }
+   },
+   {
+    "client": "client_1",
+    "n": 219,
+    "combinations": {
+     "t1+t1ce+t2+flair": 219
+    }
+   },
+   {
+    "client": "client_2",
+    "n": 109,
+    "combinations": {
+     "t1+t1ce+t2+flair": 109
+    }
+   },
+   {
+    "client": "client_3",
+    "n": 54,
+    "combinations": {
+     "t1+t1ce+t2+flair": 54
+    }
+   },
+   {
+    "client": "client_4",
+    "n": 27,
+    "combinations": {
+     "t1+t1ce+t2+flair": 27
+    }
+   },
+   {
+    "client": "client_5",
+    "n": 13,
+    "combinations": {
+     "t1+t1ce+t2+flair": 13
+    }
+   },
+   {
+    "client": "client_6",
+    "n": 6,
+    "combinations": {
+     "t1+t1ce+t2+flair": 6
+    }
+   },
+   {
+    "client": "client_7",
+    "n": 8,
+    "combinations": {
+     "t1+t1ce+t2+flair": 8
+    }
+   }
+  ]
+ },
+ "missing_uneven/alpha_0_001": {
+  "label": "q = 0.001",
+  "clients": [
+   {
+    "client": "client_0",
+    "n": 437,
+    "combinations": {
+     "t1+t1ce+flair": 1,
+     "t1+t1ce+t2+flair": 432,
+     "t1+t2+flair": 2,
+     "t1ce+t2+flair": 2
+    }
+   },
+   {
+    "client": "client_1",
+    "n": 218,
+    "combinations": {
+     "t1+t1ce+t2+flair": 216,
+     "t1+t2+flair": 1,
+     "t1ce+t2+flair": 1
+    }
+   },
+   {
+    "client": "client_2",
+    "n": 131,
+    "combinations": {
+     "t1+t1ce+t2+flair": 131
+    }
+   },
+   {
+    "client": "client_3",
+    "n": 89,
+    "combinations": {
+     "t1+t1ce+t2": 1,
+     "t1+t1ce+t2+flair": 88
+    }
+   }
+  ]
+ },
+ "missing_uneven/alpha_0_1": {
+  "label": "q = 0.1",
+  "clients": [
+   {
+    "client": "client_0",
+    "n": 437,
+    "combinations": {
+     "flair": 2,
+     "t1+flair": 3,
+     "t1+t1ce": 4,
+     "t1+t1ce+flair": 31,
+     "t1+t1ce+t2": 32,
+     "t1+t1ce+t2+flair": 289,
+     "t1+t2": 4,
+     "t1+t2+flair": 26,
+     "t1ce+flair": 5,
+     "t1ce+t2": 5,
+     "t1ce+t2+flair": 31,
+     "t2": 1,
+     "t2+flair": 4
+    }
+   },
+   {
+    "client": "client_1",
+    "n": 218,
+    "combinations": {
+     "t1+flair": 1,
+     "t1+t1ce": 2,
+     "t1+t1ce+flair": 15,
+     "t1+t1ce+t2": 18,
+     "t1+t1ce+t2+flair": 139,
+     "t1+t2+flair": 16,
+     "t1ce": 1,
+     "t1ce+flair": 4,
+     "t1ce+t2": 2,
+     "t1ce+t2+flair": 18,
+     "t2": 1,
+     "t2+flair": 1
+    }
+   },
+   {
+    "client": "client_2",
+    "n": 131,
+    "combinations": {
+     "t1+flair": 3,
+     "t1+t1ce": 1,
+     "t1+t1ce+flair": 6,
+     "t1+t1ce+t2": 9,
+     "t1+t1ce+t2+flair": 88,
+     "t1+t2+flair": 12,
+     "t1ce+flair": 1,
+     "t1ce+t2+flair": 11
+    }
+   },
+   {
+    "client": "client_3",
+    "n": 89,
+    "combinations": {
+     "t1+flair": 2,
+     "t1+t1ce": 2,
+     "t1+t1ce+flair": 2,
+     "t1+t1ce+t2": 12,
+     "t1+t1ce+t2+flair": 58,
+     "t1+t2+flair": 5,
+     "t1ce+flair": 1,
+     "t1ce+t2+flair": 7
+    }
+   }
+  ]
+ },
+ "missing_uneven/alpha_0_2": {
+  "label": "q = 0.2",
+  "clients": [
+   {
+    "client": "client_0",
+    "n": 437,
+    "combinations": {
+     "flair": 3,
+     "t1": 3,
+     "t1+flair": 12,
+     "t1+t1ce": 10,
+     "t1+t1ce+flair": 41,
+     "t1+t1ce+t2": 55,
+     "t1+t1ce+t2+flair": 176,
+     "t1+t2": 14,
+     "t1+t2+flair": 40,
+     "t1ce": 5,
+     "t1ce+flair": 9,
+     "t1ce+t2": 12,
+     "t1ce+t2+flair": 47,
+     "t2": 2,
+     "t2+flair": 8
+    }
+   },
+   {
+    "client": "client_1",
+    "n": 218,
+    "combinations": {
+     "t1": 2,
+     "t1+flair": 8,
+     "t1+t1ce": 8,
+     "t1+t1ce+flair": 20,
+     "t1+t1ce+t2": 17,
+     "t1+t1ce+t2+flair": 87,
+     "t1+t2": 8,
+     "t1+t2+flair": 24,
+     "t1ce": 1,
+     "t1ce+flair": 7,
+     "t1ce+t2": 9,
+     "t1ce+t2+flair": 21,
+     "t2": 2,
+     "t2+flair": 4
+    }
+   },
+   {
+    "client": "client_2",
+    "n": 131,
+    "combinations": {
+     "t1+flair": 6,
+     "t1+t1ce": 3,
+     "t1+t1ce+flair": 8,
+     "t1+t1ce+t2": 18,
+     "t1+t1ce+t2+flair": 52,
+     "t1+t2": 2,
+     "t1+t2+flair": 18,
+     "t1ce": 1,
+     "t1ce+flair": 2,
+     "t1ce+t2": 2,
+     "t1ce+t2+flair": 17,
+     "t2": 1,
+     "t2+flair": 1
+    }
+   },
+   {
+    "client": "client_3",
+    "n": 89,
+    "combinations": {
+     "flair": 1,
+     "t1+flair": 1,
+     "t1+t1ce": 3,
+     "t1+t1ce+flair": 4,
+     "t1+t1ce+t2": 16,
+     "t1+t1ce+t2+flair": 36,
+     "t1+t2": 4,
+     "t1+t2+flair": 7,
+     "t1ce+flair": 3,
+     "t1ce+t2": 3,
+     "t1ce+t2+flair": 9,
+     "t2+flair": 2
+    }
+   }
+  ]
+ }
+}
