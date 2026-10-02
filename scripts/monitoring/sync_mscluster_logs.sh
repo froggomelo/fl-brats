@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Continuously mirror cluster logs, run outputs, and visualizations to this machine.
+# Mirror cluster logs and run outputs to this machine.
+# Set SYNC_ONCE=1 for a single pass, or SYNC_VISUALIZATIONS=1 to include visualizations.
 # Defaults can be overridden with environment variables:
 #   REMOTE_LOG_DIR=/path/on/cluster/logs \
 #   REMOTE_OUTPUT_DIR=/path/on/cluster/outputs \
@@ -21,9 +22,16 @@ LOCAL_OUTPUT_DIR="${LOCAL_OUTPUT_DIR:-./outputs/}"
 LOCAL_VISUALIZATION_DIR="${LOCAL_VISUALIZATION_DIR:-./visualizations/}"
 INTERVAL_SECONDS="${INTERVAL_SECONDS:-600}"
 SYNC_OUTPUTS="${SYNC_OUTPUTS:-1}"
-SYNC_VISUALIZATIONS="${SYNC_VISUALIZATIONS:-1}"
+SYNC_VISUALIZATIONS="${SYNC_VISUALIZATIONS:-0}"
+SYNC_ONCE="${SYNC_ONCE:-0}"
 
-mkdir -p "$LOCAL_LOG_DIR" "$LOCAL_OUTPUT_DIR" "$LOCAL_VISUALIZATION_DIR"
+mkdir -p "$LOCAL_LOG_DIR"
+if [[ "$SYNC_OUTPUTS" == "1" ]]; then
+  mkdir -p "$LOCAL_OUTPUT_DIR"
+fi
+if [[ "$SYNC_VISUALIZATIONS" == "1" ]]; then
+  mkdir -p "$LOCAL_VISUALIZATION_DIR"
+fi
 
 echo "Syncing ${REMOTE_HOST}:${REMOTE_LOG_DIR} -> ${LOCAL_LOG_DIR}"
 if [[ "$SYNC_OUTPUTS" == "1" ]]; then
@@ -36,8 +44,12 @@ if [[ "$SYNC_VISUALIZATIONS" == "1" ]]; then
 else
   echo "Visualization sync disabled with SYNC_VISUALIZATIONS=${SYNC_VISUALIZATIONS}"
 fi
-echo "Interval: ${INTERVAL_SECONDS}s"
-echo "Press Ctrl+C to stop."
+if [[ "$SYNC_ONCE" == "1" ]]; then
+  echo "Running a single sync pass."
+else
+  echo "Interval: ${INTERVAL_SECONDS}s"
+  echo "Press Ctrl+C to stop."
+fi
 
 sync_path() {
   local label="$1"
@@ -51,6 +63,7 @@ sync_path() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${label} sync finished"
   else
     status=$?
+    sync_status="$status"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${label} sync failed with exit code ${status}" >&2
   fi
 }
@@ -68,6 +81,7 @@ REMOTE_CHECK
 }
 
 while true; do
+  sync_status=0
   started_at="$(date '+%Y-%m-%d %H:%M:%S')"
   echo "[$started_at] sync started"
 
@@ -100,9 +114,14 @@ while true; do
       if [[ "$status" == "1" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] visualizations source is not present yet; skipping ${REMOTE_HOST}:${REMOTE_VISUALIZATION_DIR}"
       else
+        sync_status="$status"
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] could not check visualizations source (SSH exit code ${status})" >&2
       fi
     fi
+  fi
+
+  if [[ "$SYNC_ONCE" == "1" ]]; then
+    exit "$sync_status"
   fi
 
   sleep "$INTERVAL_SECONDS"
