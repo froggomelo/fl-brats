@@ -1,0 +1,5 @@
+extends: dirichlet_alpha_0_1.yaml
+experiment: {family: fedamm_uneven, variant: dirichlet_smoke_3_rounds, runs: 1, seeds: [42]}
+training: {max_rounds: 3}
+federated: {num_rounds: 3, minimum_rounds: 3, early_stopping_patience: 3}
+slurm: {partition: batch, time: "06:00:00", cpus_per_task: 6, memory: 29000M, use_apptainer: true, image: apptainer/fl-brats-batch.sif}

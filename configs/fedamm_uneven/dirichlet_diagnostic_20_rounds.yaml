@@ -1,0 +1,7 @@
+# Loss-component diagnostic (not a campaign result): FedAMM, Dirichlet alpha 0.1,
+# seed 42, 20 rounds; written under outputs/diagnostics/.
+extends: dirichlet_alpha_0_1.yaml
+experiment: {family: fedamm_uneven, variant: dirichlet_diagnostic_20_rounds, runs: 1, seeds: [42]}
+training: {max_rounds: 20}
+federated: {num_rounds: 20, minimum_rounds: 20, early_stopping_patience: 20}
+slurm: {partition: batch, time: "12:00:00", cpus_per_task: 6, memory: 29000M, use_apptainer: true, image: apptainer/fl-brats-batch.sif}
