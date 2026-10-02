@@ -9,6 +9,7 @@ from typing import Any
 import torch
 from torch.utils.data import DataLoader
 
+from fl_brats.data.modalities import MODALITIES
 from fl_brats.metrics.segmentation import REGIONS, _hd95, segmentation_metrics
 from fl_brats.models.fedamm import FedAMMOutput, fedamm_auxiliary_loss, semantic_prototypes
 
@@ -74,20 +75,77 @@ def logits_from_output(output: torch.Tensor | FedAMMOutput) -> torch.Tensor:
     return output.logits if isinstance(output, FedAMMOutput) else output
 
 
-def batch_loss(model_output: torch.Tensor | FedAMMOutput, target: torch.Tensor, loss_fn: Any, model: torch.nn.Module) -> torch.Tensor:
+def batch_loss(
+    model_output: torch.Tensor | FedAMMOutput,
+    target: torch.Tensor,
+    loss_fn: Any,
+    model: torch.nn.Module,
+    components: dict[str, Any] | None = None,
+) -> torch.Tensor:
+    """Segmentation loss plus FedAMM's prototype terms.
+
+    ``components`` (optional) receives detached copies of the parts
+    (``seg``, ``aux_weighted`` and the FedAMM terms) for logging.
+    """
     loss = loss_fn(logits_from_output(model_output), target)
+    if components is not None:
+        components["seg"] = loss.detach()
     if isinstance(model_output, FedAMMOutput) and (
         getattr(model, "prototype_distillation_enabled", True)
         or getattr(model, "global_prototype_alignment_enabled", True)
     ):
         weight = float(getattr(model, "prototype_loss_weight", 1.0))
-        loss = loss + fedamm_auxiliary_loss(
+        auxiliary = fedamm_auxiliary_loss(
             model_output,
             target,
             weight,
             distillation_enabled=bool(getattr(model, "prototype_distillation_enabled", True)),
+            components=components,
         )
+        if components is not None:
+            components["aux_weighted"] = auxiliary.detach()
+        loss = loss + auxiliary
     return loss
+
+
+class LossComponents:
+    """Sample-weighted per-epoch means of the parts of the training loss.
+
+    seg_loss is the segmentation loss alone. For FedAMM, distill_loss is the
+    batch mean of the per-modality distillation terms (distill_loss_<modality>
+    averages over the samples that have the modality), align_loss the global
+    prototype alignment term (absent until a global library arrives), both
+    before the prototype weight; aux_loss_weighted is what was added to the
+    loss and aux_fraction its share of the epoch's mean training loss.
+    """
+
+    def __init__(self) -> None:
+        self.sums: dict[str, float] = {}
+        self.weights: dict[str, float] = {}
+
+    def _add(self, name: str, value: torch.Tensor, weight: float) -> None:
+        self.sums[name] = self.sums.get(name, 0.0) + float(value) * weight
+        self.weights[name] = self.weights.get(name, 0.0) + weight
+
+    def update(self, components: dict[str, Any], samples: int) -> None:
+        self._add("seg_loss", components["seg"], samples)
+        distill = [components[f"distill_{m}"] for m in MODALITIES if f"distill_{m}" in components]
+        for modality in MODALITIES:
+            if f"distill_{modality}" in components:
+                value, present = components[f"distill_{modality}"]
+                self._add(f"distill_loss_{modality}", value, present)
+        if distill:
+            self._add("distill_loss", torch.stack([value for value, _ in distill]).mean(), samples)
+        if "align" in components:
+            self._add("align_loss", components["align"], samples)
+        if "aux_weighted" in components:
+            self._add("aux_loss_weighted", components["aux_weighted"], samples)
+
+    def means(self, train_loss: float) -> dict[str, float]:
+        result = {name: self.sums[name] / self.weights[name] for name in self.sums if self.weights[name] > 0}
+        if "aux_loss_weighted" in result and train_loss:
+            result["aux_fraction"] = result["aux_loss_weighted"] / train_loss
+        return result
 
 
 def proximal_penalty(
@@ -123,6 +181,7 @@ def train_one_epoch(
     samples = 0
     prototype_sums: dict[int, torch.Tensor] = {}
     prototype_counts: dict[int, int] = {}
+    loss_components = LossComponents()
     slice_model = is_slice_model(model)
     config = getattr(model, "config", {}) if slice_model else {}
     for batch in loader:
@@ -140,7 +199,8 @@ def train_one_epoch(
         if slice_model:
             output = stack_subject_slices(output, subjects)
             target = stack_subject_slices(target, subjects)
-        loss = batch_loss(output, target, loss_fn, model)
+        components: dict[str, Any] = {}
+        loss = batch_loss(output, target, loss_fn, model, components)
         if proximal_mu:
             loss = loss + 0.5 * proximal_mu * proximal_penalty(
                 model, proximal_global_parameters, device
@@ -150,6 +210,7 @@ def train_one_epoch(
         n = subjects
         total += float(loss.detach()) * n
         samples += n
+        loss_components.update(components, n)
         if isinstance(output, FedAMMOutput) and getattr(model, "emit_prototypes", True):
             prototypes = semantic_prototypes(output.fused_features.detach(), batch["label"].detach()).cpu()
             for combo_id, prototype in zip(output.combination_ids.detach().cpu().tolist(), prototypes, strict=True):
@@ -157,6 +218,7 @@ def train_one_epoch(
                 prototype_sums[key] = prototype if key not in prototype_sums else prototype_sums[key] + prototype
                 prototype_counts[key] = prototype_counts.get(key, 0) + 1
     result: dict[str, Any] = {"train_loss": total / samples if samples else 0.0, "samples": float(samples)}
+    result.update(loss_components.means(result["train_loss"]))
     if prototype_sums:
         import json
 

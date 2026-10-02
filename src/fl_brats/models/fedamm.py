@@ -169,7 +169,14 @@ def fedamm_auxiliary_loss(
     prototype_weight: float = 1.0,
     *,
     distillation_enabled: bool = True,
+    components: dict[str, Any] | None = None,
 ) -> torch.Tensor:
+    """Return prototype_weight x the mean of the distillation and alignment terms.
+
+    When ``components`` is given it receives detached copies of the terms
+    (``distill_<modality>`` as (value, present samples), ``align``), for
+    logging only: nothing is recomputed, so gradients are unchanged.
+    """
     if prototype_weight <= 0:
         return output.logits.new_zeros(())
     losses = []
@@ -181,9 +188,13 @@ def fedamm_auxiliary_loss(
             if present.any():
                 student = semantic_prototypes(features[present], target[present])
                 losses.append(F.mse_loss(student, teacher[present]))
+                if components is not None:
+                    components[f"distill_{modality}"] = (losses[-1].detach(), int(present.sum()))
     global_loss = global_prototype_alignment_loss(output, target)
     if global_loss is not None:
         losses.append(global_loss)
+        if components is not None:
+            components["align"] = global_loss.detach()
     if not losses:
         return output.logits.new_zeros(())
     return output.logits.new_tensor(float(prototype_weight)) * torch.stack(losses).mean()

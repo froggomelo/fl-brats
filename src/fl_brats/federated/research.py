@@ -52,6 +52,30 @@ class ClientRoundRecord:
     wt_sensitivity: float | None = None
     tc_sensitivity: float | None = None
     et_sensitivity: float | None = None
+    # Parts of train_loss (fl_brats.training.engine.LossComponents); the
+    # FedAMM terms stay null for the other methods.
+    seg_loss: float | None = None
+    distill_loss: float | None = None
+    distill_loss_t1: float | None = None
+    distill_loss_t1ce: float | None = None
+    distill_loss_t2: float | None = None
+    distill_loss_flair: float | None = None
+    align_loss: float | None = None
+    aux_loss_weighted: float | None = None
+    aux_fraction: float | None = None
+
+
+LOSS_COMPONENTS = (
+    "seg_loss",
+    "distill_loss",
+    "distill_loss_t1",
+    "distill_loss_t1ce",
+    "distill_loss_t2",
+    "distill_loss_flair",
+    "align_loss",
+    "aux_loss_weighted",
+    "aux_fraction",
+)
 
 
 @dataclass
@@ -268,6 +292,7 @@ class ResearchFedAvgStrategy(FedAvg):
             "mean_client_drift": self._mean(records, "client_update_l2"),
             "max_client_drift": self._max(records, "client_update_l2"),
             "mean_normalized_client_drift": self._mean(records, "normalized_client_update_l2"),
+            **{f"mean_{name}": self._mean(records, name) for name in LOSS_COMPONENTS},
         }
         next_state = ExperimentState(**asdict(self.state))
         next_state.completed_round = global_round
@@ -507,6 +532,7 @@ class ResearchFedAvgStrategy(FedAvg):
                     wt_sensitivity=self._float(metric, "wt_sensitivity"),
                     tc_sensitivity=self._float(metric, "tc_sensitivity"),
                     et_sensitivity=self._float(metric, "et_sensitivity"),
+                    **{name: self._float(metric, name) for name in LOSS_COMPONENTS},
                 )
             )
         for failure in failures:
