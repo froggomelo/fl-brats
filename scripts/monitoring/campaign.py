@@ -293,7 +293,12 @@ class Campaign:
             if not server and not clients:
                 reason = "jobs ended"
             elif server and server[0][0] == "RUNNING" and 0 < len(clients) < expected:
-                reason = "a client ended while the others were still waiting"
+                # After the last round every client is told to disconnect, and
+                # one on a slow node can outlive the others by a tick; only a
+                # client gone for 10 minutes while the rest wait is a crash.
+                attempt.setdefault("clients_partial_since", _now())
+                if _now() - attempt["clients_partial_since"] > 600:
+                    reason = "a client ended while the others were still waiting"
             elif server and server[0][0] == "RUNNING" and not clients:
                 # Clients exit after the last round while the server finalizes
                 # (best/final evaluation). Finalization writes final.pt first, so
