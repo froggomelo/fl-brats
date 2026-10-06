@@ -25,7 +25,9 @@ partitions:
   # beside k3 (4) instead of waiting for it; every other remaining pair of runs
   # uses 10, which leaves room for evaluations. (12 until 2026-09-27, when it
   # also covered centralized runs and servers finalizing for an hour.)
-  batch: {max_active: 4, max_jobs: 13, job_limit: 13}
+  # max_active 5 from 2026-10-06 so the three converged centralized runs (one
+  # job each) train beside the two E = 10 runs.
+  batch: {max_active: 5, max_jobs: 13, job_limit: 13}
   # Not used for final training (2026-09-24): no working node was free and the
   # queue head waited ~3 days. Kept so status shows the old attempts.
   bigbatch: {max_active: 0, max_jobs: 6, job_limit: 6}
@@ -41,7 +43,7 @@ runs:
   - {config: configs/fedavg_train_configs_uneven/modality_sweep/alpha_0_001.yaml, seeds: [42], partitions: [batch]}
   # Full-modality reference every method is compared against
   - {config: configs/fedavg_uneven/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
-  # Centralized reference: one job per seed, no resume (a retry restarts).
+  # Centralized reference: one job per seed; a retry resumes from last.pt.
   - {config: configs/centralized/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
   # Communication-efficiency tuning (prerequisite for the comm_eff best runs;
   # add those configs here once the best p and bit widths are chosen)
@@ -117,3 +119,6 @@ runs:
   - {config: configs/fedamm_comm_eff_uneven/best_p_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
   - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5.yaml, seeds: [44], partitions: [batch]}
   - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e10.yaml, seeds: [43, 44], partitions: [batch]}
+  # Centralized trained to convergence (user, 2026-10-06): up to 750 epochs,
+  # minimum 150, patience 50; see configs/centralized/converged.yaml.
+  - {config: configs/centralized/converged.yaml, seeds: [42, 43, 44], partitions: [batch]}

@@ -1,0 +1,11 @@
+# Centralized reference trained to convergence (user, 2026-10-06, after the
+# lecturer's review): the 100-epoch baseline was still improving on two of three
+# seeds (best validation at epochs 99 and 93) and saw far fewer passes over the
+# data than FedAvg E = 5 (750) or E = 10 (1,500). Up to 750 epochs, the E = 5
+# budget; at least 150, the E = 1 budget; then stop after 50 epochs without a
+# validation gain of 0.001. best.pt is still the epoch with the highest
+# validation Dice and the test report uses it. A run that reaches the 24 h limit
+# resumes from last.pt with the same selection and patience state.
+extends: baseline.yaml
+experiment: {variant: converged}
+training: {epochs: 750, minimum_epochs: 150, early_stopping_patience: 50, early_stopping_min_delta: 0.001}
