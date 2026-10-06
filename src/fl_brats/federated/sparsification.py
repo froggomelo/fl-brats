@@ -26,6 +26,9 @@ from .quantization import (
 
 SPARSE_UPDATE_MAGIC = b"FLBRATS_SPARSE_UPDATE_V1"
 SCHEMA_VERSION = 1
+# How the selected positions are sent: "flat" is one uint32 index per value,
+# "csr" is compressed sparse row per layer (see encode_csr_indices).
+INDEX_ENCODINGS = ("flat", "csr")
 
 # Maps each layer with selected entries to (selected count, L2 norm of its
 # selected values) and returns that layer's bit width.
@@ -64,6 +67,7 @@ class SparseClientUpdate:
     value_bytes: int = 0
     global_model_version: int | None = None
     checksum: str = ""
+    index_encoding: str = "flat"
 
     @property
     def selected_count(self) -> int:
@@ -148,6 +152,7 @@ def create_sparse_update(
     rounding: RoundingMode = "nearest",
     seed: int | None = None,
     allocate_bit_widths: BitWidthAllocation | None = None,
+    index_encoding: str = "flat",
 ) -> tuple[SparseClientUpdate, torch.Tensor]:
     """Select global Top-rho delta entries and return the next residual vector.
 
@@ -156,13 +161,18 @@ def create_sparse_update(
     """
     if not 0 < fraction <= 1:
         raise ValueError("sparsification fraction must be in (0, 1]")
+    if index_encoding not in INDEX_ENCODINGS:
+        raise ValueError(f"sparse index encoding must be one of {INDEX_ENCODINGS}")
     layers, total = _layer_metadata(keys, local_arrays, global_arrays)
     if total <= 0:
         raise ValueError("sparse update contains no eligible floating tensors")
     pieces = [
         torch.from_numpy(
-            local.astype(np.float32, copy=False)
-            - global_array.astype(np.float32, copy=False)
+            # asarray: the difference of two 0-d arrays is a NumPy scalar.
+            np.asarray(
+                local.astype(np.float32, copy=False)
+                - global_array.astype(np.float32, copy=False)
+            )
         ).reshape(-1)
         for _, local, global_array in _eligible_arrays(keys, local_arrays, global_arrays)
     ]
@@ -213,6 +223,7 @@ def create_sparse_update(
             layers=layers,
             sample_count=sample_count,
             fraction=fraction,
+            index_encoding=index_encoding,
         ),
         next_residual,
     )
@@ -276,6 +287,88 @@ def _index_dtype(total_parameters: int) -> tuple[str, np.dtype[Any]]:
     )
 
 
+def _csr_layout(layer: dict[str, Any]) -> tuple[int, int]:
+    """(rows, columns) of a layer seen as a matrix: one row per output channel."""
+    shape, count = layer["shape"], int(layer["count"])
+    rows = int(shape[0]) if len(shape) > 1 else 1
+    return rows, count // rows
+
+
+def _smallest_unsigned(limit: int) -> np.dtype[Any]:
+    """Smallest little-endian unsigned dtype holding every value below ``limit``."""
+    for name in ("<u1", "<u2", "<u4"):
+        if limit <= int(np.iinfo(np.dtype(name)).max) + 1:
+            return np.dtype(name)
+    return np.dtype("<u8")
+
+
+def encode_csr_indices(indices: np.ndarray, layers: list[dict[str, Any]]) -> tuple[bytes, list[int]]:
+    """Sorted flat indices as compressed sparse row (CSR), layer by layer.
+
+    Each layer with selected entries sends its row pointers (rows + 1 counts)
+    and the column of every entry, both in the narrowest unsigned type that
+    fits, so a conv weight with fewer than 65,536 columns needs 2 bytes per
+    entry instead of 4. Layers with no entries send nothing. Returns the bytes
+    and the entry count of every layer, which goes in the header.
+    """
+    ends = [int(layer["offset"]) + int(layer["count"]) for layer in layers]
+    bounds = np.searchsorted(indices, [int(layers[0]["offset"]), *ends]) if layers else []
+    parts: list[bytes] = []
+    counts: list[int] = []
+    for position, layer in enumerate(layers):
+        local = indices[bounds[position] : bounds[position + 1]].astype(np.int64) - int(layer["offset"])
+        counts.append(int(local.size))
+        if not local.size:
+            continue
+        rows, columns = _csr_layout(layer)
+        row, column = np.divmod(local, columns)
+        row_pointers = np.searchsorted(row, np.arange(rows + 1))
+        parts.append(row_pointers.astype(_smallest_unsigned(local.size + 1)).tobytes())
+        parts.append(column.astype(_smallest_unsigned(columns)).tobytes())
+    return b"".join(parts), counts
+
+
+def decode_csr_indices(body: bytes, layers: list[dict[str, Any]], counts: Sequence[int]) -> np.ndarray:
+    """Invert :func:`encode_csr_indices` to sorted flat indices."""
+    if len(counts) != len(layers):
+        raise ValueError("CSR entry counts do not match the layers")
+    cursor, pieces = 0, []
+    for layer, count in zip(layers, counts, strict=True):
+        count = int(count)
+        if count == 0:
+            continue
+        rows, columns = _csr_layout(layer)
+        pointer_type, column_type = _smallest_unsigned(count + 1), _smallest_unsigned(columns)
+        pointer_bytes, column_bytes = (rows + 1) * pointer_type.itemsize, count * column_type.itemsize
+        if count < 0 or cursor + pointer_bytes + column_bytes > len(body):
+            raise ValueError("sparse update CSR indices are truncated")
+        row_pointers = np.frombuffer(body, pointer_type, rows + 1, cursor).astype(np.int64)
+        cursor += pointer_bytes
+        column = np.frombuffer(body, column_type, count, cursor).astype(np.int64)
+        cursor += column_bytes
+        if (
+            row_pointers[0] != 0
+            or row_pointers[-1] != count
+            or bool((np.diff(row_pointers) < 0).any())
+            or bool((column >= columns).any())
+        ):
+            raise ValueError("sparse update contains an invalid CSR layer")
+        row = np.repeat(np.arange(rows, dtype=np.int64), np.diff(row_pointers))
+        pieces.append(int(layer["offset"]) + row * columns + column)
+    if cursor != len(body):
+        raise ValueError("sparse update CSR indices have trailing bytes")
+    return np.concatenate(pieces) if pieces else np.zeros(0, dtype=np.int64)
+
+
+def index_bytes_by_encoding(update: SparseClientUpdate) -> dict[str, int]:
+    """Bytes the selected positions take in each index encoding."""
+    indices = update.indices.detach().cpu().numpy()
+    return {
+        "flat": int(indices.size) * _index_dtype(update.total_parameters)[1].itemsize,
+        "csr": len(encode_csr_indices(indices, update.layers)[0]),
+    }
+
+
 def _value_metadata(values: torch.Tensor | QuantizedTensor | LayerQuantizedValues) -> dict[str, Any]:
     if isinstance(values, LayerQuantizedValues):
         return {
@@ -315,7 +408,13 @@ def _value_metadata(values: torch.Tensor | QuantizedTensor | LayerQuantizedValue
 
 def serialize_sparse_client_update(update: SparseClientUpdate) -> bytes:
     index_name, index_dtype = _index_dtype(update.total_parameters)
-    indices = update.indices.detach().cpu().numpy().astype(index_dtype, copy=False).tobytes()
+    csr_counts: list[int] | None = None
+    if update.index_encoding == "csr":
+        indices, csr_counts = encode_csr_indices(update.indices.detach().cpu().numpy(), update.layers)
+    elif update.index_encoding == "flat":
+        indices = update.indices.detach().cpu().numpy().astype(index_dtype, copy=False).tobytes()
+    else:
+        raise ValueError(f"sparse index encoding must be one of {INDEX_ENCODINGS}")
     if isinstance(update.values, LayerQuantizedValues):
         if any(item.params.scheme != "symmetric" for _, item in update.values.segments):
             raise ValueError("packed sparse quantized values require symmetric quantization")
@@ -339,11 +438,14 @@ def serialize_sparse_client_update(update: SparseClientUpdate) -> bytes:
         "selected_count": update.selected_count,
         "total_parameters": update.total_parameters,
         "index_dtype": index_name,
+        "index_encoding": update.index_encoding,
         "layers": update.layers,
         "value": _value_metadata(update.values),
         "index_bytes": len(indices),
         "value_bytes": len(values),
     }
+    if csr_counts is not None:
+        metadata["csr_counts"] = csr_counts
     header = json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode()
     body = indices + values
     digest = hashlib.sha256(header + body).hexdigest().encode()
@@ -374,9 +476,18 @@ def deserialize_sparse_client_update(
     value_bytes = int(meta["value_bytes"])
     if len(body) != index_bytes + value_bytes:
         raise ValueError("sparse update body length mismatch")
-    indices_np = np.frombuffer(body[:index_bytes], dtype=index_dtype, count=count).astype(
-        np.int64
-    )
+    # Packets without "index_encoding" predate CSR and are flat.
+    index_encoding = meta.get("index_encoding", "flat")
+    if index_encoding == "csr":
+        indices_np = decode_csr_indices(body[:index_bytes], list(meta["layers"]), meta["csr_counts"])
+    elif index_encoding == "flat":
+        if index_bytes != count * index_dtype.itemsize:
+            raise ValueError("sparse update index length mismatch")
+        indices_np = np.frombuffer(body[:index_bytes], dtype=index_dtype, count=count).astype(
+            np.int64
+        )
+    else:
+        raise ValueError("unsupported sparse index encoding")
     if (
         indices_np.size != count
         or bool((indices_np < 0).any())
@@ -468,6 +579,7 @@ def deserialize_sparse_client_update(
         index_bytes=index_bytes,
         value_bytes=value_bytes,
         checksum=checksum.decode(),
+        index_encoding=index_encoding,
     )
 
 

@@ -199,6 +199,8 @@ class QuantizationConfig(BaseModel):
             raise ValueError("sparsification method must be topk")
         if self.sparsification.get("scope", "global") != "global":
             raise ValueError("sparsification scope must be global")
+        if self.sparsification.get("index_encoding", "flat") not in ("flat", "csr"):
+            raise ValueError("sparsification index_encoding must be flat or csr")
         if self.rounding == "stochastic" and not self.enabled:
             raise ValueError(
                 "stochastic rounding requires enabled quantization and configured seed"

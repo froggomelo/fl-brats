@@ -28,7 +28,12 @@ from .quantization import (
     quantize_update,
     serialize_client_update,
 )
-from .sparsification import LayerQuantizedValues, create_sparse_update, sparse_update_to_ndarrays
+from .sparsification import (
+    LayerQuantizedValues,
+    create_sparse_update,
+    index_bytes_by_encoding,
+    sparse_update_to_ndarrays,
+)
 
 
 def modality_count_metrics(records: list[dict[str, Any]]) -> dict[str, float]:
@@ -313,8 +318,10 @@ class ModelFedAvgClient(FedAvgClient):
                     if quant_enabled and quant_mode == "mixed"
                     else None
                 ),
+                index_encoding=str(sparse.get("index_encoding", "flat")),
             )
             upload_arrays = sparse_update_to_ndarrays(update)
+            index_sizes = index_bytes_by_encoding(update)
             metrics.update(
                 {
                     "upload_scalar_parameter_count": float(update.total_parameters),
@@ -322,6 +329,11 @@ class ModelFedAvgClient(FedAvgClient):
                     "upload_sparsification_fraction": float(update.fraction),
                     "upload_actual_sparse_payload_bytes": float(update.payload_bytes),
                     "upload_metadata_bytes": float(update.metadata_bytes),
+                    "upload_index_bytes": float(update.index_bytes),
+                    "upload_value_bytes": float(update.value_bytes),
+                    # Both index encodings, whichever was sent (they are lossless).
+                    "upload_index_bytes_flat": float(index_sizes["flat"]),
+                    "upload_index_bytes_csr": float(index_sizes["csr"]),
                     "upload_numpy_array_bytes": float(sum(item.nbytes for item in upload_arrays)),
                     "upload_compression_ratio": float(
                         (update.total_parameters * 4)

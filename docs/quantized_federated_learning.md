@@ -86,7 +86,25 @@ fedbrats train-federated --config configs/comm_eff_uneven/best_p_0_1_downlink_8b
 
 ## Encoding the sparse indices
 
-Top-rho sends each selected value with a 4-byte flat index, so the indices cost
-more than the values at 2 to 8 bits. Cheaper index codings, which are not
-implemented, are described with byte estimates in the comm-eff section of
-`Experiments.md`.
+`quantization.sparsification.index_encoding` chooses how the selected positions
+are sent; the encoding is lossless, so training is the same either way.
+
+- `flat` (default): one uint32 flat index per selected value.
+- `csr`: compressed sparse row, layer by layer (`encode_csr_indices`). A layer
+  is a matrix with one row per output channel (a vector is one row). Each layer
+  with selected entries sends its row pointers (rows + 1 counts) and the column
+  of every entry, both in the narrowest unsigned type that fits. Conv weights
+  of the U-Net have fewer than 65,536 columns, so a column costs 2 bytes or
+  less. Layers with nothing selected send nothing; the header lists every
+  layer's entry count.
+
+Every sparse client record logs `upload_index_bytes`, `upload_value_bytes`
+and the index bytes of both encodings (`upload_index_bytes_flat`,
+`upload_index_bytes_csr`), whichever was sent. On the top 10 % of a real U-Net
+update CSR takes 0.97 MB against 1.92 MB flat; gap coding would take less (see
+the comm-eff section of `Experiments.md`).
+
+```yaml
+quantization:
+  sparsification: {enabled: true, fraction: 0.1, index_encoding: csr}
+```

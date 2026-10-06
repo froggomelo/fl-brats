@@ -175,7 +175,7 @@ round 1 the server sends the change since its last broadcast, quantized to 8
 bits per tensor, with error feedback (docs/quantized_federated_learning.md).
 Download per client per round: 4.82 MB against 19.24 MB.
 
-### Encoding the sparse indices (not run)
+### Encoding the sparse indices
 Each selected value carries a 4-byte flat index, so at p = 0.1 the four clients
 send 7.70 MB of indices and 0.96 MB of values per round. Measured on the top 10 %
 of a real global update (best_p_0_1 seed 42, round 149 to 150), per client:
@@ -194,6 +194,10 @@ The index coding is lossless, so the Dice of every run stays the same; only the
 uplink bytes change. With Golomb-Rice gaps, best_p_0_1 would upload about 2.1 MB
 per round against 8.7 MB now and 9.7 MB for 2/4/8-bit alone, and the 2-bit
 clients 0.41 MB each against 1.2 MB quantized only.
+
+CSR is implemented (`sparsification.index_encoding: csr`, 2026-10-06). Every
+sparse run from now on logs the index bytes of both encodings per client and
+round, so the best_p_0_1 downlink run gives the exact CSR bytes too.
 
 ## Combined FedAMM + Comm_eff
 Alpha = from above

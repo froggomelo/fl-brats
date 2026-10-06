@@ -64,7 +64,20 @@ class ClientRoundRecord:
     align_loss: float | None = None
     aux_loss_weighted: float | None = None
     aux_fraction: float | None = None
+    # Sparse uplinks only: index and value bytes sent, and the index bytes of
+    # each encoding (federated/sparsification.py).
+    upload_index_bytes: float | None = None
+    upload_value_bytes: float | None = None
+    upload_index_bytes_flat: float | None = None
+    upload_index_bytes_csr: float | None = None
 
+
+SPARSE_BYTE_FIELDS = (
+    "upload_index_bytes",
+    "upload_value_bytes",
+    "upload_index_bytes_flat",
+    "upload_index_bytes_csr",
+)
 
 LOSS_COMPONENTS = (
     "seg_loss",
@@ -566,6 +579,7 @@ class ResearchFedAvgStrategy(FedAvg):
                     tc_sensitivity=self._float(metric, "tc_sensitivity"),
                     et_sensitivity=self._float(metric, "et_sensitivity"),
                     **{name: self._float(metric, name) for name in LOSS_COMPONENTS},
+                    **{name: self._float(metric, name) for name in SPARSE_BYTE_FIELDS},
                 )
             )
         for failure in failures:
