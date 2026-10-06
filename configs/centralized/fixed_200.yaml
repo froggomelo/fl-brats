@@ -1,0 +1,7 @@
+# Centralized reference with a fixed budget of 200 epochs (user, 2026-10-06),
+# alongside the converged runs: minimum_epochs = epochs, so early stopping never
+# ends a run before epoch 200. best.pt is still the epoch with the highest
+# validation Dice and the test report uses it, as for every other run.
+extends: baseline.yaml
+experiment: {variant: fixed_200}
+training: {epochs: 200, minimum_epochs: 200, early_stopping_patience: 50, early_stopping_min_delta: 0.001}

@@ -125,3 +125,6 @@ runs:
   # Quantized broadcast on the best comm-eff configuration, one seed (lecturer
   # feedback, 2026-10-06); see docs/quantized_federated_learning.md.
   - {config: configs/comm_eff_uneven/best_p_0_1_downlink_8bit.yaml, seeds: [42], partitions: [batch]}
+  # Centralized with a fixed 200-epoch budget, last in the order (user,
+  # 2026-10-06); see configs/centralized/fixed_200.yaml.
+  - {config: configs/centralized/fixed_200.yaml, seeds: [42, 43, 44], partitions: [batch]}

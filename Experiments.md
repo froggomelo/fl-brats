@@ -14,6 +14,13 @@ B = 1
 
 3 runs (configs/centralized/converged.yaml). Added after review: the 100-epoch runs were still improving on two of three seeds (best validation at epochs 99 and 93) and saw 100 passes over the training data against 150 for FedAvg E = 1, 750 for E = 5 and 1,500 for E = 10. The checkpoint with the best validation Dice is tested, as before. The 100-epoch runs are kept as the original protocol.
 
+### Centralized with a fixed 200 epochs (added 2026-10-06)
+K = 1
+Epochs = 200, no early stopping before epoch 200
+B = 1
+
+3 runs (configs/centralized/fixed_200.yaml), queued after every other run. A fixed budget beside the converged runs; the checkpoint with the best validation Dice is tested, as before.
+
 ## Federated Baseline Uneven
 K = 4
 E = 1
