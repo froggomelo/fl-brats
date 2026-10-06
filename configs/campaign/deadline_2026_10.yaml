@@ -122,3 +122,6 @@ runs:
   # Centralized trained to convergence (user, 2026-10-06): up to 750 epochs,
   # minimum 150, patience 50; see configs/centralized/converged.yaml.
   - {config: configs/centralized/converged.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  # Quantized broadcast on the best comm-eff configuration, one seed (lecturer
+  # feedback, 2026-10-06); see docs/quantized_federated_learning.md.
+  - {config: configs/comm_eff_uneven/best_p_0_1_downlink_8bit.yaml, seeds: [42], partitions: [batch]}

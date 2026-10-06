@@ -1,0 +1,9 @@
+# best_p_0_1 with a quantized broadcast (lecturer feedback, 2026-10-06): one
+# seed. Rounds after the first send the change of the global model since the
+# last broadcast, quantized to 8 bits per tensor (federated/downlink.py), so the
+# per-client download falls from 19.2 MB (FP32) to about 4.8 MB. 8 bits because
+# the broadcast also reaches the 8-bit client; uplink unchanged.
+extends: best_p_0_1.yaml
+experiment: {variant: best_p_0_1_downlink_8bit}
+quantization:
+  communication: {quantize_downlink: true, downlink_bit_width: 8}

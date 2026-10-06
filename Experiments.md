@@ -166,6 +166,35 @@ highest-Dice p whose combination uploads less in total (about 8.7 MB):
 p = 0.1, b = {2,4,8}
 3 runs
 
+### Quantized broadcast (added 2026-10-06)
+p = 0.1, b = {2,4,8} uplink, 8-bit downlink
+1 run (seed 42, configs/comm_eff_uneven/best_p_0_1_downlink_8bit.yaml)
+
+Lecturer feedback: try quantizing the broadcast on the best configuration. After
+round 1 the server sends the change since its last broadcast, quantized to 8
+bits per tensor, with error feedback (docs/quantized_federated_learning.md).
+Download per client per round: 4.82 MB against 19.24 MB.
+
+### Encoding the sparse indices (not run)
+Each selected value carries a 4-byte flat index, so at p = 0.1 the four clients
+send 7.70 MB of indices and 0.96 MB of values per round. Measured on the top 10 %
+of a real global update (best_p_0_1 seed 42, round 149 to 150), per client:
+
+| Index coding | p = 0.1 | bits per index | p = 0.01 |
+|---|---|---|---|
+| flat uint32 (current) | 1.924 MB | 32.0 | 0.192 MB |
+| CSR, uint16 column index + row pointers | 0.971 MB | 16.2 | 0.105 MB |
+| bitmap (1 bit per parameter) | 0.601 MB | 10.0 | 0.601 MB |
+| gaps + varint | 0.482 MB | 8.0 | 0.060 MB |
+| bitmap + lzma | 0.281 MB | 4.7 | 0.058 MB |
+| gaps + Golomb-Rice | 0.289 MB | 4.8 | 0.049 MB |
+| entropy bound | 0.282 MB | 4.7 | 0.049 MB |
+
+The index coding is lossless, so the Dice of every run stays the same; only the
+uplink bytes change. With Golomb-Rice gaps, best_p_0_1 would upload about 2.1 MB
+per round against 8.7 MB now and 9.7 MB for 2/4/8-bit alone, and the 2-bit
+clients 0.41 MB each against 1.2 MB quantized only.
+
 ## Combined FedAMM + Comm_eff
 Alpha = from above
 p = from above
