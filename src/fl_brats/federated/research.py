@@ -13,9 +13,10 @@ from typing import Any, Mapping
 
 import numpy as np
 import torch
-from flwr.common import Parameters, ndarrays_to_parameters, parameters_to_ndarrays
+from flwr.common import FitIns, Parameters, ndarrays_to_parameters, parameters_to_ndarrays
 from flwr.server.strategy import FedAvg
 
+from .downlink import DownlinkEncoder
 from .parameters import load_arrays, state_to_arrays
 from .quantization import aggregate_deltas, dequantized_delta, deserialize_client_update
 from .sparsification import (
@@ -200,6 +201,7 @@ class ResearchFedAvgStrategy(FedAvg):
         initial_state: ExperimentState | None = None,
         round_offset: int = 0,
         client_diagnostics: bool = False,
+        downlink_bit_width: int | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -219,6 +221,10 @@ class ResearchFedAvgStrategy(FedAvg):
         self._round_started: dict[int, float] = {}
         self._current_arrays = state_to_arrays(checkpoints.model)[1]
         self._keys = state_to_arrays(checkpoints.model)[0]
+        # Quantized broadcast (federated/downlink.py); None sends the FP32 model.
+        self.downlink = (
+            DownlinkEncoder(self._keys, downlink_bit_width) if downlink_bit_width is not None else None
+        )
 
     def checkpoint_strategy_state(self) -> dict[str, Any]:
         """Server-side state beyond the model that a resumed run must restore."""
@@ -249,7 +255,14 @@ class ResearchFedAvgStrategy(FedAvg):
             self._mark_early_stopped()
             return []
         self._round_started[server_round] = time.perf_counter()
-        return super().configure_fit(server_round, parameters, client_manager)
+        instructions = super().configure_fit(server_round, parameters, client_manager)
+        if self.downlink is None or not instructions:
+            return instructions
+        # One payload per round, the same for every client (a broadcast).
+        broadcast = ndarrays_to_parameters(
+            self.downlink.encode(parameters_to_ndarrays(parameters), self.global_round(server_round))
+        )
+        return [(proxy, FitIns(broadcast, fit_ins.config)) for proxy, fit_ins in instructions]
 
     def configure_evaluate(self, server_round: int, parameters: Any, client_manager: Any) -> Any:
         if not self.client_diagnostics:
@@ -271,11 +284,31 @@ class ResearchFedAvgStrategy(FedAvg):
             parameters, metrics = self._aggregate_sparse_fit(results)
         else:
             parameters, metrics = super().aggregate_fit(server_round, results, failures)
+            parameters = self.rebase_dense_aggregate(parameters)
         if parameters is None:
             self.writer.write_client_records(records)
             return None, metrics
         return self._persist_aggregate(
             server_round, parameters, metrics, records, aggregation_started
+        )
+
+    def rebase_dense_aggregate(self, parameters: Parameters | None) -> Parameters | None:
+        """Move a dense average of client models from the broadcast view to the FP32 model.
+
+        Clients trained from the quantized view, so their mean is view + mean update;
+        the server applies the mean update to its FP32 model instead. Compressed
+        uplinks already carry updates and are applied to the FP32 model directly.
+        """
+        if parameters is None or self.downlink is None or self.downlink.view is None:
+            return parameters
+        averaged = parameters_to_ndarrays(parameters)
+        return ndarrays_to_parameters(
+            [
+                (current + (mean - view)).astype(current.dtype)
+                for current, mean, view in zip(
+                    self._current_arrays, averaged, self.downlink.view, strict=True
+                )
+            ]
         )
 
     def _persist_aggregate(self, server_round, parameters, metrics, records, aggregation_started):

@@ -52,8 +52,41 @@ fedbrats train-federated quantization.enabled=false quantization.sparsification.
 
 The intended sweep fractions are ordinary config values, for example `1.0`,
 `0.50`, `0.25`, `0.10`, and `0.01`. Downlink remains the full global model
-unless another mechanism is explicitly added.
+unless the quantized broadcast below is enabled.
 
 Sparse and quantized communication can be combined in fixed-bit mode. In that
 path the client selects Top-rho entries first, then quantizes only the selected
 values before serialization.
+
+## Quantized broadcast (downlink)
+
+`quantization.communication.quantize_downlink: true` quantizes the
+server-to-client broadcast (`federated/downlink.py`); `downlink_bit_width` is
+2, 4 or 8 (default 8). The server and every client keep the same reconstructed
+model, the view. The first broadcast of a process (round 1, or the first round
+after a resume) is the full FP32 model. Every later broadcast carries the
+change since the last one, `global - view`, quantized symmetrically per tensor,
+and both sides add the dequantized change to their view; the server updates its
+view from the bytes it sent, so the copies stay bit-identical. What rounding
+drops is still in `global - view` next round, so the error is resent rather
+than accumulated (error feedback with no client state).
+
+Clients train from the view. The server keeps the FP32 global model, which is
+validated and checkpointed; compressed uplink updates are applied to it, and a
+dense client average is moved onto it (`mean - view` is applied). Every client
+receives the same payload, one byte per value at 8 bits plus a JSON header of
+names, shapes and scales and a SHA-256 checksum: 4.82 MB for the 4,810,074
+parameter U-Net against 19.24 MB in FP32. `download_payload_bytes` is the size
+of the payload the client received. Encoding takes a few seconds per round on
+the CPU.
+
+```bash
+fedbrats train-federated --config configs/comm_eff_uneven/best_p_0_1_downlink_8bit.yaml --run-dir outputs/...
+```
+
+## Encoding the sparse indices
+
+Top-rho sends each selected value with a 4-byte flat index, so the indices cost
+more than the values at 2 to 8 bits. Cheaper index codings, which are not
+implemented, are described with byte estimates in the comm-eff section of
+`Experiments.md`.

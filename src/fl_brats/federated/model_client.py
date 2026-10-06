@@ -19,6 +19,7 @@ from fl_brats.training.evaluation import evaluate_modality_combinations
 
 from .client import FedAvgClient
 from .communication import payload_metrics, quantized_payload_metrics
+from .downlink import decode_broadcast, is_downlink_payload
 from .parameters import load_arrays, state_keys, state_to_arrays
 from .quantization import (
     BitWidthAllocator,
@@ -88,6 +89,8 @@ class ModelFedAvgClient(FedAvgClient):
         self._sparsification_residual: torch.Tensor | None = None
         self._quantization_residuals: dict[str, torch.Tensor] = {}
         self._global_arrays_before_fit: list[np.ndarray] | None = None
+        # The client's copy of the quantized-broadcast view (federated/downlink.py).
+        self._downlink_view: list[np.ndarray] | None = None
         self._proximal_global_parameters: list[torch.Tensor] | None = None
         if examples is None:
             examples = len(cast(Sized, train_loader.dataset)) if train_loader is not None else 0
@@ -100,6 +103,11 @@ class ModelFedAvgClient(FedAvgClient):
         if evaluate_fn is None:
             evaluate_fn = self._evaluate if validation_loader is not None else self._evaluation_disabled
         super().__init__(self.model, self.keys, train_fn, evaluate_fn, examples)
+
+    @property
+    def _quantize_downlink(self) -> bool:
+        communication = self.quantization_config.get("communication") or {}
+        return bool(communication.get("quantize_downlink", False))
 
     def client_state_path(self, directory: Path, server_round: int) -> Path:
         return directory / f"{self.client_id}_round_{server_round:04d}.pt"
@@ -247,6 +255,10 @@ class ModelFedAvgClient(FedAvgClient):
         self, parameters: list[np.ndarray], config: dict[str, Any]
     ) -> tuple[list[np.ndarray], int, dict[str, Any]]:
         self._restore_client_state()
+        received = parameters
+        if is_downlink_payload(parameters) or self._quantize_downlink:
+            self._downlink_view = decode_broadcast(parameters, self._downlink_view, self.keys)
+            parameters = self._downlink_view
         self.set_model_parameters(parameters)
         self._global_arrays_before_fit = [item.copy() for item in parameters]
         self._proximal_global_parameters = (
@@ -263,7 +275,7 @@ class ModelFedAvgClient(FedAvgClient):
         metrics = self._finite(self.train_fn())
         arrays = self.get_model_parameters()
         metrics["client_id"] = self.client_id  # Flower scalar contract permits strings.
-        metrics["download_payload_bytes"] = float(sum(item.nbytes for item in parameters))
+        metrics["download_payload_bytes"] = float(sum(item.nbytes for item in received))
         upload_arrays = arrays
         sparse = self.quantization_config.get("sparsification", {})
         sparse_enabled = bool(sparse.get("enabled", False))

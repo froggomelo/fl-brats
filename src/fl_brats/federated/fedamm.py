@@ -127,6 +127,7 @@ class FedAMMStrategy(ResearchFedAvgStrategy):
             parameters = ndarrays_to_parameters(aggregate_fedamm_arrays(self.keys, results))
         else:
             parameters = ndarrays_to_parameters(aggregate_sample_count_arrays(results))
+        parameters = self.rebase_dense_aggregate(parameters)
         prototype_metrics = self.prototype_library.update_from_results(results)
         return self._persist_aggregate(
             server_round, parameters, prototype_metrics, records, aggregation_started

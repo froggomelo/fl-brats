@@ -100,6 +100,7 @@ def create_research_fedavg(
         minimum_rounds=int(config.get("minimum_rounds", 0)),
         initial_state=initial_state,
         round_offset=round_offset,
+        downlink_bit_width=downlink_bit_width(config),
     )
     if config.get("strategy") == "fedamm":
         strategy = FedAMMStrategy(
@@ -118,3 +119,11 @@ def create_research_fedavg(
         payload = torch.load(resume, map_location="cpu", weights_only=True)
         strategy.restore_strategy_state(payload.get("strategy_state", {}))
     return strategy
+
+
+def downlink_bit_width(config: dict[str, Any]) -> int | None:
+    """Bit width of the quantized broadcast, or None for the FP32 broadcast."""
+    communication = (config.get("quantization") or {}).get("communication") or {}
+    if not communication.get("quantize_downlink", False):
+        return None
+    return int(communication.get("downlink_bit_width", 8))
