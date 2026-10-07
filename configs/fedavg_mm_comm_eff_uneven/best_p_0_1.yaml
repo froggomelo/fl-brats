@@ -1,0 +1,27 @@
+# FedAvg-MM (q = 0.1) with the best communication-efficient setting (user,
+# 2026-10-07): top 10 % selective transmission with mixed 2/4/8-bit
+# quantization, exactly as fedamm_comm_eff_uneven/best_p_0_1.yaml but with
+# FedAvg instead of FedAMM, so the two missing-modality methods can be compared
+# under the same compression.
+extends: ../fedavg_missing_modalities_uneven/alpha_0_1.yaml
+experiment: {family: fedavg_mm_comm_eff_uneven, variant: best_p_0_1, runs: 3, seeds: [42, 43, 44]}
+federated: {strategy: fedavg}
+quantization:
+  enabled: true
+  mode: mixed
+  transmitted_object: delta
+  scheme: symmetric
+  granularity: per_tensor
+  rounding: nearest
+  mixed:
+    candidate_bit_widths: [2, 4, 8]
+    default_bit_width: 4
+    default_average_bit_width_budget: 4.0
+    client_average_bit_width_budgets: {client_0: 8.0, client_1: 4.0, client_2: 2.0, client_3: 2.0}
+    allocation_strategy: fedmpq_inspired
+    update_allocation_every_rounds: 1
+    minimum_layer_bit_width: 2
+    maximum_layer_bit_width: 8
+    protected_layer_minimum_bit_width: 8
+    protected_layer_patterns: [output, final, classifier, normalization]
+  sparsification: {enabled: true, method: topk, fraction: 0.1, error_feedback: true, scope: global}

@@ -187,6 +187,12 @@ Result (seed 42, 150 rounds, against best_p_0_1 seed 42): best validation Dice
 11.54 GB over the run, upload unchanged at 1.31 GB, total 4.25 GB against
 12.85 GB. With CSR indices (logged, not sent) the upload would be about 0.73 GB.
 
+Follow-up (added 2026-10-07): seeds 43 and 44 of the 8-bit broadcast, and a
+4-bit and a 2-bit broadcast on seed 42
+(configs/comm_eff_uneven/best_p_0_1_downlink_{4,2}bit.yaml), to see where the
+quantized broadcast starts to cost Dice. Expected download per run: about
+1.5 GB at 4 bits and 0.75 GB at 2 bits against 11.5 GB in FP32.
+
 ### Encoding the sparse indices
 Each selected value carries a 4-byte flat index, so at p = 0.1 the four clients
 send 7.70 MB of indices and 0.96 MB of values per round. Measured on the top 10 %
@@ -218,6 +224,12 @@ b {2,4,8}
 3 runs
 
 Rerun with p = 0.1, as above:
+3 runs
+
+FedAvg-MM + comm-eff (added 2026-10-07): the same q = 0.1 partition and the
+same compression (top 10 %, 2/4/8-bit) with FedAvg instead of FedAMM, so the two
+missing-modality methods are compared under the same compression
+(configs/fedavg_mm_comm_eff_uneven/best_p_0_1.yaml).
 3 runs
 
 ## Model Agnostic

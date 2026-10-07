@@ -1,0 +1,8 @@
+# best_p_0_1 with a 4-bit quantized broadcast (user, 2026-10-07): the bit-width
+# sweep of the quantized broadcast on seed 42, beside the 8-bit run
+# (best_p_0_1_downlink_8bit.yaml). Same scheme: after round 1 each broadcast is
+# the change since the last one, quantized per tensor with error feedback.
+extends: best_p_0_1.yaml
+experiment: {variant: best_p_0_1_downlink_4bit}
+quantization:
+  communication: {quantize_downlink: true, downlink_bit_width: 4}
