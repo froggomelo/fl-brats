@@ -32,6 +32,13 @@ B = 1
 
 3 runs (configs/centralized/fixed_200.yaml), queued after every other run. A fixed budget beside the converged runs; the checkpoint with the best validation Dice is tested, as before.
 
+Results (test mean Dice, seeds 42 / 43 / 44, mean): centralized 100 epochs
+0.870 / 0.864 / 0.865 (0.866); trained to convergence (283 / 279 / 254 epochs)
+0.881 / 0.876 / 0.878 (0.879); fixed 200 epochs 0.879 / 0.878 / 0.877 (0.878).
+FedAvg on the same split: E = 1 0.864, E = 5 0.886, E = 10 0.887 (means). The
+100-epoch reference was undertrained; trained longer, centralized beats FedAvg
+E = 1 and trails E = 5 and E = 10 by about 0.008.
+
 ## Federated Baseline Uneven
 K = 4
 E = 1
