@@ -131,6 +131,13 @@ runs:
   # Quantized broadcast, follow-up (user, 2026-10-07): seeds 43 and 44 of the
   # 8-bit broadcast, then a 4-bit and a 2-bit broadcast on seed 42.
   - {config: configs/comm_eff_uneven/best_p_0_1_downlink_8bit.yaml, seeds: [43, 44], partitions: [batch]}
+  # Dataset cache check (user, 2026-10-07): FedAvg as the campaign runs it, 50
+  # rounds, seed 42, twice without and twice with the cache; ahead of the
+  # broadcast sweep.
+  - {config: configs/cache_check_uneven/no_cache_a.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/cache_check_uneven/cache_a.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/cache_check_uneven/no_cache_b.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/cache_check_uneven/cache_b.yaml, seeds: [42], partitions: [batch]}
   - {config: configs/comm_eff_uneven/best_p_0_1_downlink_4bit.yaml, seeds: [42], partitions: [batch]}
   - {config: configs/comm_eff_uneven/best_p_0_1_downlink_2bit.yaml, seeds: [42], partitions: [batch]}
   # FedAvg-MM (q = 0.1) with the best comm-eff setting, the FedAvg counterpart of

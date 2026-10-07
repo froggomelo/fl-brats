@@ -14,6 +14,17 @@ B = 1
 
 3 runs (configs/centralized/converged.yaml). Added after review: the 100-epoch runs were still improving on two of three seeds (best validation at epochs 99 and 93) and saw 100 passes over the training data against 150 for FedAvg E = 1, 750 for E = 5 and 1,500 for E = 10. The checkpoint with the best validation Dice is tested, as before. The 100-epoch runs are kept as the original protocol.
 
+### Dataset cache check (added 2026-10-07)
+K = 4, E = 1, B = 1, seed 42, 50 rounds (configs/cache_check_uneven/)
+
+FedAvg on the uneven split exactly as the campaign runs it (server and four
+clients on five nodes), twice without the dataset cache (cache_mode: dataset)
+and twice with the persistent cache, each in a fresh directory on the client
+nodes so it is built in round 1 and read afterwards. Compares losses and round
+times. An earlier one-round check on a single node (job 64800, 6 October) found
+no measurable difference in the losses and a 36 % faster round once the cache
+existed.
+
 ### Centralized with a fixed 200 epochs (added 2026-10-06)
 K = 1
 Epochs = 200, no early stopping before epoch 200

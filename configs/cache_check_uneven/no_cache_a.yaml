@@ -1,0 +1,10 @@
+# Dataset cache check (user, 2026-10-07): FedAvg on the uneven split exactly as
+# the campaign runs it (server and four clients on five nodes, seed 42), for 50
+# rounds, without the dataset cache (every volume is read and preprocessed
+# each time).
+# Two runs with the cache and two without; see Experiments.md.
+extends: ../fedavg_uneven/baseline.yaml
+experiment: {family: cache_check_uneven, variant: no_cache_a, runs: 1, seeds: [42]}
+data: {cache_mode: dataset}
+training: {max_rounds: 50}
+federated: {num_rounds: 50, minimum_rounds: 50}
