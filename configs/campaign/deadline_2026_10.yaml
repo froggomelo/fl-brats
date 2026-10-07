@@ -140,6 +140,9 @@ runs:
   - {config: configs/cache_check_uneven/cache_b.yaml, seeds: [42], partitions: [batch]}
   - {config: configs/comm_eff_uneven/best_p_0_1_downlink_4bit.yaml, seeds: [42], partitions: [batch]}
   - {config: configs/comm_eff_uneven/best_p_0_1_downlink_2bit.yaml, seeds: [42], partitions: [batch]}
-  # FedAvg-MM (q = 0.1) with the best comm-eff setting, the FedAvg counterpart of
-  # fedamm_comm_eff_uneven/best_p_0_1 (user, 2026-10-07).
+  # FedAvg-MM with the best comm-eff setting (user, 2026-10-07): first on the
+  # Dirichlet partition at alpha 0.1 (the FedAvg counterpart of
+  # fedamm_comm_eff_uneven/dirichlet_alpha_0_1), then at q = 0.1 (the
+  # counterpart of fedamm_comm_eff_uneven/best_p_0_1).
+  - {config: configs/fedavg_mm_comm_eff_uneven/dirichlet_alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
   - {config: configs/fedavg_mm_comm_eff_uneven/best_p_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}

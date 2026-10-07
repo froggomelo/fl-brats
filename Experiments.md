@@ -237,11 +237,13 @@ b {2,4,8}
 Rerun with p = 0.1, as above:
 3 runs
 
-FedAvg-MM + comm-eff (added 2026-10-07): the same q = 0.1 partition and the
-same compression (top 10 %, 2/4/8-bit) with FedAvg instead of FedAMM, so the two
-missing-modality methods are compared under the same compression
+FedAvg-MM + comm-eff (added 2026-10-07): the same partitions and the same
+compression (top 10 %, 2/4/8-bit) with FedAvg instead of FedAMM, so the two
+missing-modality methods are compared under the same compression. First on the
+Dirichlet partition at alpha 0.1
+(configs/fedavg_mm_comm_eff_uneven/dirichlet_alpha_0_1.yaml), then at q = 0.1
 (configs/fedavg_mm_comm_eff_uneven/best_p_0_1.yaml).
-3 runs
+3 + 3 runs
 
 ## Model Agnostic
 E = 1

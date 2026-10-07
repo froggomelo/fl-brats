@@ -1,0 +1,6 @@
+# FedAvg-MM + the communication-efficient setting (top 10 % with 2/4/8-bit, see
+# best_p_0_1.yaml) on the FedAMM-style Dirichlet partition at alpha 0.1, the
+# FedAvg counterpart of fedamm_comm_eff_uneven/dirichlet_alpha_0_1.yaml
+# (user, 2026-10-07).
+extends: [best_p_0_1.yaml, ../_experiment_base/missing_dirichlet/alpha_0_1.yaml]
+experiment: {variant: dirichlet_alpha_0_1}
