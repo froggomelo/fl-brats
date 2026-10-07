@@ -182,6 +182,11 @@ round 1 the server sends the change since its last broadcast, quantized to 8
 bits per tensor, with error feedback (docs/quantized_federated_learning.md).
 Download per client per round: 4.82 MB against 19.24 MB.
 
+Result (seed 42, 150 rounds, against best_p_0_1 seed 42): best validation Dice
+0.8533 against 0.8525, test Dice 0.859 against 0.857; download 2.95 GB against
+11.54 GB over the run, upload unchanged at 1.31 GB, total 4.25 GB against
+12.85 GB. With CSR indices (logged, not sent) the upload would be about 0.73 GB.
+
 ### Encoding the sparse indices
 Each selected value carries a 4-byte flat index, so at p = 0.1 the four clients
 send 7.70 MB of indices and 0.96 MB of values per round. Measured on the top 10 %
