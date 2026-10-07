@@ -205,6 +205,10 @@ Result (seed 42, 150 rounds, against best_p_0_1 seed 42): best validation Dice
 11.54 GB over the run, upload unchanged at 1.31 GB, total 4.25 GB against
 12.85 GB. With CSR indices (logged, not sent) the upload would be about 0.73 GB.
 
+Three seeds (42 / 43 / 44): test Dice 0.859 / 0.866 / 0.861, mean 0.862 ± 0.004,
+against 0.857 / 0.866 / 0.862, mean 0.862 ± 0.005, with the FP32 broadcast;
+total traffic per run 4.25 GB against 12.85 GB.
+
 Follow-up (added 2026-10-07): seeds 43 and 44 of the 8-bit broadcast, and a
 4-bit and a 2-bit broadcast on seed 42
 (configs/comm_eff_uneven/best_p_0_1_downlink_{4,2}bit.yaml), to see where the
