@@ -25,6 +25,11 @@ times. An earlier one-round check on a single node (job 64800, 6 October) found
 no measurable difference in the losses and a 36 % faster round once the cache
 existed.
 
+Result (50 rounds each): test Dice 0.829 / 0.818 with the cache (mean 0.823)
+and 0.822 / 0.823 without (mean 0.822); median round 98 / 70 s against
+198 / 199 s, training 1.42 / 1.07 h against 2.79 / 2.80 h. No systematic effect
+on accuracy; the cache halves the training time.
+
 ### Centralized with a fixed 200 epochs (added 2026-10-06)
 K = 1
 Epochs = 200, no early stopping before epoch 200
