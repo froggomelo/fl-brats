@@ -214,6 +214,11 @@ Three seeds (42 / 43 / 44): test Dice 0.859 / 0.866 / 0.861, mean 0.862 ± 0.004
 against 0.857 / 0.866 / 0.862, mean 0.862 ± 0.005, with the FP32 broadcast;
 total traffic per run 4.25 GB against 12.85 GB.
 
+Bit width of the broadcast (seed 42, test Dice / total traffic per run): FP32
+0.857 / 12.85 GB, 8-bit 0.859 / 4.25 GB, 4-bit 0.859 / 2.82 GB, 2-bit 0.859 /
+2.10 GB. Even a 2-bit broadcast costs no Dice here; error feedback resends what
+the rounding drops.
+
 Follow-up (added 2026-10-07): seeds 43 and 44 of the 8-bit broadcast, and a
 4-bit and a 2-bit broadcast on seed 42
 (configs/comm_eff_uneven/best_p_0_1_downlink_{4,2}bit.yaml), to see where the
