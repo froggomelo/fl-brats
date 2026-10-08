@@ -266,6 +266,13 @@ Dirichlet partition at alpha 0.1
 (configs/fedavg_mm_comm_eff_uneven/best_p_0_1.yaml).
 3 + 3 runs
 
+Dirichlet alpha 0.1, test Dice (seeds 42 / 43 / 44, mean ± SD, traffic per run):
+FedAvg-MM + comm-eff 0.736 / 0.723 / 0.729, 0.729 ± 0.007, 2.73 GB; FedAMM +
+comm-eff 0.729 / 0.724 / 0.720, 0.724 ± 0.005, 2.73 GB; FedAvg-MM 0.727 /
+0.726 / 0.726, 0.726 ± 0.001, 4.86 GB; FedAMM 0.724 / 0.724 / 0.736, 0.728 ±
+0.007, 4.86 GB. All four within the seed spread; the compression costs FedAvg-MM
+nothing here.
+
 ## Model Agnostic
 E = 1
 B =1
