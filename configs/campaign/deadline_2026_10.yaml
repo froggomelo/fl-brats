@@ -146,3 +146,8 @@ runs:
   # counterpart of fedamm_comm_eff_uneven/best_p_0_1).
   - {config: configs/fedavg_mm_comm_eff_uneven/dirichlet_alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
   - {config: configs/fedavg_mm_comm_eff_uneven/best_p_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  # Zero-filled U-Net on the per-modality dropout partitions (q = 0.1 and 0.2),
+  # restored (user, 2026-10-08): it was replaced by the Dirichlet runs on
+  # 2026-10-01 before it started, so FedAMM and FedAvg-MM at q had no control.
+  - {config: configs/fedavg_missing_modalities_uneven/unet_zero_fill_alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/unet_zero_fill_alpha_0_2.yaml, seeds: [42, 43, 44], partitions: [batch]}

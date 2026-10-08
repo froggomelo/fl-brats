@@ -80,9 +80,11 @@ Alpha = 0.2
 
 ### Zero-filled U-Net
 The full-modality FedAvg U-Net and its initial weights; missing modalities are
-zero channels, with no mask channels. Runs on the Dirichlet partition below
-instead of this one (configs unet_zero_fill_alpha_0_{1,2}.yaml are kept but not
-scheduled).
+zero channels, with no mask channels. First run on the Dirichlet partition
+below; added on this one as well on 2026-10-08 (q = 0.1 and 0.2, seeds 42-44,
+configs unet_zero_fill_alpha_0_{1,2}.yaml), the control for FedAMM and FedAvg-MM
+at q.
+6 runs
 
 ## Missing Modalities, FedAMM-style Dirichlet Partition Uneven
 Each client draws Dirichlet(alpha * ones(15)) over the 15 modality combinations,
