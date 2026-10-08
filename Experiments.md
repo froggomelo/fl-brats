@@ -273,6 +273,11 @@ comm-eff 0.729 / 0.724 / 0.720, 0.724 ± 0.005, 2.73 GB; FedAvg-MM 0.727 /
 0.007, 4.86 GB. All four within the seed spread; the compression costs FedAvg-MM
 nothing here.
 
+q = 0.1, test Dice (seeds 42 / 43 / 44, mean): FedAvg-MM + comm-eff 0.829 /
+0.829 / 0.822, 0.827, 2.73 GB; FedAMM + comm-eff 0.830 / 0.829 / 0.827, 0.829;
+FedAvg-MM 0.832 / 0.833 / 0.824, 0.830, 4.86 GB; FedAMM 0.830 / 0.832 / 0.827,
+0.829. Again all within the seed spread.
+
 ## Model Agnostic
 E = 1
 B =1
