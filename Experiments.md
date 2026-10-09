@@ -86,6 +86,15 @@ configs unet_zero_fill_alpha_0_{1,2}.yaml), the control for FedAMM and FedAvg-MM
 at q.
 6 runs
 
+Result (test Dice, seeds 42 / 43 / 44, mean; then the mean over the 15 forced
+modality combinations and with a single scan):
+q = 0.1: zero-filled U-Net 0.816 / 0.811 / 0.811, 0.813 (0.629, 0.391);
+FedAvg-MM 0.830 (0.679, 0.488); FedAMM 0.829 (0.672, 0.479).
+q = 0.2: zero-filled U-Net 0.784 / 0.785 / 0.780, 0.783 (0.667, 0.496);
+FedAvg-MM 0.805 (0.702, 0.547); FedAMM 0.804 (0.700, 0.550).
+The missing-modality architectures beat zero-filling by about 0.02 with each
+subject's own scans and by 0.05 to 0.10 when scans are absent.
+
 ## Missing Modalities, FedAMM-style Dirichlet Partition Uneven
 Each client draws Dirichlet(alpha * ones(15)) over the 15 modality combinations,
 holds one subject of each, and draws the rest from its own proportions (the FedAMM
