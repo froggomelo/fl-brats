@@ -1,6 +1,6 @@
 # Cluster node health
 
-Last checked 2026-09-24. Campaign files list these under `known_bad_nodes`,
+Last checked 2026-10-13. Campaign files list these under `known_bad_nodes`,
 and `scripts/monitoring/campaign.py` adds any node that fails the job-start GPU check
 (`FL_BRATS_GPU_UNAVAILABLE` in a job's `.err`, exit code 75) to
 `logs/monitoring/campaign/<name>/state.json`. Every later submission excludes them.
@@ -16,11 +16,16 @@ users, so the Xid code is unknown.
 
 | Partition | Node | GPU |
 |---|---|---|
-| bigbatch | mscluster44, 45, 57, 59, 62, 65, 75, 83 | RTX 3090 |
+| bigbatch | mscluster44, 45, 57, 59, 62, 65, 75, 83 (2026-09-24); 51, 76 (2026-10-13) | RTX 3090 |
 | batch | mscluster129 | RTX 3060 |
 
-Only idle bigbatch nodes could be probed. Busy bigbatch nodes are untested;
-the job-start check catches any bad ones.
+mscluster50 (bigbatch) fails differently: "Failed to initialize NVML:
+Driver/library version mismatch" (2026-10-13), so its driver was updated
+without a reboot.
+
+Only idle bigbatch nodes could be probed (on 2026-10-13: 50-56, 71-73, 76, 87;
+52-56, 71-73 and 87 passed a CUDA matmul in the run image). Busy bigbatch nodes
+are untested; the job-start check catches any bad ones.
 
 ## Unsupported GPUs
 
@@ -33,8 +38,15 @@ compute capability 7.0 or higher.
 
 mscluster124 (batch) held a client in uninterruptible I/O wait for more than
 25 minutes on its first round while the same data loaded normally elsewhere.
-It is not excluded. The campaign's stall detection resubmits runs that stop
-making progress.
+It was not excluded until 2026-10-13, when it and mscluster125 were drained
+with "Kill task failed" during the batch outage below; both are excluded now.
+
+## Batch outage, 2026-10-13
+
+At 07:07 that day 98 of the 100 batch nodes stopped responding (Slurm state
+`down*`, "Not responding") and the other two were drained. The FedAMM comm-eff
+ablation then ran interim copies on bigbatch while its batch runs waited in
+the queue.
 
 ## Preprocessing cache
 

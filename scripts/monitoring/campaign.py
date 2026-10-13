@@ -523,9 +523,8 @@ class Campaign:
             1 for unit in self.state["units"].values()
             if unit.get("posthoc", {}).get("status") == "active"
         )
-        partition = settings.get("partition", "batch")
         for unit_spec in self.units():
-            if active >= limit or not self.fits(partition, 1, training=False):
+            if active >= limit:
                 return
             unit = self.state["units"][unit_spec["key"]]
             job = unit.get("posthoc")
@@ -533,6 +532,13 @@ class Campaign:
                 continue
             dirs = self.posthoc_dirs(unit)
             if not dirs:
+                continue
+            # Evaluate on the GPU model the run trained on (a unit's attempts
+            # all share one partition, see archive_off_partition).
+            partition = unit["attempts"][-1]["partition"]
+            if partition == "-":
+                partition = settings.get("partition", "batch")
+            if not self.fits(partition, 1, training=False):
                 continue
             log_dir = Path(unit["attempts"][-1]["log_dir"] or self.root) / "periodic"
             log_dir.mkdir(parents=True, exist_ok=True)
