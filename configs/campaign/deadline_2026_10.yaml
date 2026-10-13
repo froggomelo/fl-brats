@@ -24,6 +24,7 @@ known_bad_nodes:
   mscluster50: bigbatch GPU unusable, NVML driver/library mismatch (2026-10-13 probe)
   mscluster51: bigbatch GPU unusable (2026-10-13 probe)
   mscluster76: bigbatch GPU unusable (2026-10-13 probe)
+  mscluster82: bigbatch, every job fails within 1 s with exit 6 (2026-10-13)
 partitions:
   # batch allows 13 running jobs per user (job_limit). A run is only submitted
   # when all its jobs (server + clients, or one centralized job) can hold a

@@ -251,6 +251,42 @@ class Campaign:
                     found += 1
         return found
 
+    def record_fast_failures(self) -> None:
+        """Exclude nodes where our jobs fail before they start.
+
+        A node that cannot start jobs (mscluster82 on 2026-10-13: exit 6 within
+        a second, nothing written to the job's .err) looks idle to Slurm, so
+        every new job lands on it. Three such failures in the last three hours,
+        from at least two different job names, mark it bad; a broken config
+        fails the same job name on every node instead.
+        """
+        output = subprocess.run(
+            # sacct ignores -S when filtering by --state, so filter here.
+            ["sacct", "-n", "-X", "-P", "-u", getpass.getuser(), "-S", "now-3hours",
+             "-o", "JobName,State,NodeList,ElapsedRaw"],
+            capture_output=True, text=True,
+        ).stdout
+        failures: dict[str, list[str]] = {}
+        for line in output.splitlines():
+            name, state, node, elapsed = (line.split("|") + ["", "", "", ""])[:4]
+            if state == "FAILED" and elapsed.isdigit() and int(elapsed) <= 5 and re.fullmatch(r"mscluster\d+", node):
+                failures.setdefault(node, []).append(name)
+        for node, names in failures.items():
+            if node not in self.state["bad_nodes"] and len(names) >= 3 and len(set(names)) >= 2:
+                self.state["bad_nodes"][node] = f"jobs fail within 5 s ({_stamp()})"
+                self.log(f"excluding {node}: {len(names)} jobs failed within 5 s")
+
+    def landed_on_bad_node(self, jobs: dict[str, str]) -> bool:
+        """Whether any job of an attempt ran on a node that is now excluded."""
+        ids = [jobs[k] for k in ("server", "clients", "job") if k in jobs]
+        if not ids:
+            return False
+        output = subprocess.run(
+            ["sacct", "-n", "-X", "-P", "-j", ",".join(ids), "-o", "NodeList"],
+            capture_output=True, text=True,
+        ).stdout
+        return any(node.strip() in self.state["bad_nodes"] for node in output.splitlines())
+
     # --------------------------------------------------------------- reconcile
     def sweep_orphans(self, queue: dict[str, list[tuple[str, str]]]) -> None:
         """Cancel jobs of ended attempts that are still queued.
@@ -336,7 +372,7 @@ class Campaign:
                 continue
             if after > before:
                 unit["no_progress"] = 0
-            elif not attempt.get("hit_bad_node"):
+            elif not (attempt.get("hit_bad_node") or self.landed_on_bad_node(attempt["jobs"])):
                 # A newly found dead-GPU node is the cluster's fault, not the run's.
                 unit["no_progress"] = unit.get("no_progress", 0) + 1
             limit = int(self.spec.get("max_attempts_without_progress", 3))
@@ -374,7 +410,7 @@ class Campaign:
             return
         if epochs > 0:
             unit["no_progress"] = 0
-        elif not attempt.get("hit_bad_node"):
+        elif not (attempt.get("hit_bad_node") or self.landed_on_bad_node(attempt["jobs"])):
             unit["no_progress"] = unit.get("no_progress", 0) + 1
         limit = int(self.spec.get("max_attempts_without_progress", 3))
         if unit["no_progress"] >= limit:
@@ -507,6 +543,8 @@ class Campaign:
                 continue
             self.record_gpu_failures({"log_dir": job["log_dir"]})
             job["attempts"] = job.get("attempts", 1)
+            if self.landed_on_bad_node({"job": job["job"]}):
+                job["attempts"] -= 1  # the node's fault, not the evaluation's
             if job["attempts"] >= int(self.spec.get("max_attempts_without_progress", 3)) + 2:
                 job["status"] = "stuck"
                 self.log(f"STUCK periodic evaluation {key}")
@@ -613,6 +651,7 @@ def main() -> int:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return 0  # a previous tick is still running
+        campaign.record_fast_failures()
         queue = campaign.queue()
         campaign.reconcile(queue)
         campaign.reconcile_posthoc(queue)
