@@ -1,0 +1,24 @@
+# Ablation of FedAMM + comm-eff (fedamm_comm_eff_uneven/best_p_0_1.yaml), q = 0.1:
+# FedAMM with the FedMPQ-style mixed 2/4/8-bit quantization alone, no selective
+# transmission (user, 2026-10-13). selective_alpha_0_1.yaml is the other half.
+extends: ../fedamm_uneven/alpha_0_1.yaml
+experiment: {family: fedamm_comm_eff_ablation_uneven, variant: fedmpq_alpha_0_1, runs: 3, seeds: [42, 43, 44]}
+quantization:
+  enabled: true
+  mode: mixed
+  transmitted_object: delta
+  scheme: symmetric
+  granularity: per_tensor
+  rounding: nearest
+  mixed:
+    candidate_bit_widths: [2, 4, 8]
+    default_bit_width: 4
+    default_average_bit_width_budget: 4.0
+    client_average_bit_width_budgets: {client_0: 8.0, client_1: 4.0, client_2: 2.0, client_3: 2.0}
+    allocation_strategy: fedmpq_inspired
+    update_allocation_every_rounds: 1
+    minimum_layer_bit_width: 2
+    maximum_layer_bit_width: 8
+    protected_layer_minimum_bit_width: 8
+    protected_layer_patterns: [output, final, classifier, normalization]
+  sparsification: {enabled: false, method: topk, fraction: 1.0, error_feedback: true, scope: global}

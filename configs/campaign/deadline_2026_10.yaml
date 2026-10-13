@@ -18,6 +18,12 @@ known_bad_nodes:
   mscluster75: bigbatch GPU unusable (2026-09-24 probe)
   mscluster83: bigbatch GPU unusable (2026-09-24 probe)
   mscluster129: batch GPU unusable (2026-09-24 probe)
+  mscluster124: batch, slow NFS I/O (2026-09) and "Kill task failed" drain (2026-10-13)
+  mscluster125: batch, "Kill task failed" drain (2026-10-13)
+  mscluster85: bigbatch, "Kill task failed" drain (since 2026-09-19)
+  mscluster50: bigbatch GPU unusable, NVML driver/library mismatch (2026-10-13 probe)
+  mscluster51: bigbatch GPU unusable (2026-10-13 probe)
+  mscluster76: bigbatch GPU unusable (2026-10-13 probe)
 partitions:
   # batch allows 13 running jobs per user (job_limit). A run is only submitted
   # when all its jobs (server + clients, or one centralized job) can hold a
@@ -29,8 +35,11 @@ partitions:
   # job each) train beside the two E = 10 runs.
   batch: {max_active: 5, max_jobs: 13, job_limit: 13}
   # Not used for final training (2026-09-24): no working node was free and the
-  # queue head waited ~3 days. Kept so status shows the old attempts.
-  bigbatch: {max_active: 0, max_jobs: 6, job_limit: 6}
+  # queue head waited ~3 days. Kept so status shows the old attempts. From
+  # 2026-10-13 it runs the interim bigbatch copies of the FedAMM comm-eff
+  # ablation while batch is down: one five-job run at a time (6 jobs per user),
+  # its periodic evaluation taking the sixth slot.
+  bigbatch: {max_active: 1, max_jobs: 6, job_limit: 6}
 # After a run finishes, one single-GPU job computes HD95/sensitivity and the
 # modality-robustness pass for every 10th round checkpoint, then the test report.
 posthoc: {partition: batch, max_active: 2, every: 10}
@@ -151,3 +160,26 @@ runs:
   # 2026-10-01 before it started, so FedAMM and FedAvg-MM at q had no control.
   - {config: configs/fedavg_missing_modalities_uneven/unet_zero_fill_alpha_0_1.yaml, seeds: [42, 43, 44], partitions: [batch]}
   - {config: configs/fedavg_missing_modalities_uneven/unet_zero_fill_alpha_0_2.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  # FedAMM comm-eff ablation (user, 2026-10-13): FedAMM with FedMPQ 2/4/8-bit
+  # alone and with top 10 % selective transmission alone, at q = 0.1 and on the
+  # Dirichlet partition at alpha 0.1, against fedamm_comm_eff_uneven (both
+  # together). 98 of 100 batch nodes stopped responding at 07:07 that day, so
+  # interim copies run on bigbatch (user-approved exception to batch-only),
+  # listed first so the waiting batch runs do not block them. The batch runs
+  # stay queued and start when batch returns; they are the reported results.
+  - {config: configs/fedamm_comm_eff_ablation_uneven/bigbatch/fedmpq_alpha_0_1.yaml, seeds: [42], partitions: [bigbatch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/bigbatch/selective_alpha_0_1.yaml, seeds: [42], partitions: [bigbatch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/bigbatch/fedmpq_alpha_0_1.yaml, seeds: [43, 44], partitions: [bigbatch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/bigbatch/selective_alpha_0_1.yaml, seeds: [43, 44], partitions: [bigbatch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/bigbatch/fedmpq_dirichlet_alpha_0_1.yaml, seeds: [42], partitions: [bigbatch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/bigbatch/selective_dirichlet_alpha_0_1.yaml, seeds: [42], partitions: [bigbatch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/bigbatch/fedmpq_dirichlet_alpha_0_1.yaml, seeds: [43, 44], partitions: [bigbatch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/bigbatch/selective_dirichlet_alpha_0_1.yaml, seeds: [43, 44], partitions: [bigbatch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/fedmpq_alpha_0_1.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/selective_alpha_0_1.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/fedmpq_alpha_0_1.yaml, seeds: [43, 44], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/selective_alpha_0_1.yaml, seeds: [43, 44], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/fedmpq_dirichlet_alpha_0_1.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/selective_dirichlet_alpha_0_1.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/fedmpq_dirichlet_alpha_0_1.yaml, seeds: [43, 44], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_ablation_uneven/selective_dirichlet_alpha_0_1.yaml, seeds: [43, 44], partitions: [batch]}

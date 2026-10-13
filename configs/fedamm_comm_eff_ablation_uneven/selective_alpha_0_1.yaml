@@ -1,0 +1,8 @@
+# Ablation of FedAMM + comm-eff (fedamm_comm_eff_uneven/best_p_0_1.yaml), q = 0.1:
+# FedAMM with top 10 % selective transmission alone (error feedback, FP32
+# values), no quantization (user, 2026-10-13). fedmpq_alpha_0_1.yaml is the
+# other half.
+extends: ../fedamm_uneven/alpha_0_1.yaml
+experiment: {family: fedamm_comm_eff_ablation_uneven, variant: selective_alpha_0_1, runs: 3, seeds: [42, 43, 44]}
+quantization:
+  sparsification: {enabled: true, method: topk, fraction: 0.1, error_feedback: true, scope: global}

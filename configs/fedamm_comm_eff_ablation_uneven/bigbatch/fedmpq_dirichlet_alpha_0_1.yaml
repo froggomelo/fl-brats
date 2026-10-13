@@ -1,0 +1,6 @@
+# Interim copy of ../fedmpq_dirichlet_alpha_0_1.yaml on bigbatch (RTX 3090) while batch is down
+# (user, 2026-10-13). The batch run of ../fedmpq_dirichlet_alpha_0_1.yaml is the reported result; this
+# one is a stand-in and a GPU-sensitivity comparison.
+extends: ../fedmpq_dirichlet_alpha_0_1.yaml
+experiment: {variant: fedmpq_dirichlet_alpha_0_1_bigbatch}
+slurm: {partition: bigbatch}
