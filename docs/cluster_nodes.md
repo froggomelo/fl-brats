@@ -51,6 +51,13 @@ excludes a node after three such failures (FAILED within 5 s, at least two
 different job names, in the last three hours) and does not count attempts that
 landed on an excluded node against the run.
 
+## Slow nodes
+
+mscluster74 (bigbatch, 2026-10-14) passed the GPU check, but a FedAMM server
+on it spent 312 s per round on validation against 26 s on other bigbatch
+nodes (client training was normal), which would have stretched a 3 h run to
+15 h. It is excluded; the run resumed from its round 4 checkpoint elsewhere.
+
 ## Batch outage, 2026-10-13
 
 At 07:07 that day 98 of the 100 batch nodes stopped responding (Slurm state
