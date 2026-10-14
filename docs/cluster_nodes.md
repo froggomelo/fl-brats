@@ -58,6 +58,10 @@ on it spent 312 s per round on validation against 26 s on other bigbatch
 nodes (client training was normal), which would have stretched a 3 h run to
 15 h. It is excluded; the run resumed from its round 4 checkpoint elsewhere.
 
+mscluster61 (bigbatch, 2026-10-14) ran a periodic evaluation at about 1,300 s
+per checkpoint against about 460 s on other bigbatch nodes. It is excluded;
+the evaluation resumed elsewhere, keeping the four checkpoints it had scored.
+
 ## Batch outage, 2026-10-13
 
 At 07:07 that day 98 of the 100 batch nodes stopped responding (Slurm state
