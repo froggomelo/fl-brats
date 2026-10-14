@@ -62,6 +62,11 @@ mscluster61 (bigbatch, 2026-10-14) ran a periodic evaluation at about 1,300 s
 per checkpoint against about 460 s on other bigbatch nodes. It is excluded;
 the evaluation resumed elsewhere, keeping the four checkpoints it had scored.
 
+mscluster77 (bigbatch, 2026-10-14) took a client's round 2 training message
+and never replied (25+ minutes on a step that takes about 40 s; the other
+three clients replied normally). It is excluded; the run resumed from its
+round 1 checkpoint elsewhere.
+
 ## Batch outage, 2026-10-13
 
 At 07:07 that day 98 of the 100 batch nodes stopped responding (Slurm state
