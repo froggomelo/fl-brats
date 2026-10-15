@@ -28,6 +28,7 @@ known_bad_nodes:
   mscluster74: bigbatch, server validation 312 s per round against 26 s on other nodes (2026-10-14)
   mscluster61: bigbatch, periodic evaluation ~1300 s per checkpoint against ~460 s on other nodes (2026-10-14)
   mscluster77: bigbatch, client hung for 25+ min on a ~40 s training step (2026-10-14)
+  mscluster48: bigbatch, every job fails within 1 s with exit 6 (2026-10-15)
 partitions:
   # batch allows 13 running jobs per user (job_limit). A run is only submitted
   # when all its jobs (server + clients, or one centralized job) can hold a

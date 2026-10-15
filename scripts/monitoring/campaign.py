@@ -254,11 +254,13 @@ class Campaign:
     def record_fast_failures(self) -> None:
         """Exclude nodes where our jobs fail before they start.
 
-        A node that cannot start jobs (mscluster82 on 2026-10-13: exit 6 within
-        a second, nothing written to the job's .err) looks idle to Slurm, so
-        every new job lands on it. Three such failures in the last three hours,
-        from at least two different job names, mark it bad; a broken config
-        fails the same job name on every node instead.
+        A node that cannot start jobs (mscluster82 on 2026-10-13, mscluster48 on
+        2026-10-15: exit 6 within a second, nothing written to the job's .err)
+        looks idle to Slurm, so new jobs keep landing on it. Three such failures
+        in the last three hours mark it bad when the jobs are not to blame:
+        they came from at least two job names, or a job of the same name ran
+        for over a minute on another node (the clients of the same run). A
+        broken config fails the same job name on every node instead.
         """
         output = subprocess.run(
             # sacct ignores -S when filtering by --state, so filter here.
@@ -267,12 +269,18 @@ class Campaign:
             capture_output=True, text=True,
         ).stdout
         failures: dict[str, list[str]] = {}
+        healthy: dict[str, set[str]] = {}  # job name -> nodes where it ran over a minute
         for line in output.splitlines():
             name, state, node, elapsed = (line.split("|") + ["", "", "", ""])[:4]
-            if state == "FAILED" and elapsed.isdigit() and int(elapsed) <= 5 and re.fullmatch(r"mscluster\d+", node):
+            if not (elapsed.isdigit() and re.fullmatch(r"mscluster\d+", node)):
+                continue
+            if state == "FAILED" and int(elapsed) <= 5:
                 failures.setdefault(node, []).append(name)
+            elif int(elapsed) > 60:
+                healthy.setdefault(name, set()).add(node)
         for node, names in failures.items():
-            if node not in self.state["bad_nodes"] and len(names) >= 3 and len(set(names)) >= 2:
+            ran_elsewhere = any(healthy.get(name, set()) - {node} for name in names)
+            if node not in self.state["bad_nodes"] and len(names) >= 3 and (len(set(names)) >= 2 or ran_elsewhere):
                 self.state["bad_nodes"][node] = f"jobs fail within 5 s ({_stamp()})"
                 self.log(f"excluding {node}: {len(names)} jobs failed within 5 s")
 

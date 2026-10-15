@@ -47,9 +47,15 @@ mscluster82 (bigbatch, 2026-10-13) failed every job within a second with exit
 code 6 and wrote nothing to the job's `.err`, so the GPU check never ran.
 Because it looked idle, Slurm sent it every new job: three training attempts
 and four periodic evaluations failed there in 15 minutes. `campaign.py` now
-excludes a node after three such failures (FAILED within 5 s, at least two
-different job names, in the last three hours) and does not count attempts that
-landed on an excluded node against the run.
+excludes a node after three such failures (FAILED within 5 s, in the last three
+hours) and does not count attempts that landed on an excluded node against the
+run.
+
+mscluster48 (bigbatch, 2026-10-15) failed the same way, but only one run's
+server kept landing there, so the first rule (at least two job names) missed
+it and the run went stuck after three attempts. The rule now also accepts three
+failures of one job name when a job of that name (the same run's clients) ran
+for over a minute on another node, which rules out a broken config.
 
 ## Slow nodes
 
