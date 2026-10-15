@@ -289,6 +289,27 @@ q = 0.1, test Dice (seeds 42 / 43 / 44, mean): FedAvg-MM + comm-eff 0.829 /
 FedAvg-MM 0.832 / 0.833 / 0.824, 0.830, 4.86 GB; FedAMM 0.830 / 0.832 / 0.827,
 0.829. Again all within the seed spread.
 
+Ablation (added 2026-10-13): FedAMM with each half of the compression alone,
+FedMPQ 2/4/8-bit only and top 10 % only (FP32 values), at q = 0.1 and on the
+Dirichlet partition at alpha 0.1
+(configs/fedamm_comm_eff_ablation_uneven/{fedmpq,selective}_{alpha_0_1,dirichlet_alpha_0_1}.yaml).
+3 seeds each, 12 runs on batch. Batch lost 98 of its 100 nodes on 2026-10-13, so
+interim copies of all 12 ran on bigbatch (RTX 3090, bigbatch/ configs); the
+batch runs stay queued and are the reported results.
+
+Interim bigbatch (RTX 3090) results, test Dice (seeds 42 / 43 / 44, mean ± SD;
+mean over the 15 forced combinations; upload per run, all four clients):
+q = 0.1: FedMPQ only 0.833 / 0.826 / 0.826, 0.828 ± 0.004 (0.667), 0.33 GB;
+top 10 % only 0.834 / 0.829 / 0.828, 0.830 ± 0.004 (0.675), 0.50 GB. Batch
+references: FedAMM 0.829 ± 0.002 (0.672), 2.43 GB; FedAMM + both 0.829 ± 0.002
+(0.674), 0.30 GB.
+Dirichlet alpha 0.1: FedMPQ only 0.726 / 0.724 / 0.713, 0.721 ± 0.007 (0.713);
+top 10 % only 0.727 / 0.721 / 0.723, 0.724 ± 0.003 (0.716). Batch references:
+FedAMM 0.728 ± 0.007 (0.721); FedAMM + both 0.724 ± 0.005 (0.718).
+Neither half costs FedAMM accuracy beyond the seed spread. FedMPQ alone gives
+most of the upload saving; adding top 10 % on top cuts only 11 % more, because
+each sent value carries a 4-byte index.
+
 ## Model Agnostic
 E = 1
 B =1
