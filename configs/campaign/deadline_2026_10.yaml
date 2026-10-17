@@ -44,7 +44,9 @@ partitions:
   # 2026-10-13 it runs the interim bigbatch copies of the FedAMM comm-eff
   # ablation while batch is down: one five-job run at a time (6 jobs per user),
   # its periodic evaluation taking the sixth slot.
-  bigbatch: {max_active: 1, max_jobs: 6, job_limit: 6}
+  # max_active 0 again from 2026-10-17, when batch recovered and the batch
+  # ablation runs started; all 12 bigbatch copies had finished by then.
+  bigbatch: {max_active: 0, max_jobs: 6, job_limit: 6}
 # After a run finishes, one single-GPU job computes HD95/sensitivity and the
 # modality-robustness pass for every 10th round checkpoint, then the test report.
 posthoc: {partition: batch, max_active: 2, every: 10}
