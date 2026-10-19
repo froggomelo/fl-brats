@@ -297,18 +297,33 @@ Dirichlet partition at alpha 0.1
 interim copies of all 12 ran on bigbatch (RTX 3090, bigbatch/ configs); the
 batch runs stay queued and are the reported results.
 
-Interim bigbatch (RTX 3090) results, test Dice (seeds 42 / 43 / 44, mean ± SD;
-mean over the 15 forced combinations; upload per run, all four clients):
-q = 0.1: FedMPQ only 0.833 / 0.826 / 0.826, 0.828 ± 0.004 (0.667), 0.33 GB;
-top 10 % only 0.834 / 0.829 / 0.828, 0.830 ± 0.004 (0.675), 0.50 GB. Batch
-references: FedAMM 0.829 ± 0.002 (0.672), 2.43 GB; FedAMM + both 0.829 ± 0.002
-(0.674), 0.30 GB.
-Dirichlet alpha 0.1: FedMPQ only 0.726 / 0.724 / 0.713, 0.721 ± 0.007 (0.713);
-top 10 % only 0.727 / 0.721 / 0.723, 0.724 ± 0.003 (0.716). Batch references:
-FedAMM 0.728 ± 0.007 (0.721); FedAMM + both 0.724 ± 0.005 (0.718).
-Neither half costs FedAMM accuracy beyond the seed spread. FedMPQ alone gives
-most of the upload saving; adding top 10 % on top cuts only 11 % more, because
-each sent value carries a 4-byte index.
+Batch recovered on 2026-10-17; all 12 batch runs completed 150 rounds (none
+early-stopped) and were evaluated by 2026-10-18 23:40 UTC.
+
+Result on batch (RTX 3060), test Dice (seeds 42 / 43 / 44, mean ± SD; mean over
+the 15 forced combinations; upload per run, all four clients):
+q = 0.1: FedAMM 0.830 / 0.832 / 0.827, 0.829 ± 0.002 (0.672), 2.43 GB;
+FedMPQ only 0.830 / 0.832 / 0.825, 0.829 ± 0.004 (0.669), 0.33 GB;
+top 10 % only 0.830 / 0.830 / 0.824, 0.828 ± 0.003 (0.669), 0.50 GB;
+both 0.830 / 0.829 / 0.827, 0.829 ± 0.002 (0.674), 0.30 GB.
+Dirichlet alpha 0.1: FedAMM 0.724 / 0.724 / 0.736, 0.728 ± 0.007 (0.721);
+FedMPQ only 0.718 / 0.714 / 0.720, 0.717 ± 0.003 (0.710);
+top 10 % only 0.731 / 0.720 / 0.719, 0.723 ± 0.007 (0.717);
+both 0.729 / 0.724 / 0.720, 0.724 ± 0.005 (0.718).
+At q = 0.1 neither half costs FedAMM anything. On the Dirichlet partition
+FedMPQ alone sits 0.011 below uncompressed FedAMM, a little beyond the seed
+spread, while top 10 % alone and both are within it; with three seeds this is
+a possible small cost, not a firm one. FedMPQ alone gives most of the upload
+saving; adding top 10 % on top cuts only 11 % more, because each sent value
+carries a 4-byte index.
+
+Interim bigbatch (RTX 3090) copies, run while batch was down (13 to 17
+October), same seeds: q = 0.1 FedMPQ only 0.833 / 0.826 / 0.826, 0.828 ±
+0.004; top 10 % only 0.834 / 0.829 / 0.828, 0.830 ± 0.004. Dirichlet FedMPQ
+only 0.726 / 0.724 / 0.713, 0.721 ± 0.007; top 10 % only 0.727 / 0.721 /
+0.723, 0.724 ± 0.003. Per-setting means agree with batch within 0.004; single
+seeds differ by up to 0.010 (more on the Dirichlet partition), the size of the
+seed spread. Upload bytes are identical on both GPUs.
 
 ## Model Agnostic
 E = 1
