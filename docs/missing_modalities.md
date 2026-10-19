@@ -24,6 +24,14 @@ Training masks are written into the client manifests like the other modes. Becau
 
 Modality-weighted aggregation needs no change: each client reports, every round, how many of its training subjects have each modality, counted from its manifest masks (`fedamm_modality_count_*`), and the server weights each modality encoder by those counts.
 
+## Per-client missing modality
+
+`missing_modalities.mode: complete` with `complete.client_available_modalities` gives every subject of a client the same scans. `configs/_experiment_base/missing_per_client/flair_largest.yaml` (partition `data/partitions/missing_per_client/flair_largest`, same subjects as `missing_uneven`) removes one scan per client: client 0 (437 subjects) lacks FLAIR, client 1 (218) T2, client 2 (131) T1ce and client 3 (89) T1. Every scan is still present somewhere in the federation, but no client sees all four, and the largest client lacks the scan that matters most for whole-tumour Dice.
+
+Validation and test subjects are not on any client, so `complete` mode would give each cohort a single random combination. The overlay sets `evaluation.natural_missingness` instead: each held-out subject misses one scan, drawn per subject with the pooled training shares (437/875, 218/875, 131/875, 89/875). The 15-combination counterfactual evaluation is unchanged.
+
+Build partitions with the live source (`FL_BRATS_BIND_SOURCE=1`) and the canonical split: `FL_BRATS_BIND_SOURCE=1 slurm/_shared/run_with_configured_environment.sh true apptainer/fl-brats-batch.sif fedbrats prepare-experiment-partition --config <config> --split-path /datasets/ldemelo/brats/partitions/fixed_quantity_skew/split_manifest.json`. Without the bind the image's older code ignores `dirichlet_combination` and `partition_remainder` and silently writes a full-modality partition (2026-10-19). The K = 5 and K = 8 Dirichlet partitions (`data/partitions/missing_dirichlet_k{5,8}/alpha_0_1`) use the Lorenz-shaped client sizes of `fedavg_train_configs_uneven/client_sweeps/k{5,8}_lorenz` and the same subjects.
+
 ## Training-loss components
 
 Every client fit reports the parts of `train_loss` (`fl_brats.training.engine.LossComponents`), and `metrics/clients.jsonl` stores them next to `train_loss`. Like `train_loss`, they are sample-weighted means over the last local epoch. Logging only copies values that are already computed, so gradients and training are unchanged; a 3-round FedAMM smoke run, seed 42, gives the same `train_loss` and validation Dice before and after the change.

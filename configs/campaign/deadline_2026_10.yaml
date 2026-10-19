@@ -190,3 +190,33 @@ runs:
   - {config: configs/fedamm_comm_eff_ablation_uneven/selective_dirichlet_alpha_0_1.yaml, seeds: [42], partitions: [batch]}
   - {config: configs/fedamm_comm_eff_ablation_uneven/fedmpq_dirichlet_alpha_0_1.yaml, seeds: [43, 44], partitions: [batch]}
   - {config: configs/fedamm_comm_eff_ablation_uneven/selective_dirichlet_alpha_0_1.yaml, seeds: [43, 44], partitions: [batch]}
+  # Per-client missing modality (user, 2026-10-19): each client lacks one scan,
+  # the largest (437 subjects) FLAIR; see
+  # _experiment_base/missing_per_client/flair_largest.yaml. Five methods, seed
+  # 42 of each first, then 43 and 44.
+  - {config: configs/fedamm_uneven/per_client_flair_largest.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/per_client_flair_largest.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/unet_zero_fill_per_client_flair_largest.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_uneven/per_client_flair_largest.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_mm_comm_eff_uneven/per_client_flair_largest.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_uneven/per_client_flair_largest.yaml, seeds: [43, 44], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/per_client_flair_largest.yaml, seeds: [43, 44], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/unet_zero_fill_per_client_flair_largest.yaml, seeds: [43, 44], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_uneven/per_client_flair_largest.yaml, seeds: [43, 44], partitions: [batch]}
+  - {config: configs/fedavg_mm_comm_eff_uneven/per_client_flair_largest.yaml, seeds: [43, 44], partitions: [batch]}
+  # Client-count scalability (user, 2026-10-19), seed 42, Lorenz-shaped K = 5
+  # and K = 8 splits (FedAvg itself already ran at both): best comm-eff, FedAvg
+  # E = 5, and FedAMM / FedAvg-MM with and without comm-eff on new Dirichlet
+  # alpha 0.1 partitions. K = 5 takes 6 jobs, K = 8 takes 9 (one at a time).
+  - {config: configs/comm_eff_uneven/best_p_0_1_k5.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5_k5.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_uneven/dirichlet_alpha_0_1_k5.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/dirichlet_alpha_0_1_k5.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_uneven/dirichlet_alpha_0_1_k5.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_mm_comm_eff_uneven/dirichlet_alpha_0_1_k5.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/comm_eff_uneven/best_p_0_1_k8.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5_k8.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_uneven/dirichlet_alpha_0_1_k8.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_missing_modalities_uneven/dirichlet_alpha_0_1_k8.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedamm_comm_eff_uneven/dirichlet_alpha_0_1_k8.yaml, seeds: [42], partitions: [batch]}
+  - {config: configs/fedavg_mm_comm_eff_uneven/dirichlet_alpha_0_1_k8.yaml, seeds: [42], partitions: [batch]}
