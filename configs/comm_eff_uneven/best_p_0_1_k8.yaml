@@ -1,0 +1,5 @@
+# Best comm-eff (top 10 % with 2/4/8-bit) with 8 clients on the Lorenz split,
+# seed 42, for the client-count scalability check (user, 2026-10-19).
+extends: [best_p_0_1.yaml, ../_experiment_base/clients_lorenz/k8.yaml, ../_experiment_base/clients_lorenz/k8_bit_budgets.yaml]
+experiment: {variant: best_p_0_1_k8, runs: 1, seeds: [42]}
+data: {partition_root: data/partitions/fedavg_train_configs_uneven/k8_lorenz}

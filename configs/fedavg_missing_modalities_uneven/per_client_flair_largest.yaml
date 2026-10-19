@@ -1,0 +1,4 @@
+# FedAvg-MM on the per-client missing-modality partition (largest client lacks
+# FLAIR; see _experiment_base/missing_per_client/flair_largest.yaml), user 2026-10-19.
+extends: [alpha_0_1.yaml, ../_experiment_base/missing_per_client/flair_largest.yaml]
+experiment: {variant: per_client_flair_largest}

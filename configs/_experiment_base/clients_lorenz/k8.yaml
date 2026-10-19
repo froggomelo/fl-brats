@@ -1,0 +1,9 @@
+# Eight clients with the K = 4 split's shape (Lorenz rule, see
+# fedavg_train_configs_uneven/client_sweeps/k3_lorenz.yaml): 223, 218, 109,
+# 109, 65, 65, 43 and 43 subjects. For the K = 5 / K = 8 scalability runs
+# (user, 2026-10-19). Layer onto a method config and set data.partition_root
+# after it.
+data:
+  client_proportions: [0.25, 0.25, 0.125, 0.125, 0.075, 0.075, 0.05, 0.05]
+  partition_remainder: largest
+federated: {num_clients: 8, min_fit_clients: 8, min_evaluate_clients: 0, min_available_clients: 8}

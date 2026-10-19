@@ -1,0 +1,33 @@
+# Per-client missing modality (missing_modalities.mode=complete, user
+# 2026-10-19): every subject of a client lacks the same one scan, a different
+# scan per client, and the largest client lacks FLAIR, the hardest assignment
+# because FLAIR drives whole-tumour Dice. Same subjects and client sizes as
+# missing_uneven (437, 218, 131, 89). Layer onto a method config with
+# extends: [<method config>, this file].
+data: {partition_root: data/partitions/missing_per_client/flair_largest}
+missing_modalities:
+  mode: complete
+  complete:
+    client_available_modalities:
+      client_0: [t1, t1ce, t2]      # no FLAIR (437 subjects)
+      client_1: [t1, t1ce, flair]   # no T2 (218)
+      client_2: [t1, t2, flair]     # no T1ce (131)
+      client_3: [t1ce, t2, flair]   # no T1 (89)
+  # The per-modality dropout of the parent config does not apply to training.
+  arbitrary:
+    per_modality_missing_probability: {t1: 0.0, t1ce: 0.0, t2: 0.0, flair: 0.0}
+  evaluation:
+    # Held-out subjects are not on any client, so complete mode would give them
+    # one random combination each cohort. Instead each validation and test
+    # subject misses one scan, drawn per subject with the pooled training shares
+    # (437/875, 218/875, 131/875, 89/875). The 15-combination counterfactual
+    # evaluation is unchanged.
+    natural_missingness:
+      mode: arbitrary
+      arbitrary:
+        per_modality_missing_probability: {t1: 0.0, t1ce: 0.0, t2: 0.0, flair: 0.0}
+        combination_probabilities:
+          t1+t1ce+t2: 0.499429
+          t1+t1ce+flair: 0.249143
+          t1+t2+flair: 0.149714
+          t1ce+t2+flair: 0.101714

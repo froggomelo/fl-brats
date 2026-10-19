@@ -1,0 +1,4 @@
+# Zero-filled U-Net control on the per-client missing-modality partition
+# (largest client lacks FLAIR), user 2026-10-19.
+extends: [unet_zero_fill_alpha_0_1.yaml, ../_experiment_base/missing_per_client/flair_largest.yaml]
+experiment: {variant: unet_zero_fill_per_client_flair_largest}

@@ -1,0 +1,4 @@
+# FedAMM + comm-eff (top 10 % with 2/4/8-bit, see best_p_0_1.yaml) on the
+# per-client missing-modality partition (largest client lacks FLAIR), user 2026-10-19.
+extends: [best_p_0_1.yaml, ../_experiment_base/missing_per_client/flair_largest.yaml]
+experiment: {variant: per_client_flair_largest}

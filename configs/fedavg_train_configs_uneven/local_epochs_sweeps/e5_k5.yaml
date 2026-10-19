@@ -1,0 +1,5 @@
+# FedAvg with 5 local epochs and 5 clients on the Lorenz split, seed 42, for
+# the client-count scalability check (user, 2026-10-19).
+extends: [e5.yaml, ../../_experiment_base/clients_lorenz/k5.yaml]
+experiment: {variant: e5_k5}
+data: {partition_root: data/partitions/fedavg_train_configs_uneven/k5_lorenz}

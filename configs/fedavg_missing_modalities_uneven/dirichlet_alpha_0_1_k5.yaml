@@ -1,0 +1,6 @@
+# dirichlet_alpha_0_1.yaml with 5 clients (Lorenz sizes; FedAMM-style Dirichlet
+# alpha 0.1 over combinations, drawn for these 5 clients), seed 42, for the
+# client-count scalability check (user, 2026-10-19).
+extends: [dirichlet_alpha_0_1.yaml, ../_experiment_base/clients_lorenz/k5.yaml]
+experiment: {variant: dirichlet_alpha_0_1_k5, runs: 1, seeds: [42]}
+data: {partition_root: data/partitions/missing_dirichlet_k5/alpha_0_1}
