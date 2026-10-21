@@ -119,6 +119,53 @@ FedAMM + comm-eff (p = 0.1, b = {2,4,8})
 Alpha = 0.1, 1
 3 runs each
 
+## Per-client Missing Modality Uneven (added 2026-10-19)
+Every subject of a client lacks the same scan, and the largest client loses
+FLAIR: client 0 (437 subjects) no FLAIR, client 1 (218) no T2, client 2 (131)
+no T1ce, client 3 (89) no T1. No client ever trains on all four. Same subjects,
+K, E, B and rounds as the uneven split (mode `complete`,
+configs/_experiment_base/missing_per_client/flair_largest.yaml). Held-out
+subjects each miss one scan, drawn with the training shares (49.9 % no FLAIR,
+24.9 % no T2, 15.0 % no T1ce, 10.2 % no T1). See docs/missing_modalities.md.
+
+FedAMM, FedAvg-MM, zero-filled U-Net, FedAMM + comm-eff, FedAvg-MM + comm-eff
+(comm-eff = top 10 %, 2/4/8-bit; configs/*/per_client_flair_largest.yaml)
+3 runs each, 15 runs on batch
+
+All 15 completed 150 rounds (none early-stopped) and were evaluated by
+2026-10-21 18:55 UTC.
+
+Result, test Dice (seeds 42 / 43 / 44, mean ± SD; upload per run, all four
+clients):
+FedAMM 0.804 / 0.782 / 0.804, 0.797 ± 0.013, 2.43 GB;
+FedAvg-MM 0.798 / 0.795 / 0.818, 0.804 ± 0.013, 2.43 GB;
+zero-filled U-Net 0.777 / 0.789 / 0.783, 0.783 ± 0.006, 11.54 GB;
+FedAMM + comm-eff 0.792 / 0.788 / 0.799, 0.793 ± 0.005, 0.30 GB;
+FedAvg-MM + comm-eff 0.792 / 0.788 / 0.805, 0.795 ± 0.009, 0.30 GB.
+
+Test Dice with every test subject forced to one set of scans (mean of the three
+seeds; all four / no FLAIR / no T2 / no T1ce / no T1):
+
+| Method | All four | No FLAIR | No T2 | No T1ce | No T1 |
+|---|---|---|---|---|---|
+| FedAMM | 0.860 | 0.850 | 0.833 | 0.542 | 0.827 |
+| FedAvg-MM | 0.858 | 0.848 | 0.832 | 0.571 | 0.840 |
+| Zero-filled U-Net | 0.823 | 0.827 | 0.833 | 0.574 | 0.791 |
+| FedAMM + comm-eff | 0.855 | 0.846 | 0.823 | 0.550 | 0.818 |
+| FedAvg-MM + comm-eff | 0.861 | 0.848 | 0.831 | 0.537 | 0.825 |
+
+FedAvg-MM and FedAMM are within the seed spread of each other (0.007 apart, SD
+0.013), and the compression costs each of them at most 0.009, also within it.
+Both are ahead of the zero-filled U-Net, which also uploads almost five times
+as much as the uncompressed modality-specific models. Which scan is missing
+matters far more than the method: without T1ce, which only the 131-subject
+client lacks, test Dice falls to 0.54 to 0.57; without FLAIR, the scan the
+largest client never sees, it stays at 0.83 to 0.85. The modality-specific
+methods do best with all four scans although no client ever had them together.
+The zero-filled U-Net does not: it scores 0.823 with all four against 0.827
+without FLAIR, the input it saw most often in training. Against q = 0.1
+(FedAMM 0.829, FedAvg-MM 0.830), the per-client split costs about 0.03.
+
 ## Training Configuration Sweeps
 
 ### Client Sweeps
