@@ -16,6 +16,7 @@ import datetime as dt
 import fcntl
 import getpass
 import json
+import os
 import re
 import subprocess
 import sys
@@ -539,6 +540,12 @@ class Campaign:
             state_path = Path(job["output"]) / "state.json"
             test_report = Path(job["output"]).parent / "final_evaluation" / "metrics.json"
             try:
+                # Listing the directories revalidates the login node's NFS
+                # lookup cache, which kept reporting a finished test report
+                # as missing for hours (2026-10-22 and 2026-10-23).
+                for directory in (test_report.parent.parent, test_report.parent):
+                    if directory.is_dir():
+                        os.listdir(directory)
                 finished = (
                     json.loads(state_path.read_text()).get("status") == "completed"
                     and test_report.is_file()
