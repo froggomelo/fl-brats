@@ -194,6 +194,47 @@ K = 5: 40 / 25 / 16 / 11 / 8 % (351, 218, 140, 96, 70)
 K = 8: 25 / 25 / 12.5 / 12.5 / 7.5 / 7.5 / 5 / 5 % (223, 218, 109, 109, 65, 65, 43, 43)
 1 run
 
+### Method Scalability (added 2026-10-19)
+The most interesting settings again at K = 5 and K = 8 on the K = 4 shape
+splits above, seed 42 only (user, 2026-10-19): FedAvg E = 5
+(configs/fedavg_train_configs_uneven/local_epochs_sweeps/e5_k{5,8}.yaml), the
+best comm-eff setting (configs/comm_eff_uneven/best_p_0_1_k{5,8}.yaml), and
+FedAMM, FedAvg-MM, FedAMM + comm-eff and FedAvg-MM + comm-eff on the Dirichlet
+alpha 0.1 partition (configs/*/dirichlet_alpha_0_1_k{5,8}.yaml). The Dirichlet
+partitions (data/partitions/missing_dirichlet_k{5,8}/alpha_0_1) hold the same
+subjects as the Lorenz splits, each client drawing its own mix over the 15
+combinations. 12 runs on batch, plus the FedAvg E = 1 sweep above.
+
+All 12 completed 150 rounds (none early-stopped) and were evaluated by
+2026-10-23 11:55 UTC.
+
+Result, test Dice of seed 42 at K = 4 / 5 / 8 (change from K = 4 in brackets;
+spread of the three K = 4 seeds; total traffic per run at K = 4 / 5 / 8):
+
+| Method | K = 4 | K = 5 | K = 8 | K = 4 seed spread | Traffic (GB) |
+|---|---|---|---|---|---|
+| FedAvg E = 1 | 0.862 | 0.851 (−0.010) | 0.841 (−0.020) | 0.004 | 23.1 / 28.9 / 46.2 |
+| FedAvg E = 5 | 0.884 | 0.883 (±0.000) | 0.881 (−0.003) | 0.011 | 23.1 / 28.9 / 46.2 |
+| Best comm-eff | 0.857 | 0.850 (−0.007) | 0.845 (−0.012) | 0.009 | 12.9 / 16.0 / 25.6 |
+| FedAMM, Dirichlet | 0.724 | 0.718 (−0.006) | 0.714 (−0.011) | 0.013 | 4.9 / 6.1 / 9.7 |
+| FedAvg-MM, Dirichlet | 0.727 | 0.721 (−0.005) | 0.708 (−0.019) | 0.001 | 4.9 / 6.1 / 9.7 |
+| FedAMM + comm-eff, Dirichlet | 0.729 | 0.717 (−0.012) | 0.707 (−0.022) | 0.009 | 2.7 / 3.4 / 5.4 |
+| FedAvg-MM + comm-eff, Dirichlet | 0.736 | 0.720 (−0.016) | 0.695 (−0.042) | 0.014 | 2.7 / 3.4 / 5.4 |
+
+At K = 5 every method stays within or near the K = 4 seed spread. At K = 8,
+FedAvg E = 5 holds its Dice (−0.003) while FedAvg E = 1 loses 0.020, five times
+its seed spread: more local work per round removes most of the cost of
+splitting the data further. The comm-eff setting (−0.012) and FedAMM (−0.011)
+lose about a seed spread. FedAvg-MM loses 0.019 and the compressed
+missing-modality runs lose more (−0.022 and −0.042), so compression, which
+cost nothing at K = 4 (+0.005 and +0.010 against the uncompressed runs, seed
+42), costs FedAMM 0.007 and FedAvg-MM 0.013 at K = 8. With one seed per K these
+are indications, not firm results. Traffic grows with K (every client sends
+and receives every round); compression keeps the same relative saving at every
+K (44 % with all four scans, 44 % on the Dirichlet partition). Median rounds
+are shorter at K = 8 because the largest client is smaller (223 subjects
+against 437 at K = 4).
+
 ### Local Epoch Sweeps
 E = 5 
 1 run
