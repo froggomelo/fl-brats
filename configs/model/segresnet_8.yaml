@@ -1,0 +1,12 @@
+# SegResNet with 8 initial filters: 1.18 M parameters, a quarter of the U-Net,
+# so a quarter of the traffic per round. RQ5 backbone comparison (user, 2026-10-28).
+name: segresnet
+spatial_dims: 3
+in_channels: 4
+out_channels: 3
+init_filters: 8
+blocks_down: [1, 2, 2, 4]
+blocks_up: [1, 1, 1]
+norm: [GROUP, {num_groups: 8}]
+dropout_prob: null
+concat_mask: false

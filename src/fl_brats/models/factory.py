@@ -13,6 +13,10 @@ def create_model(config: dict[str, Any]) -> torch.nn.Module:
         from .unet import create_unet
 
         return create_unet(config)
+    if name == "segresnet":
+        from .segresnet import create_segresnet
+
+        return create_segresnet(config)
     if name == "fedamm":
         from .fedamm import create_fedamm
 
@@ -25,7 +29,7 @@ def create_model(config: dict[str, Any]) -> torch.nn.Module:
         from .sam2 import SAM2Adapter
 
         return SAM2Adapter(config)
-    raise ValueError("model name must be unet, fedamm, sam1, or sam2")
+    raise ValueError("model name must be unet, segresnet, fedamm, sam1, or sam2")
 
 
 def model_report(model: torch.nn.Module, config: dict[str, Any]) -> dict[str, Any]:

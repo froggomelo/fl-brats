@@ -1,0 +1,11 @@
+# RQ5 backbone comparison (user, 2026-10-28): centralized trained to
+# convergence exactly as converged.yaml, with the U-Net replaced by MONAI
+# SegResNet, 4.70 M parameters, the U-Net's size. Pairs with model_agnostic_uneven/segresnet/baseline.yaml.
+extends: converged.yaml
+experiment: {variant: segresnet_converged}
+initial_weights: artifacts/initial_weights/segresnet/segresnet_seed_42.pt
+initial_weights_by_seed:
+  42: artifacts/initial_weights/segresnet/segresnet_seed_42.pt
+  43: artifacts/initial_weights/segresnet/segresnet_seed_43.pt
+  44: artifacts/initial_weights/segresnet/segresnet_seed_44.pt
+model: {name: segresnet, config: configs/model/segresnet.yaml}

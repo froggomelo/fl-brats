@@ -70,6 +70,8 @@ def _command(config: Path, values: dict[str, Any], run_dir: Path, seed: int) -> 
             "fedbrats", "train-centralized", *paths,
             "--partition-path", str(data["partition_path"]),
             "--initial-weights", str(values["initial_weights"]),
+            # model.config names the model YAML of a non-U-Net backbone.
+            *(["--model-config", str(values["model"]["config"])] if values.get("model", {}).get("config") else []),
             "--run-dir", str(run_dir),
             "--epochs", str(training["epochs"]),
             "--minimum-epochs", str(training.get("minimum_epochs", 1)),

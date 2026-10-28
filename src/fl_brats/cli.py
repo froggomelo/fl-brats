@@ -606,6 +606,10 @@ def train_centralized(
     ),
     partition_path: Path = typer.Option(..., "--partition-path"),
     initial_weights: Path = typer.Option(..., "--initial-weights"),
+    model_config: Path = typer.Option(
+        Path("configs/model/unet_baseline.yaml"), "--model-config",
+        help="Model YAML; the U-Net unless a backbone comparison names another.",
+    ),
     output_root: Path = typer.Option(Path("outputs/centralized"), "--output-root"),
     run_dir: Path | None = typer.Option(None, "--run-dir"),
     epochs: int = typer.Option(50, "--epochs", min=1),
@@ -665,7 +669,7 @@ def train_centralized(
         raise typer.BadParameter("partition training subjects do not exactly match the split")
     if partition["source_training_split_hash"] != split["split_manifest_hash"]:
         raise typer.BadParameter("partition was generated from a different split")
-    model_values = yaml.safe_load(Path("configs/model/unet_baseline.yaml").read_text())
+    model_values = yaml.safe_load(model_config.read_text())
     data_values = yaml.safe_load(Path("configs/data/brats2021.yaml").read_text())
     loss_values = yaml.safe_load(Path("configs/loss/dice_ce.yaml").read_text())
     run_dir = run_dir or output_root / time.strftime("%Y%m%d_%H%M%S")

@@ -1,0 +1,12 @@
+# SegResNet (Myronenko 2018, BraTS 2018 winner) at about the U-Net's size:
+# 4.70 M parameters against 4.81 M. RQ5 backbone comparison (user, 2026-10-28).
+name: segresnet
+spatial_dims: 3
+in_channels: 4
+out_channels: 3
+init_filters: 16
+blocks_down: [1, 2, 2, 4]
+blocks_up: [1, 1, 1]
+norm: [GROUP, {num_groups: 8}]
+dropout_prob: null
+concat_mask: false

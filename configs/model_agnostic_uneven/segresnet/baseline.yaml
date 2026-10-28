@@ -1,0 +1,21 @@
+# RQ5 backbone comparison (user, 2026-10-28): FedAvg exactly as
+# fedavg_uneven/baseline (K = 4 uneven, E = 1, B = 1, 150 rounds) with the U-Net
+# replaced by MONAI SegResNet, 4.70 M parameters, the U-Net's size (16 initial filters).
+# Compare with centralized/segresnet_converged for the federated gap. The U-Net keys
+# inherited from the base (channels, strides) are ignored by SegResNet.
+# Create the weights with: fedbrats create-initial-weights
+#   --model-config configs/model/segresnet.yaml --output-dir artifacts/initial_weights/segresnet --seed N
+extends: ../../_experiment_base/federated_uneven.yaml
+experiment: {family: model_agnostic_uneven/segresnet, variant: baseline, runs: 3, seeds: [42, 43, 44]}
+initial_weights: artifacts/initial_weights/segresnet/segresnet_seed_42.pt
+initial_weights_by_seed:
+  42: artifacts/initial_weights/segresnet/segresnet_seed_42.pt
+  43: artifacts/initial_weights/segresnet/segresnet_seed_43.pt
+  44: artifacts/initial_weights/segresnet/segresnet_seed_44.pt
+model:
+  name: segresnet
+  init_filters: 16
+  blocks_down: [1, 2, 2, 4]
+  blocks_up: [1, 1, 1]
+  norm: [GROUP, {num_groups: 8}]
+  dropout_prob: null
