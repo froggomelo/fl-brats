@@ -220,3 +220,12 @@ runs:
   - {config: configs/fedavg_missing_modalities_uneven/dirichlet_alpha_0_1_k8.yaml, seeds: [42], partitions: [batch]}
   - {config: configs/fedamm_comm_eff_uneven/dirichlet_alpha_0_1_k8.yaml, seeds: [42], partitions: [batch]}
   - {config: configs/fedavg_mm_comm_eff_uneven/dirichlet_alpha_0_1_k8.yaml, seeds: [42], partitions: [batch]}
+  # RQ5 backbone comparison (user, 2026-10-28): the U-Net replaced by MONAI
+  # SegResNet at the U-Net's size (4.70 M parameters) and with 8 initial filters
+  # (1.18 M), each FedAvg (K = 4 uneven, E = 1) and centralized to convergence,
+  # so the federated gap can be compared with the U-Net's. The federated runs
+  # take 5 jobs; the centralized runs (1 job each) fill the remaining slots.
+  - {config: configs/model_agnostic_uneven/segresnet/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/model_agnostic_uneven/segresnet_8/baseline.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/centralized/segresnet_converged.yaml, seeds: [42, 43, 44], partitions: [batch]}
+  - {config: configs/centralized/segresnet_8_converged.yaml, seeds: [42, 43, 44], partitions: [batch]}
