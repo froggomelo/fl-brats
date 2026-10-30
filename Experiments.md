@@ -463,13 +463,12 @@ Mean HD95 (voxels): U-Net 9.6 centralized / 10.7 FedAvg; SegResNet 8.4 / 8.7;
 SegResNet-8 8.2 / 9.1.
 
 Federating SegResNet costs nothing (0.886 both ways), while the U-Net loses
-0.015, ten times its seed spread. At the same size and traffic SegResNet
+0.015, about seven times its seed SD (0.002). At the same size and traffic SegResNet
 under FedAvg beats the federated U-Net by 0.022 and even the centralized U-Net
 by 0.008, so the gap seen so far is mostly the U-Net's, not federation's.
 SegResNet-8 sends a quarter of the traffic (5.6 GB against 23.1 GB) and still
-beats the federated U-Net by 0.013; its own federated gap (−0.008) is half
-the U-Net's, so the smallest model is the one where federation costs
-something. All three 3D backbones centralized reach 0.879 to 0.886.
+beats the federated U-Net by 0.013; its own federated gap (−0.008) is about
+half the U-Net's. All three 3D backbones centralized reach 0.879 to 0.886.
 SegResNet rounds take about 110 s against 77 s for the U-Net, mostly the
 per-round full-volume validation (3x slower inference, measured on an RTX
 3060). SAM 2 lands between the U-Net and SegResNet under FedAvg, but with
