@@ -424,6 +424,57 @@ SAM1
 SAM2 
 3 runs
 
+### SegResNet backbone (added 2026-10-28)
+SAM 1 and SAM 2 change several things at once (pretrained on natural images,
+2D slices, a frozen encoder), so they cannot show whether the U-Net itself
+limits the federated runs (user, 2026-10-28). The U-Net is replaced by MONAI
+SegResNet (Myronenko 2018) inside the same 3D, from-scratch protocol: same
+split, crops, loss, optimiser, rounds and checkpoint selection. Each backbone
+is trained both with FedAvg (K = 4 uneven, E = 1, B = 1, 150 rounds) and
+centralized to convergence (as centralized/converged.yaml), so its own
+federated gap can be compared with the U-Net's.
+
+SegResNet, 16 initial filters (4.70 M parameters, the U-Net's 4.81 M)
+configs/model_agnostic_uneven/segresnet/baseline.yaml, configs/centralized/segresnet_converged.yaml
+3 + 3 runs
+
+SegResNet, 8 initial filters (1.18 M parameters, a quarter of the traffic)
+configs/model_agnostic_uneven/segresnet_8/baseline.yaml, configs/centralized/segresnet_8_converged.yaml
+3 + 3 runs
+
+All 12 ran on batch and finished by 2026-10-30 01:08 UTC; every FedAvg run
+completed 150 rounds (none early-stopped). The centralized runs stopped by the
+convergence rule after 153 / 150 / 169 epochs (SegResNet) and 246 / 171 / 210
+(SegResNet-8). Batch lost all nodes at 11:28 on 2026-10-29; the four
+centralized runs then in progress resumed from their last epoch.
+
+Result, test Dice (seeds 42 / 43 / 44, mean ± SD; FedAvg traffic per run, up
+and down; median FedAvg round):
+
+| Backbone | Centralized (to convergence) | FedAvg | Federated gap | Traffic | Round |
+|---|---|---|---|---|---|
+| U-Net (4.81 M) | 0.881 / 0.876 / 0.878, 0.879 ± 0.002 | 0.862 / 0.865 / 0.866, 0.864 ± 0.002 | −0.015 | 23.1 GB | 77 s |
+| SegResNet (4.70 M) | 0.886 / 0.885 / 0.886, 0.886 ± 0.001 | 0.887 / 0.890 / 0.883, 0.886 ± 0.004 | ±0.000 | 22.6 GB | 110 s |
+| SegResNet-8 (1.18 M) | 0.889 / 0.881 / 0.886, 0.885 ± 0.004 | 0.875 / 0.880 / 0.876, 0.877 ± 0.003 | −0.008 | 5.6 GB | 105 s |
+| SAM 2 (Hiera-Tiny, 2D) | – | 0.873 / 0.874 / 0.873, 0.873 ± 0.001 | – | 20.3 GB | 300 s |
+| SAM 1 (ViT-B, 2D) | – | 0.816 / 0.800 / 0.806, 0.807 ± 0.008 | – | 19.5 GB | 900 s |
+
+Mean HD95 (voxels): U-Net 9.6 centralized / 10.7 FedAvg; SegResNet 8.4 / 8.7;
+SegResNet-8 8.2 / 9.1.
+
+Federating SegResNet costs nothing (0.886 both ways), while the U-Net loses
+0.015, ten times its seed spread. At the same size and traffic SegResNet
+under FedAvg beats the federated U-Net by 0.022 and even the centralized U-Net
+by 0.008, so the gap seen so far is mostly the U-Net's, not federation's.
+SegResNet-8 sends a quarter of the traffic (5.6 GB against 23.1 GB) and still
+beats the federated U-Net by 0.013; its own federated gap (−0.008) is half
+the U-Net's, so the smallest model is the one where federation costs
+something. All three 3D backbones centralized reach 0.879 to 0.886.
+SegResNet rounds take about 110 s against 77 s for the U-Net, mostly the
+per-round full-volume validation (3x slower inference, measured on an RTX
+3060). SAM 2 lands between the U-Net and SegResNet under FedAvg, but with
+pretraining, 2D slices and a frozen encoder it cannot isolate the backbone.
+
 # Folder Structure
 I want the sub folders to be structured like this for folders like scripts, logs, configs and whateve is relevant:
 
