@@ -50,47 +50,47 @@ TRADEOFF = [
     ("Even split", "fedavg_even", "baseline", "fedavg", (29, 0.857), "left"),
     ("$E$ = 5", "fedavg_train_configs_uneven", "e5", "config", (29, 0.8905), "left"),
     ("$E$ = 10", "fedavg_train_configs_uneven", "e10", "config", (13.5, 0.8915), "right"),
-    ("$B$ = 4", "fedavg_train_configs_uneven", "b4", "config", (29, 0.848), "left"),
+    ("$B$ = 4", "fedavg_train_configs_uneven", "b4", "config", (31, 0.8465), "left"),
     ("$B$ = 8", "fedavg_train_configs_uneven", "b8", "config", (29, 0.8115), "left"),
     ("4-bit", "fedmpq_uneven", "homogeneous_4bit", "compress", (8.6, 0.8635), "right"),
     ("2/4/8-bit", "fedmpq_uneven", "heterogeneous_2_4_8bit", "compress", (8.6, 0.8555), "right"),
     ("$p$ = 0.01", "selective_transmission_uneven", "p_0_01", "compress", (8.6, 0.8435), "right"),
-    ("$p$ = 0.1", "selective_transmission_uneven", "p_0_1", "compress", (15.5, 0.8465), "left"),
+    ("$p$ = 0.1", "selective_transmission_uneven", "p_0_1", "compress", (12.5, 0.8478), "center"),
     ("$p$ = 0.25", "selective_transmission_uneven", "p_0_25", "compress", (17.5, 0.8525), "left"),
-    ("$p$ = 0.25 + 2/4/8", "comm_eff_uneven", "best", "compress", (15.0, 0.8795), "left"),
-    ("$p$ = 0.1 + 2/4/8", "comm_eff_uneven", "best_p_0_1", "compress", (12.0, 0.8725), "right"),
-    ("+ 8-bit broadcast", "comm_eff_uneven", "best_p_0_1_downlink_8bit", "broadcast", (4.6, 0.8675), "left"),
-    ("+ 4-bit", "comm_eff_uneven", "best_p_0_1_downlink_4bit", "broadcast", (3.1, 0.853), "left"),
-    ("+ 2-bit", "comm_eff_uneven", "best_p_0_1_downlink_2bit", "broadcast", (2.0, 0.8665), "center"),
+    ("$p$ = 0.25 + 2/4/8", "comm_eff_uneven", "best", "compress", (16.0, 0.8785), "center"),
+    ("$p$ = 0.1 + 2/4/8", "comm_eff_uneven", "best_p_0_1", "compress", (8.3, 0.8730), "center"),
+    ("+ 8-bit broadcast", "comm_eff_uneven", "best_p_0_1_downlink_8bit", "broadcast", (4.0, 0.8675), "center"),
+    ("+ 4-bit", "comm_eff_uneven", "best_p_0_1_downlink_4bit", "broadcast", (3.3, 0.8525), "left"),
+    ("+ 2-bit", "comm_eff_uneven", "best_p_0_1_downlink_2bit", "broadcast", (2.2, 0.8505), "center"),
 ]
 GROUP_LABELS = {"fedavg": "FedAvg U-Net", "config": "Training configuration", "compress": "Upload compression",
                 "broadcast": "Quantised broadcast"}
 
 
 def draw_tradeoff(data) -> None:
-    fig, ax = plt.subplots(figsize=(3.45, 3.0))
+    fig, ax = plt.subplots(figsize=(3.45, 3.6))
     for label, family, variant, group, (tx, ty), align in TRADEOFF:
         x, y = traffic_gb(data, family, variant), mean_dice(data, family, variant)
         seeds = len(runs_of(data, family, variant))
         ax.scatter(x, y, s=16, color=GROUP_COLOURS[group], zorder=3,
                    marker="o" if seeds > 1 else "D", edgecolor=SURFACE, linewidth=0.4)
-        ax.annotate(label, (x, y), xytext=(tx, ty), textcoords="data", fontsize=5.2, color="black",
+        ax.annotate(label, (x, y), xytext=(tx, ty), textcoords="data", fontsize=7, color="black",
                     ha=align, va="center", bbox={"boxstyle": "square,pad=0.1", "facecolor": SURFACE, "edgecolor": "none"},
                     arrowprops={"arrowstyle": "-", "color": "black", "linewidth": 0.4, "shrinkA": 1, "shrinkB": 2.5})
     ax.set_xscale("log")
     ax.set_xticks([2, 5, 10, 20, 40], ["2", "5", "10", "20", "40"])
     ax.set_xlim(1.7, 60)
     ax.set_ylim(0.80, 0.895)
-    ax.set_xlabel("Total traffic per run (GB, log scale)", fontsize=6.5, color="black")
-    ax.set_ylabel("Test mean Dice", fontsize=6.5, color="black")
-    ax.tick_params(which="both", labelsize=6, colors="black")
+    ax.set_xlabel("Total traffic per run (GB, log scale)", fontsize=8, color="black")
+    ax.set_ylabel("Test mean Dice", fontsize=8, color="black")
+    ax.tick_params(which="both", labelsize=7.5, colors="black")
     ax.grid(color="black", linewidth=0.3, zorder=0)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     for side in ("bottom", "left"):
         ax.spines[side].set_color("black")
     handles = [Patch(color=c, label=GROUP_LABELS[g]) for g, c in GROUP_COLOURS.items()]
-    legend = ax.legend(handles=handles, fontsize=5.2, loc="lower left", handlelength=0.9, borderaxespad=0.2,
+    legend = ax.legend(handles=handles, fontsize=7, loc="lower left", handlelength=0.9, borderaxespad=0.2,
                        frameon=True, framealpha=1, edgecolor="none", fancybox=False, labelcolor="black")
     legend.get_frame().set_linewidth(0)
     fig.tight_layout(pad=0.3)

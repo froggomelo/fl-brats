@@ -21,7 +21,13 @@ def main() -> None:
         draw_box(ax, 5.5, top, 6.6, f"$E_{{\\mathrm{{{name}}}}}$", h=3.0, title_size=6.6, **BOX)
         if absent:
             ax.patches[-1].set_linestyle((0, (3, 2)))
-        draw_arrow(ax, (12.1, top - 1.5), (15.0, 15.0), colour=BLACK, dashed=absent)
+        # Head at the midpoint, so the four lines do not crowd their heads where they meet the box.
+        start, end = (12.1, top - 1.5), (15.0, 15.0)
+        middle = ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
+        ax.plot([start[0], end[0]], [start[1], end[1]], color=BLACK, linewidth=0.7,
+                linestyle=(0, (3, 2)) if absent else "-", solid_capstyle="butt")
+        back = (middle[0] - (end[0] - start[0]) * 0.05, middle[1] - (end[1] - start[1]) * 0.05)
+        draw_arrow(ax, back, middle, colour=BLACK)
     ax.text(5.5, 5.6, "absent: skipped", fontsize=5.8, color=BLACK, va="top")
 
     # Fusion, decoder and output.
