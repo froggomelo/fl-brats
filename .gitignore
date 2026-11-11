@@ -1,3 +1,4 @@
+# Python and tooling
 .venv/
 __pycache__/
 *.py[cod]
@@ -10,74 +11,42 @@ dist/
 .coverage
 htmlcov/
 mlruns/
-data/raw/*
-data/processed/*
-data/partitions/*
-outputs/*
-logs/*
-!outputs/centralized/
-!outputs/fedavg_uneven/
-!outputs/fedavg_even/
-!outputs/fedavg_missing_modalities_uneven/
-!outputs/fedavg_train_configs_uneven/
-!outputs/fedamm_uneven/
-!outputs/fedmpq_uneven/
-!outputs/selective_transmission_uneven/
-!outputs/comm_eff_uneven/
-!outputs/fedamm_comm_eff_uneven/
-!outputs/model_agnostic_uneven/
-outputs/*/*
-!outputs/*/.gitkeep
-!logs/centralized/
-!logs/fedavg_uneven/
-!logs/fedavg_even/
-!logs/fedavg_missing_modalities_uneven/
-!logs/fedavg_train_configs_uneven/
-!logs/fedamm_uneven/
-!logs/fedmpq_uneven/
-!logs/selective_transmission_uneven/
-!logs/comm_eff_uneven/
-!logs/fedamm_comm_eff_uneven/
-!logs/model_agnostic_uneven/
-!logs/data_preprocessing/
-!logs/environment/
-logs/*/*
-!logs/*/.gitkeep
-cache/*
-checkpoints/*
-!data/**/.gitkeep
-!outputs/.gitkeep
-!logs/.gitkeep
-!logs/slurm/
-logs/slurm/**
-!logs/slurm/centralized/
-!logs/slurm/centralized/.gitkeep
-!logs/slurm/data/
-!logs/slurm/data/.gitkeep
-!logs/slurm/environment/
-!logs/slurm/environment/.gitkeep
-!logs/slurm/federated/
-!logs/slurm/federated/baseline/
-!logs/slurm/federated/baseline/.gitkeep
-!logs/slurm/federated/sam/
-!logs/slurm/federated/sam/.gitkeep
-!logs/slurm/missing_modality/
-!logs/slurm/missing_modality/.gitkeep
-!cache/.gitkeep
-!checkpoints/.gitkeep
-!data/README.md
-notebooks/.ipynb_checkpoints/
+.ipynb_checkpoints/
 .idea/
 .vscode/
 .DS_Store
+.claude/
+
+# Imaging data, run outputs, and caches live outside git. The canonical split
+# (data/splits/) and client partitions (data/partitions/) are tracked.
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+outputs/*
+!outputs/.gitkeep
+cache/*
+!cache/.gitkeep
+checkpoints/*
+!checkpoints/.gitkeep
+
+# Logs are ignored except for hand-written run records (*.md).
+logs/**
+!logs/**/
+!logs/.gitkeep
+!logs/**/*.md
+slurm-*.out
+
+# Large binaries and private reading material
 literature/
 *.png
 *.pdf
 *.sif
 .apptainer-cache/
 .apptainer-tmp/
-slurm-*.out
 # Pretrained SAM checkpoints (hundreds of MB); verified by SHA-256 in the model configs.
 artifacts/pretrained/
 # Per-seed initial weights are generated artifacts kept beside the data, not in git.
 artifacts/initial_weights/
+
+# The research report is kept outside the code repository.
+fl-research-report/

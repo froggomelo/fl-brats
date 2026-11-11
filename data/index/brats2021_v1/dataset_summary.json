@@ -1,0 +1,49 @@
+{
+  "ambiguous_files_by_role": {},
+  "candidate_subject_directories": 1251,
+  "complete_subjects": 1251,
+  "discovered_subjects": 1251,
+  "duplicate_subject_ids": {},
+  "files_discovered": 6255,
+  "files_expected": 6255,
+  "generated_timestamp": "2026-08-03T10:55:22.395570+00:00",
+  "incomplete_subjects": 0,
+  "index_sha256": "7b723da8bd8e2c4c2408dc7122db2f61002166a4dd7e5ff0c3b3c7dbfbb1e7fa",
+  "invalid_dataset_bytes": 0,
+  "invalid_geometry_count": 0,
+  "invalid_subjects": 0,
+  "missing_files_by_role": {},
+  "modality_data_types": {
+    "float32": 764,
+    "int16": 4240
+  },
+  "orientation_distribution": {
+    "LPS": 1251
+  },
+  "pipeline_version": "0.1.0",
+  "raw_root": "/datasets/ldemelo/brats/raw/brats2021",
+  "relative_paths": true,
+  "segmentation_label_distribution": {
+    "0": 1251,
+    "1": 1208,
+    "2": 1250,
+    "4": 1218
+  },
+  "shape_distribution": {
+    "[240, 240, 155]": 1251
+  },
+  "spacing_distribution": {
+    "[1.0, 1.0, 1.0]": 1251
+  },
+  "subjects_with_unreadable_files": [],
+  "total_dataset_bytes": 13383266621,
+  "unexpected_segmentation_labels": [],
+  "unique_subject_ids": 1251,
+  "unreadable_file_count": 0,
+  "unreadable_file_details": [],
+  "unreadable_files_by_role": {},
+  "valid_dataset_bytes": 13383266621,
+  "valid_subjects": 1251,
+  "zero_byte_file_count": 0,
+  "zero_byte_files_by_role": {}
+}

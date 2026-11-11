@@ -1,58 +1,95 @@
 # fl-brats
 
-Operational research implementation for reproducible BraTS segmentation. It includes data preparation, a centralised U-Net baseline, deterministic partitions, missing-modality handling, Flower FedAvg clients/server, checkpointing, and payload accounting.
+Federated brain tumour segmentation on BraTS 2021 under conditions closer to clinical practice. Clients hold uneven amounts of data, some scans lack MRI modalities, and every byte sent between the server and the clients is counted. FedAvg trains a 3D U-Net across physically separate cluster nodes, with one Flower server and one process per client, and is compared against a centrally trained U-Net.
 
-Run a local federation with a complete YAML experiment configuration:
+This repository holds the code, configurations, partitioning logic, and Slurm scripts behind every result in the accompanying research report.
 
-```bash
-fedbrats train-federated --config experiment.yaml --run-dir runs/fedavg_smoke
-```
+## Research Questions
 
-For physically distributed execution, start the server and then one process per client:
+Each research question maps to a set of experiment families. Every family has a folder of YAML files under `configs/`, a launch script under `scripts/`, and a record of its runs and results in [Experiments.md](Experiments.md).
 
-```bash
-fedbrats start-federated-server --config experiment.yaml --server-address node01:8080
-fedbrats start-federated-client --config experiment.yaml --client-id client_0 --server-address node01:8080
-```
+| Research question | Experiment families |
+|---|---|
+| RQ1. How do communication cost and segmentation performance change as the federation grows, and how far can local epochs and mini-batch size offset these changes? | `centralized`, `fedavg_uneven`, `fedavg_even`, `fedavg_train_configs_uneven` |
+| RQ2. How do existing missing-modality methods compare when clients hold uneven amounts of data and different modality combinations? | `fedavg_missing_modalities_uneven` (zero-filled U-Net and FedAvg-MM), `fedamm_uneven` |
+| RQ3. How well do communication-efficiency strategies preserve segmentation performance, alone and combined with missing-modality handling? | `fedmpq_uneven`, `selective_transmission_uneven`, `comm_eff_uneven`, `fedavg_mm_comm_eff_uneven`, `fedamm_comm_eff_uneven`, `fedamm_comm_eff_ablation_uneven` |
 
-Run summaries include checkpoints, Dice metrics, and application-level serialized model payload estimates. Flower's public API does not expose lower-level network wire bytes, so transport headers are not claimed as measured.
+The `model_agnostic_uneven` family swaps the U-Net for SegResNet, SAM 1, and SAM 2. These runs are exploratory and do not appear in the report.
 
-## Local development
+## Quick Start
+
+The project needs Python 3.11 and [uv](https://docs.astral.sh/uv/). Install the locked dependencies, check the configuration, and run the tests.
 
 ```bash
 uv sync --group dev
 uv run fedbrats info
 uv run fedbrats validate-config
-uv run fedbrats create-dirs
-uv run pytest
-uv run ruff check .
-uv run mypy src
+make create-dirs
+make test
 ```
 
-Hydra configuration lives in `configs/`; use overrides such as `uv run fedbrats show-config environment=debug`. Run `scripts/environment/bootstrap.sh` for a no-global-install setup.
+The `.env` file at the repository root sets the dataset, output, log, and cache locations. Edit it to match your machine before preparing data. [Setup](docs/setup.md) explains each variable and the cluster setup with Apptainer.
 
-The publication experiment matrix is defined by YAML in the mirrored folders
-`configs/centralized/`, `configs/fedavg_uneven/`, `configs/fedamm_uneven/`, and
-the other experiment-family directories. Matching launch scripts live under
-`scripts/`. See [docs/experiments.md](docs/experiments.md) for launching,
-partition preparation, output isolation, and metric artifacts.
+## Reproducing a Result
 
-The default dataset root is `/datasets/$USER/brats`; see `data/README.md` for
-the required BraTS 2021 raw, processed, and fixed-quantity-skew partition layout.
+Every result follows the same five steps. Each guide linked below gives the full commands.
 
-## Cluster
+1. Download BraTS 2021 and point `FL_BRATS_RAW_ROOT` at it. See [Data](docs/data.md).
+2. Point `DATASET_INDEX_PATH` and `FL_BRATS_SPLIT_PATH` at the published index and split under `data/`. The client partitions of every reported experiment are already in `data/partitions/`.
+3. Create the per-seed initial weights once with `fedbrats create-initial-weights`. Methods that share a network start from the same weights for a given seed.
+4. Launch the experiment. The command below submits one Slurm job set per seed. Add `--mode local` to run on one machine or `--dry-run` to print the resolved plan.
 
-Apptainer is the primary cluster runtime and requires no sudo to execute. On a cluster, run `scripts/environment/bootstrap_cluster.sh` with Python 3.11 available, then use user-owned bind paths.
+   ```bash
+   python scripts/launch_experiment.py configs/fedavg_uneven/baseline.yaml
+   ```
+
+5. Read the run's `summary.json` for validation results and `final_evaluation/` for the test report of the selected checkpoint. See [Evaluation](docs/evaluation.md).
+
+[Experiments](docs/experiments.md) lists every family, its configurations, and what a finished run directory contains.
+
+## Repository Layout
+
+| Path | Contents |
+|---|---|
+| `src/fl_brats/` | The Python package and the `fedbrats` command line |
+| `configs/` | Hydra project configuration, reusable building blocks, and one folder of experiment YAML files per family |
+| `scripts/` | Experiment launchers, data preparation, environment setup, and cluster monitoring |
+| `slurm/` | Slurm jobs for federated runs, data preparation, and environment checks |
+| `apptainer/` | Container definitions and helpers for building and running the images |
+| `tests/` | Pytest suite |
+| `diagrams/` | Scripts that draw the report figures from exported results |
+| `data/` | The published dataset index, canonical split, and client partitions. The scans themselves are not included |
+| `outputs/`, `logs/`, `checkpoints/`, `cache/` | Run results, logs, and caches, ignored by git except for hand-written records under `logs/` |
+| `Experiments.md` | Record of every experiment, its settings, and its results |
+
+## Documentation
+
+| Guide | Read it to |
+|---|---|
+| [Setup](docs/setup.md) | install the environment locally and on the cluster |
+| [Architecture](docs/architecture.md) | understand how the package is organised and how a run executes |
+| [Configuration](docs/configuration.md) | read, write, and override experiment YAML files |
+| [Data](docs/data.md) | prepare BraTS 2021, the split, and the client partitions |
+| [Experiments](docs/experiments.md) | launch experiments and find their outputs |
+| [Evaluation](docs/evaluation.md) | understand the metrics, checkpoint selection, and test reporting |
+| [Models](docs/models.md) | select or add a segmentation model |
+| [Missing modalities](docs/missing_modalities.md) | configure modality dropout, FedAvg-MM, and FedAMM |
+| [Communication efficiency](docs/communication_efficiency.md) | configure quantisation, selective transmission, and quantised broadcast |
+| [Cluster](docs/cluster.md) | run distributed jobs on Slurm |
+| [Reproducibility](docs/reproducibility.md) | see what fixes a run's environment, data, and seeds |
+
+Dated operational notes, such as the campaign driver that kept runs going on the cluster and the record of unusable GPU nodes, live beside the logs they describe under `logs/`.
+
+## Development
+
+Run the checks below before committing. Pre-commit runs Ruff on every commit once `uv run pre-commit install` has been run.
 
 ```bash
-bash apptainer/build.sh
-FL_BRATS_PARTITION=stampede FL_BRATS_USE_GPU=1 ./apptainer/run.sh check-environment
-sbatch slurm/environment/environment_check.sbatch
+make lint
+make typecheck
+make test
 ```
 
-See `docs/` for configuration, environment, Apptainer, SLURM, cluster, architecture, and reproducibility guidance. Future modules will add data, models, training, federated orchestration, compression, and experiments while keeping this infrastructure boundary.
+## Licence
 
-Federated model selection uses a fixed held-out validation cohort. See
-[the validation and historical revalidation guide](docs/federated_validation.md)
-for cohort semantics, diagnostics, resumable checkpoint search, separate final
-test reporting, Slurm commands, and compute planning.
+MIT. See [LICENSE](LICENSE).

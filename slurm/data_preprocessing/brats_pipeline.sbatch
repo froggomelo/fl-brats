@@ -6,8 +6,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=10
 #SBATCH --time=72:00:00
-#SBATCH --output=logs/data_preprocessing_preprocessing/pipeline_%j.out
-#SBATCH --error=logs/data_preprocessing_preprocessing/pipeline_%j.err
+#SBATCH --output=logs/data_preprocessing/pipeline_%j.out
+#SBATCH --error=logs/data_preprocessing/pipeline_%j.err
 
 set -euo pipefail
 

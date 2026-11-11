@@ -22,7 +22,7 @@ seed: 42
 deterministic: true
 debug: false
 output_root: ${oc.env:FL_BRATS_OUTPUT_ROOT,outputs}
-data_root: ${oc.env:FL_BRATS_DATA_ROOT,/datasets/${oc.env:USER,unknown}/fedbrats}
+data_root: ${oc.env:FL_BRATS_DATA_ROOT,/datasets/${oc.env:USER,unknown}/brats}
 log_root: ${oc.env:FL_BRATS_LOG_ROOT,logs}
 cache_root: ${oc.env:FL_BRATS_CACHE_ROOT,cache}
 checkpoint_root: ${oc.env:FL_BRATS_CHECKPOINT_ROOT,checkpoints}

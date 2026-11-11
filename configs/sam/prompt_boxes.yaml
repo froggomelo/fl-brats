@@ -1,3 +1,0 @@
-prompt_mode: automatic_boxes
-oracle_prompt: false
-training_only_generator: true

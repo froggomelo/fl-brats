@@ -33,7 +33,7 @@ def test_records_from_index_prefers_raw_root_env(
     monkeypatch.setenv("FL_BRATS_RAW_ROOT", str(override))
     record = records_from_index(index, ["BraTS2021_00000"])[0]
     assert record["image"][0] == str(
-        override / "BraTS2021_00000" / "BraTS2021_00000_t1.nii.gz"
+        override / "CollectionA" / "BraTS2021_00000" / "BraTS2021_00000_t1.nii.gz"
     )
 
 

@@ -183,7 +183,7 @@ K = 8
 
 The splits above halve each client's share (K = 8: 439, 219, 109, 54, 27, 13,
 6 and 8 patients): the "extreme imbalance" runs. A second sweep keeps the K = 4
-split's shape (piecewise-linear Lorenz rule, docs/fixed_quantity_skew.md):
+split's shape (piecewise-linear Lorenz rule, docs/data.md):
 
 K = 3: 58.3 / 26.7 / 15.0 % (511, 233, 131 patients)
 1 run
@@ -301,7 +301,7 @@ p = 0.1, b = {2,4,8} uplink, 8-bit downlink
 
 Lecturer feedback: try quantizing the broadcast on the best configuration. After
 round 1 the server sends the change since its last broadcast, quantized to 8
-bits per tensor, with error feedback (docs/quantized_federated_learning.md).
+bits per tensor, with error feedback (docs/communication_efficiency.md).
 Download per client per round: 4.82 MB against 19.24 MB.
 
 Result (seed 42, 150 rounds, against best_p_0_1 seed 42): best validation Dice
@@ -475,8 +475,14 @@ per-round full-volume validation (3x slower inference, measured on an RTX
 pretraining, 2D slices and a frozen encoder it cannot isolate the backbone.
 
 # Folder Structure
-I want the sub folders to be structured like this for folders like scripts, logs, configs and whateve is relevant:
+`configs/`, `scripts/`, `outputs/`, and `logs/` share one folder per experiment
+family, named as the sections above. `slurm/_shared/` holds the jobs the launcher
+submits for every family. Not every family has a folder in every tree.
+`scripts/` holds launch scripts only for the families listed in
+`scripts/README.md`, and `outputs/` and `logs/` gain a family folder with its
+first run.
 
+```text
 centralized/
 fedavg_uneven/
 fedavg_even/
@@ -490,13 +496,25 @@ fedamm_uneven/
 fedmpq_uneven/
 selective_transmission_uneven/
 comm_eff_uneven/
+fedavg_mm_comm_eff_uneven/
 fedamm_comm_eff_uneven/
-model_agnotic_uneven/
+fedamm_comm_eff_ablation_uneven/
+model_agnostic_uneven/
     sam1/
     sam2/
-data_preprocessing/
-environment/
-depedencies
-scripts/
-    monitoring/
-metrics/
+    segresnet/
+    segresnet_8/
+cache_check_uneven/
+smoke/
+```
+
+Supporting folders sit beside the families. `configs/_experiment_base/` holds
+the shared parent YAML files, and `configs/campaign/` the campaign run lists.
+`scripts/` and `logs/` also have `data_preprocessing/`, `environment/`, and
+`monitoring/`. Work logs kept beside the runs they describe are
+`logs/environment/cluster_nodes.md`,
+`logs/fedavg_train_configs_uneven/training-sweep-relaunch-2026-08-31.md`,
+`logs/monitoring/campaign/README.md`, and
+`logs/monitoring/revalidation/implementation_record.md`. See
+`docs/experiments.md` for how a run fills `outputs/<family>/` and
+`logs/<family>/`.

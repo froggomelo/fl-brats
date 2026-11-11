@@ -1,0 +1,257 @@
+{
+  "client_id": 7,
+  "client_manifest_hash": "fdd1cb416ef4b92632d7546e8ebea0f295e8a3ab5689e8487905ef569815edd3",
+  "client_name": "client_7",
+  "dataset_index_hash": "7b723da8bd8e2c4c2408dc7122db2f61002166a4dd7e5ff0c3b3c7dbfbb1e7fa",
+  "missingness_mode": "none",
+  "missingness_policy_fingerprint": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+  "partition_seed": 42,
+  "realised_fraction": 0.009142857142857144,
+  "requested_fraction": 0.003922,
+  "source_split_hash": "8c1e480433a90c89f7696f4b10a4fb793415dd886f36d914b1b42140a9c049f3",
+  "subject_count": 8,
+  "subject_ids": [
+    "BraTS2021_00031",
+    "BraTS2021_00346",
+    "BraTS2021_00421",
+    "BraTS2021_00532",
+    "BraTS2021_00626",
+    "BraTS2021_00753",
+    "BraTS2021_01391",
+    "BraTS2021_01529"
+  ],
+  "subjects": [
+    {
+      "available_modalities": [
+        "t1",
+        "t1ce",
+        "t2",
+        "flair"
+      ],
+      "client_id": "client_7",
+      "index_row": 256,
+      "missing_modalities": [],
+      "missingness_realisation_id": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+      "missingness_seed": 42,
+      "modality_combination_id": 15,
+      "modality_mask": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "paths": {
+        "flair": "UCSF-PDGM/BraTS2021_00031/BraTS2021_00031_flair.nii.gz",
+        "seg": "UCSF-PDGM/BraTS2021_00031/BraTS2021_00031_seg.nii.gz",
+        "t1": "UCSF-PDGM/BraTS2021_00031/BraTS2021_00031_t1.nii.gz",
+        "t1ce": "UCSF-PDGM/BraTS2021_00031/BraTS2021_00031_t1ce.nii.gz",
+        "t2": "UCSF-PDGM/BraTS2021_00031/BraTS2021_00031_t2.nii.gz"
+      },
+      "split": "train",
+      "subject_id": "BraTS2021_00031"
+    },
+    {
+      "available_modalities": [
+        "t1",
+        "t1ce",
+        "t2",
+        "flair"
+      ],
+      "client_id": "client_7",
+      "index_row": 633,
+      "missing_modalities": [],
+      "missingness_realisation_id": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+      "missingness_seed": 42,
+      "modality_combination_id": 15,
+      "modality_mask": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "paths": {
+        "flair": "UPENN-GBM/BraTS2021_00346/BraTS2021_00346_flair.nii.gz",
+        "seg": "UPENN-GBM/BraTS2021_00346/BraTS2021_00346_seg.nii.gz",
+        "t1": "UPENN-GBM/BraTS2021_00346/BraTS2021_00346_t1.nii.gz",
+        "t1ce": "UPENN-GBM/BraTS2021_00346/BraTS2021_00346_t1ce.nii.gz",
+        "t2": "UPENN-GBM/BraTS2021_00346/BraTS2021_00346_t2.nii.gz"
+      },
+      "split": "train",
+      "subject_id": "BraTS2021_00346"
+    },
+    {
+      "available_modalities": [
+        "t1",
+        "t1ce",
+        "t2",
+        "flair"
+      ],
+      "client_id": "client_7",
+      "index_row": 686,
+      "missing_modalities": [],
+      "missingness_realisation_id": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+      "missingness_seed": 42,
+      "modality_combination_id": 15,
+      "modality_mask": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "paths": {
+        "flair": "UPENN-GBM/BraTS2021_00421/BraTS2021_00421_flair.nii.gz",
+        "seg": "UPENN-GBM/BraTS2021_00421/BraTS2021_00421_seg.nii.gz",
+        "t1": "UPENN-GBM/BraTS2021_00421/BraTS2021_00421_t1.nii.gz",
+        "t1ce": "UPENN-GBM/BraTS2021_00421/BraTS2021_00421_t1ce.nii.gz",
+        "t2": "UPENN-GBM/BraTS2021_00421/BraTS2021_00421_t2.nii.gz"
+      },
+      "split": "train",
+      "subject_id": "BraTS2021_00421"
+    },
+    {
+      "available_modalities": [
+        "t1",
+        "t1ce",
+        "t2",
+        "flair"
+      ],
+      "client_id": "client_7",
+      "index_row": 346,
+      "missing_modalities": [],
+      "missingness_realisation_id": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+      "missingness_seed": 42,
+      "modality_combination_id": 15,
+      "modality_mask": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "paths": {
+        "flair": "UCSF-PDGM/BraTS2021_00532/BraTS2021_00532_flair.nii.gz",
+        "seg": "UCSF-PDGM/BraTS2021_00532/BraTS2021_00532_seg.nii.gz",
+        "t1": "UCSF-PDGM/BraTS2021_00532/BraTS2021_00532_t1.nii.gz",
+        "t1ce": "UCSF-PDGM/BraTS2021_00532/BraTS2021_00532_t1ce.nii.gz",
+        "t2": "UCSF-PDGM/BraTS2021_00532/BraTS2021_00532_t2.nii.gz"
+      },
+      "split": "train",
+      "subject_id": "BraTS2021_00532"
+    },
+    {
+      "available_modalities": [
+        "t1",
+        "t1ce",
+        "t2",
+        "flair"
+      ],
+      "client_id": "client_7",
+      "index_row": 389,
+      "missing_modalities": [],
+      "missingness_realisation_id": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+      "missingness_seed": 42,
+      "modality_combination_id": 15,
+      "modality_mask": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "paths": {
+        "flair": "UCSF-PDGM/BraTS2021_00626/BraTS2021_00626_flair.nii.gz",
+        "seg": "UCSF-PDGM/BraTS2021_00626/BraTS2021_00626_seg.nii.gz",
+        "t1": "UCSF-PDGM/BraTS2021_00626/BraTS2021_00626_t1.nii.gz",
+        "t1ce": "UCSF-PDGM/BraTS2021_00626/BraTS2021_00626_t1ce.nii.gz",
+        "t2": "UCSF-PDGM/BraTS2021_00626/BraTS2021_00626_t2.nii.gz"
+      },
+      "split": "train",
+      "subject_id": "BraTS2021_00626"
+    },
+    {
+      "available_modalities": [
+        "t1",
+        "t1ce",
+        "t2",
+        "flair"
+      ],
+      "client_id": "client_7",
+      "index_row": 469,
+      "missing_modalities": [],
+      "missingness_realisation_id": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+      "missingness_seed": 42,
+      "modality_combination_id": 15,
+      "modality_mask": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "paths": {
+        "flair": "UCSF-PDGM/BraTS2021_00753/BraTS2021_00753_flair.nii.gz",
+        "seg": "UCSF-PDGM/BraTS2021_00753/BraTS2021_00753_seg.nii.gz",
+        "t1": "UCSF-PDGM/BraTS2021_00753/BraTS2021_00753_t1.nii.gz",
+        "t1ce": "UCSF-PDGM/BraTS2021_00753/BraTS2021_00753_t1ce.nii.gz",
+        "t2": "UCSF-PDGM/BraTS2021_00753/BraTS2021_00753_t2.nii.gz"
+      },
+      "split": "train",
+      "subject_id": "BraTS2021_00753"
+    },
+    {
+      "available_modalities": [
+        "t1",
+        "t1ce",
+        "t2",
+        "flair"
+      ],
+      "client_id": "client_7",
+      "index_row": 1075,
+      "missing_modalities": [],
+      "missingness_realisation_id": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+      "missingness_seed": 42,
+      "modality_combination_id": 15,
+      "modality_mask": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "paths": {
+        "flair": "new-not-previously-in-TCIA/BraTS2021_01391/BraTS2021_01391_flair.nii.gz",
+        "seg": "new-not-previously-in-TCIA/BraTS2021_01391/BraTS2021_01391_seg.nii.gz",
+        "t1": "new-not-previously-in-TCIA/BraTS2021_01391/BraTS2021_01391_t1.nii.gz",
+        "t1ce": "new-not-previously-in-TCIA/BraTS2021_01391/BraTS2021_01391_t1ce.nii.gz",
+        "t2": "new-not-previously-in-TCIA/BraTS2021_01391/BraTS2021_01391_t2.nii.gz"
+      },
+      "split": "train",
+      "subject_id": "BraTS2021_01391"
+    },
+    {
+      "available_modalities": [
+        "t1",
+        "t1ce",
+        "t2",
+        "flair"
+      ],
+      "client_id": "client_7",
+      "index_row": 222,
+      "missing_modalities": [],
+      "missingness_realisation_id": "857e92dbdfce1c6ab1b7f0575a2f584eef3ffce892915994724cbb234cc3f256",
+      "missingness_seed": 42,
+      "modality_combination_id": 15,
+      "modality_mask": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "paths": {
+        "flair": "TCGA-LGG/BraTS2021_01529/BraTS2021_01529_flair.nii.gz",
+        "seg": "TCGA-LGG/BraTS2021_01529/BraTS2021_01529_seg.nii.gz",
+        "t1": "TCGA-LGG/BraTS2021_01529/BraTS2021_01529_t1.nii.gz",
+        "t1ce": "TCGA-LGG/BraTS2021_01529/BraTS2021_01529_t1ce.nii.gz",
+        "t2": "TCGA-LGG/BraTS2021_01529/BraTS2021_01529_t2.nii.gz"
+      },
+      "split": "train",
+      "subject_id": "BraTS2021_01529"
+    }
+  ]
+}

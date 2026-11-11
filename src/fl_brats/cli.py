@@ -493,9 +493,10 @@ def create_partition_command(
         missingness_policy=policy_from_config(missingness),
         missingness_config=missingness,
     )
-    import shutil
-
-    shutil.copy2(source, destination / "split_manifest.json")
+    # Keep the split beside its partition so the partition folder is self-contained.
+    destination = output_dir / "split_manifest.json"
+    if split_path.resolve() != destination.resolve():
+        shutil.copy2(split_path, destination)
     typer.echo(json.dumps(result, indent=2))
 
 
@@ -530,6 +531,10 @@ def prepare_experiment_partition(
         missingness_config=missingness,
         remainder_to=str(data.get("partition_remainder", "final")),
     )
+    # verify-manifests expects the split beside the partition, as create-partition leaves it.
+    split_copy = destination / "split_manifest.json"
+    if source.resolve() != split_copy.resolve():
+        shutil.copy2(source, split_copy)
     typer.echo(json.dumps(result, indent=2))
 
 
@@ -564,10 +569,23 @@ def inspect_modalities(partition_root: Path = typer.Option(..., "--partition-roo
 
 @app.command("verify-manifests")
 def verify_manifest_command(
-    partition_root: Path = typer.Option(..., "--partition-root"), check_nifti: bool = False
+    partition_root: Path = typer.Option(..., "--partition-root"),
+    check_nifti: bool = False,
+    split_path: Path | None = typer.Option(
+        None,
+        "--split-path",
+        envvar="FL_BRATS_SPLIT_PATH",
+        help="Split to use when the partition folder has no split_manifest.json copy.",
+    ),
+    index_path: Path | None = typer.Option(
+        None,
+        "--index-path",
+        envvar="DATASET_INDEX_PATH",
+        help="Dataset index to use instead of the absolute path stored in the manifests.",
+    ),
 ) -> None:
     """Check split/partition hashes, coverage, duplication, and leakage."""
-    errors = verify_manifests(partition_root, check_nifti)
+    errors = verify_manifests(partition_root, check_nifti, split_path, index_path)
     if errors:
         typer.echo("\n".join(errors), err=True)
         raise typer.Exit(1)
@@ -1226,6 +1244,8 @@ def _experiment_values(config: Path | None, context: typer.Context) -> dict[str,
         "FL_BRATS_CHECKPOINT_ROOT": ("checkpoint_root",),
         "FL_BRATS_PARTITION_ROOT": ("data", "partition_root"),
         "FL_BRATS_SPLIT_PATH": ("data", "split_path"),
+        # Without it the held-out evaluator uses the absolute index path frozen in the split.
+        "DATASET_INDEX_PATH": ("data", "index_path"),
         "FL_BRATS_INITIAL_WEIGHTS": ("initial_weights",),
         "FL_BRATS_DEVICE": ("device",),
     }

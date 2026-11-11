@@ -1,4 +1,4 @@
-.PHONY: install install-dev sync lock lint format format-check typecheck test coverage precommit info show-config validate-config create-dirs check-environment environment-report init-run apptainer-build apptainer-test cluster-bootstrap cluster-env-check clean
+.PHONY: install install-dev sync lock lint format format-check typecheck test coverage precommit info show-config validate-config create-dirs log-dirs check-environment environment-report init-run apptainer-build apptainer-test cluster-bootstrap cluster-env-check clean
 install: ; uv sync
 install-dev: ; uv sync --group dev
 sync: ; uv sync
@@ -13,12 +13,14 @@ precommit: ; uv run pre-commit run --all-files
 info: ; uv run fedbrats info
 show-config: ; uv run fedbrats show-config
 validate-config: ; uv run fedbrats validate-config
-create-dirs: ; uv run fedbrats create-dirs
+create-dirs: log-dirs ; uv run fedbrats create-dirs
+# Slurm will not start a job whose --output folder is missing, so create every one the job scripts name.
+log-dirs: ; grep -rhoE '^\#SBATCH +--(output|error)=[^ ]+' slurm scripts | sed -E 's/.*=//; s|/[^/]*$$||' | sort -u | xargs mkdir -p
 check-environment: ; uv run fedbrats check-environment
 environment-report: ; uv run fedbrats write-environment-report --path outputs/environment.json
 init-run: ; uv run fedbrats init-run
 apptainer-build: ; ./apptainer/build.sh
 apptainer-test: ; ./apptainer/test.sh
-cluster-bootstrap: ; ./scripts/bootstrap_cluster.sh
-cluster-env-check: ; ./scripts/validate_environment.sh
+cluster-bootstrap: ; ./scripts/environment/bootstrap_cluster.sh
+cluster-env-check: ; ./scripts/environment/validate_environment.sh
 clean: ; rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov build dist

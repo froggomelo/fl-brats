@@ -107,3 +107,43 @@ def save(fig, name: str) -> list[Path]:
     fig.savefig(paths[0], dpi=220, bbox_inches="tight")
     fig.savefig(paths[1], bbox_inches="tight")
     return paths
+
+
+def draw_box(ax, x, top, w, title, lines=(), *, h=None, fill=SURFACE, edge=RULE, lw=0.7,
+             title_size=7.0, line_size=6.2, line_height=1.05, title_colour=INK, line_colour=MUTED):
+    """Draw a box hanging from `top` at report size, in tenths of an inch, and return its bottom edge."""
+    from matplotlib.patches import FancyBboxPatch
+
+    height = h if h is not None else 2.1 + line_height * len(lines)
+    y = top - height
+    ax.add_patch(
+        FancyBboxPatch((x, y), w, height, boxstyle="round,pad=0,rounding_size=0.35",
+                       facecolor=fill, edgecolor=edge, linewidth=lw)
+    )
+    ax.text(x + 0.45, top - 0.5, title, fontsize=title_size, fontweight="bold", color=title_colour, va="top")
+    for i, line in enumerate(lines):
+        ax.text(x + 0.45, top - 1.65 - line_height * i, line, fontsize=line_size, color=line_colour, va="top")
+    return y
+
+
+def draw_arrow(ax, start, end, *, colour=INK, both=False, lw=0.7, connection="arc3", dashed=False):
+    from matplotlib.patches import FancyArrowPatch
+
+    ax.add_patch(
+        FancyArrowPatch(
+            start, end, arrowstyle="<|-|>" if both else "-|>", mutation_scale=5.5, color=colour, linewidth=lw,
+            shrinkA=0, shrinkB=0, connectionstyle=connection, linestyle=(0, (3, 2)) if dashed else "-",
+        )
+    )
+
+
+def report_canvas(width: float, height: float):
+    """Return a figure sized in inches, with axes in tenths of an inch, so fonts print at their stated size."""
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(width, height))
+    fig.subplots_adjust(0, 0, 1, 1)
+    ax.set_xlim(0, width * 10)
+    ax.set_ylim(0, height * 10)
+    ax.axis("off")
+    return fig, ax

@@ -1,5 +1,5 @@
 name: brats2021
-raw_root: ${oc.env:FL_BRATS_RAW_ROOT}
+raw_root: ${oc.env:FL_BRATS_RAW_ROOT,${data_root}/raw/brats2021}
 processed_root: ${data_root}/processed/brats2021_v1
 partition_root: ${data_root}/partitions/fixed_quantity_skew
 modalities: [t1, t1ce, t2, flair]

@@ -16,19 +16,34 @@ def _hashed(payload: dict[str, object], key: str) -> bool:
     return claimed == sha256_payload(copy)
 
 
-def verify_manifests(root: Path, check_nifti: bool = False) -> list[str]:
+def verify_manifests(
+    root: Path,
+    check_nifti: bool = False,
+    split_path: Path | None = None,
+    index_path: Path | None = None,
+) -> list[str]:
+    """Verify a partition folder.
+
+    The split copy beside the partition wins when present; otherwise ``split_path``
+    (the canonical split) is used. ``index_path`` replaces the absolute index path
+    stored in the manifests, so the check works on any machine. The index hash
+    check still applies either way.
+    """
     errors = []
-    split_path = root / "split_manifest.json"
+    beside = root / "split_manifest.json"
+    split_path = beside if beside.exists() else split_path
     partition_path = root / "manifest.json"
-    if not split_path.exists() or not partition_path.exists():
-        return ["missing split or partition manifest"]
+    if split_path is None or not split_path.exists() or not partition_path.exists():
+        return ["missing split or partition manifest (pass --split-path)"]
     split = json.loads(split_path.read_text())
     partition = json.loads(partition_path.read_text())
     if not _hashed(split, "split_manifest_hash"):
         errors.append("split hash mismatch")
     if not _hashed(partition, "partition_manifest_hash"):
         errors.append("partition hash mismatch")
-    index_path = Path(partition.get("dataset_index_path", split.get("dataset_index_path", "")))
+    index_path = Path(
+        index_path or partition.get("dataset_index_path", split.get("dataset_index_path", ""))
+    )
     if not index_path.is_file():
         return errors + [f"dataset index missing: {index_path}"]
     if sha256_file(index_path) != split.get("dataset_index_hash") or sha256_file(

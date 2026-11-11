@@ -1,2 +1,0 @@
-fine_tuning_mode: adapter_decoder
-federated_scope: trainable_only

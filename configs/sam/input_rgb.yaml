@@ -1,5 +1,0 @@
-strategy: learned_4_to_3
-fixed_mapping: [flair, t1ce, t2]
-clip: [-5.0, 5.0]
-normalization: per_modality_preprocessed_zscore
-scaling_range: [0.0, 1.0]

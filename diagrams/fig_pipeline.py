@@ -5,7 +5,7 @@ from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 from common import ACCENT, INK, MUTED, NOTE, RULE, SURFACE, apply_style, load_partitions, save
 
-# Cohort sizes of the seeded 70/15/15 subject-level split (docs/dataset_splits.md).
+# Cohort sizes of the seeded 70/15/15 subject-level split (docs/data.md).
 TOTAL, VALIDATION, TEST = 1251, 187, 189
 
 

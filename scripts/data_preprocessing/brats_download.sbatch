@@ -36,8 +36,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=72:00:00
-#SBATCH --output=logs/data_preprocessing_preprocessing/download_%j.out
-#SBATCH --error=logs/data_preprocessing_preprocessing/download_%j.err
+#SBATCH --output=logs/data_preprocessing/download_%j.out
+#SBATCH --error=logs/data_preprocessing/download_%j.err
 #SBATCH --open-mode=append
 #SBATCH --requeue
 
