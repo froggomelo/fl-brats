@@ -1,4 +1,4 @@
-# fl-brats
+# Communication-Efficient Federated Learning for Brain Tumour Segmentation with Missing Modalities
 
 Federated brain tumour segmentation on BraTS 2021 under conditions closer to clinical practice. Clients hold uneven amounts of data, some scans lack MRI modalities, and every byte sent between the server and the clients is counted. FedAvg trains a 3D U-Net across physically separate cluster nodes, with one Flower server and one process per client, and is compared against a centrally trained U-Net.
 
