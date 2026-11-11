@@ -4,18 +4,6 @@ Federated brain tumour segmentation on BraTS 2021 under conditions closer to cli
 
 This repository holds the code, configurations, partitioning logic, and Slurm scripts behind every result in the accompanying research report.
 
-## Research Questions
-
-Each research question maps to a set of experiment families. Every family has a folder of YAML files under `configs/`, a launch script under `scripts/`, and a record of its runs and results in [Experiments.md](Experiments.md).
-
-| Research question | Experiment families |
-|---|---|
-| RQ1. How do communication cost and segmentation performance change as the federation grows, and how far can local epochs and mini-batch size offset these changes? | `centralized`, `fedavg_uneven`, `fedavg_even`, `fedavg_train_configs_uneven` |
-| RQ2. How do existing missing-modality methods compare when clients hold uneven amounts of data and different modality combinations? | `fedavg_missing_modalities_uneven` (zero-filled U-Net and FedAvg-MM), `fedamm_uneven` |
-| RQ3. How well do communication-efficiency strategies preserve segmentation performance, alone and combined with missing-modality handling? | `fedmpq_uneven`, `selective_transmission_uneven`, `comm_eff_uneven`, `fedavg_mm_comm_eff_uneven`, `fedamm_comm_eff_uneven`, `fedamm_comm_eff_ablation_uneven` |
-
-The `model_agnostic_uneven` family swaps the U-Net for SegResNet, SAM 1, and SAM 2. These runs are exploratory and do not appear in the report.
-
 ## Quick Start
 
 The project needs Python 3.11 and [uv](https://docs.astral.sh/uv/). Install the locked dependencies, check the configuration, and run the tests.
@@ -62,6 +50,18 @@ Every result follows the same five steps. Each guide linked below gives the full
 | `outputs/`, `logs/`, `checkpoints/`, `cache/` | Run results, logs, and caches, ignored by git except for hand-written records under `logs/` |
 | `Experiments.md` | Record of every experiment, its settings, and its results |
 
+## Research Questions
+
+Each research question maps to a set of experiment families. Every family has a folder of YAML files under `configs/`, a launch script under `scripts/`, and a record of its runs and results in [Experiments.md](Experiments.md).
+
+| Research question | Experiment families |
+|---|---|
+| RQ1. How do communication cost and segmentation performance change as the federation grows, and how far can local epochs and mini-batch size offset these changes? | `centralized`, `fedavg_uneven`, `fedavg_even`, `fedavg_train_configs_uneven` |
+| RQ2. How do existing missing-modality methods compare when clients hold uneven amounts of data and different modality combinations? | `fedavg_missing_modalities_uneven` (zero-filled U-Net and FedAvg-MM), `fedamm_uneven` |
+| RQ3. How well do communication-efficiency strategies preserve segmentation performance, alone and combined with missing-modality handling? | `fedmpq_uneven`, `selective_transmission_uneven`, `comm_eff_uneven`, `fedavg_mm_comm_eff_uneven`, `fedamm_comm_eff_uneven`, `fedamm_comm_eff_ablation_uneven` |
+
+The `model_agnostic_uneven` family swaps the U-Net for SegResNet, SAM 1, and SAM 2. These runs are exploratory and do not appear in the report.
+
 ## Documentation
 
 | Guide | Read it to |
@@ -79,16 +79,6 @@ Every result follows the same five steps. Each guide linked below gives the full
 | [Reproducibility](docs/reproducibility.md) | see what fixes a run's environment, data, and seeds |
 
 Dated operational notes, such as the campaign driver that kept runs going on the cluster and the record of unusable GPU nodes, live beside the logs they describe under `logs/`.
-
-## Development
-
-Run the checks below before committing. Pre-commit runs Ruff on every commit once `uv run pre-commit install` has been run.
-
-```bash
-make lint
-make typecheck
-make test
-```
 
 ## Licence
 
